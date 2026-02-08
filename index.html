@@ -6,14 +6,16 @@
     <title>Seattle Housing Buyer Lens</title>
     <style>
       :root {
-        --bg: #f4f1eb;
-        --card: #ffffff;
-        --ink: #1e1f23;
-        --muted: #676a74;
-        --line: #ded7cb;
-        --deep: #0e3b56;
-        --deep-2: #1e638d;
-        --warm: #8c5e20;
+        --bg-0: #05080f;
+        --bg-1: #0b1322;
+        --card: #101a2b;
+        --card-2: #0d1726;
+        --line: #24344e;
+        --ink: #edf3ff;
+        --muted: #9ab0d0;
+        --accent: #3ca8ff;
+        --accent-2: #32d18f;
+        --warm: #f0ad4e;
       }
       * { box-sizing: border-box; }
       body {
@@ -21,65 +23,67 @@
         color: var(--ink);
         font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
         background:
-          radial-gradient(1000px 500px at 10% -20%, #ecdfca 0%, transparent 60%),
-          radial-gradient(900px 500px at 90% -10%, #dfe8ee 0%, transparent 55%),
-          var(--bg);
+          radial-gradient(1200px 600px at -10% -20%, #193463 0%, transparent 55%),
+          radial-gradient(900px 500px at 110% -10%, #4d1f5c 0%, transparent 50%),
+          linear-gradient(180deg, var(--bg-1), var(--bg-0));
       }
+      a { color: #86ccff; }
       header {
-        max-width: 1200px;
+        max-width: 1260px;
         margin: 0 auto;
         padding: 28px 22px 10px;
       }
       h1 {
         margin: 0;
-        font-size: 34px;
         letter-spacing: 0.4px;
+        font-size: 34px;
       }
       .sub {
-        margin-top: 6px;
+        margin-top: 7px;
         color: var(--muted);
         font-size: 14px;
       }
       .status {
-        margin-top: 8px;
+        margin-top: 9px;
         color: var(--muted);
         font-size: 12px;
       }
-      .page-tabs {
+      .tabs {
         margin-top: 14px;
         display: inline-flex;
         border: 1px solid var(--line);
         border-radius: 999px;
         overflow: hidden;
-        background: #fff;
+        background: rgba(13, 23, 38, 0.8);
       }
-      .page-tab {
-        border: none;
+      .tab {
         background: transparent;
+        border: none;
+        color: var(--muted);
         padding: 9px 14px;
         font-size: 13px;
         cursor: pointer;
       }
-      .page-tab.active {
-        background: var(--deep);
+      .tab.active {
         color: #fff;
+        background: linear-gradient(135deg, #1e4f8a, #2f8fae);
       }
-      .shell {
-        max-width: 1200px;
+      .app {
+        max-width: 1260px;
         margin: 0 auto;
         padding: 14px 22px 28px;
         display: grid;
         gap: 14px;
       }
       .panel {
-        background: var(--card);
+        background: linear-gradient(180deg, rgba(16,26,43,0.94), rgba(11,20,36,0.94));
         border: 1px solid var(--line);
         border-radius: 14px;
         padding: 14px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+        box-shadow: 0 12px 26px rgba(0,0,0,0.32);
       }
       .panel h3 {
-        margin: 2px 0 10px;
+        margin: 0 0 10px;
         font-size: 18px;
       }
       .filters {
@@ -89,9 +93,9 @@
       }
       .field label {
         display: block;
-        font-size: 12px;
-        color: var(--muted);
         margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 12px;
       }
       select, input {
         width: 100%;
@@ -99,7 +103,8 @@
         border-radius: 10px;
         padding: 8px 10px;
         font-size: 14px;
-        background: #fff;
+        color: #f5f8ff;
+        background: #0a1220;
       }
       .actions {
         display: flex;
@@ -107,21 +112,44 @@
         gap: 8px;
       }
       .btn {
-        border: 1px solid var(--deep);
-        background: var(--deep);
-        color: #fff;
+        border: 1px solid #3375c2;
         border-radius: 10px;
         padding: 9px 12px;
+        background: linear-gradient(135deg, #225ca1, #2f99bd);
+        color: #fff;
         font-size: 13px;
         cursor: pointer;
       }
       .btn.alt {
-        background: #fff;
-        color: var(--deep);
+        background: #0a1220;
+        border-color: var(--line);
+        color: #d5e4ff;
       }
-      .filter-summary {
+      .summary {
         margin-top: 8px;
+        font-size: 12px;
         color: var(--muted);
+      }
+      .chips {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        font-size: 12px;
+        border: 1px solid #35567a;
+        background: #15233a;
+        color: #d4e6ff;
+        border-radius: 999px;
+        padding: 4px 8px;
+      }
+      .chip button {
+        margin-left: 6px;
+        border: none;
+        background: transparent;
+        color: #95b9e2;
+        cursor: pointer;
         font-size: 12px;
       }
       .view { display: none; }
@@ -132,23 +160,30 @@
         gap: 10px;
       }
       .kpi {
-        background: #fbfaf8;
+        width: 100%;
+        text-align: left;
         border: 1px solid var(--line);
         border-radius: 12px;
+        background: linear-gradient(180deg, #112340, #0e1d34);
+        color: #fff;
         padding: 10px;
+        cursor: pointer;
       }
-      .kpi .label {
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .kpi .value {
-        margin-top: 6px;
-        font-size: 22px;
+      .kpi:hover { border-color: #3e7ac3; }
+      .kpi.active { border-color: #4eb2ff; box-shadow: 0 0 0 1px rgba(78,178,255,0.35) inset; }
+      .kpi .label { color: var(--muted); font-size: 12px; }
+      .kpi .value { margin-top: 6px; font-size: 23px; }
+      .kpi .hint { margin-top: 6px; color: #79a9d8; font-size: 11px; }
+      .guide {
+        margin: 0;
+        padding-left: 18px;
+        color: #dbe8ff;
+        display: grid;
+        gap: 7px;
       }
       .insights {
         margin: 0;
         padding-left: 18px;
-        color: #2b2e35;
         display: grid;
         gap: 7px;
       }
@@ -161,25 +196,29 @@
         display: grid;
         gap: 8px;
       }
-      .bar-row {
+      .bar-btn {
+        border: 1px solid rgba(45, 68, 100, 0.35);
+        background: #0e1a2d;
+        border-radius: 10px;
+        color: #dbe8ff;
+        cursor: pointer;
+        padding: 6px;
         display: grid;
-        grid-template-columns: 100px 1fr 150px;
+        grid-template-columns: 110px 1fr 160px;
         gap: 8px;
         align-items: center;
         font-size: 13px;
       }
+      .bar-btn.active { border-color: #4eb2ff; }
       .track {
         width: 100%;
         height: 11px;
         border-radius: 999px;
-        background: #eee7dd;
         overflow: hidden;
+        background: #1e2d44;
       }
-      .fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--deep), var(--deep-2));
-      }
-      .fill.warm { background: linear-gradient(90deg, #9d6a1f, #c58a36); }
+      .fill { height: 100%; background: linear-gradient(90deg, #368ee8, #56d2ff); }
+      .fill.warm { background: linear-gradient(90deg, #cc8233, #f2be63); }
       table {
         width: 100%;
         border-collapse: collapse;
@@ -188,35 +227,47 @@
       th, td {
         text-align: left;
         padding: 8px 6px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid rgba(44, 62, 90, 0.7);
       }
-      th {
-        color: var(--muted);
-        font-weight: 600;
-      }
-      .mode {
+      th { color: var(--muted); font-weight: 600; }
+      tr.clickable { cursor: pointer; }
+      tr.clickable:hover { background: rgba(54,95,151,0.15); }
+      tr.active { background: rgba(78,178,255,0.16); }
+      .mode-pill {
         display: inline-block;
         font-size: 11px;
         padding: 2px 8px;
         border-radius: 999px;
-        border: 1px solid var(--line);
-        background: #f3f4f6;
+        background: #15243c;
+        border: 1px solid #2f4b70;
       }
+      .heat {
+        border-radius: 8px;
+        padding: 3px 6px;
+        display: inline-block;
+        min-width: 92px;
+      }
+      .tag-btn {
+        border: 1px solid #365579;
+        background: #12233a;
+        border-radius: 999px;
+        color: #dcecff;
+        font-size: 11px;
+        padding: 2px 8px;
+        cursor: pointer;
+      }
+      .tag-btn.active { border-color: #4eb2ff; }
       .mono {
         font-family: "SFMono-Regular", Menlo, Consolas, monospace;
         font-size: 12px;
         white-space: pre-wrap;
-        background: #f6f6f4;
+        background: #0a1322;
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 10px;
       }
-      .note {
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 12px;
-      }
-      @media (max-width: 1100px) {
+      .note { margin-top: 8px; color: var(--muted); font-size: 12px; }
+      @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
@@ -224,26 +275,25 @@
       @media (max-width: 680px) {
         .filters { grid-template-columns: 1fr 1fr; }
         .kpi-grid { grid-template-columns: 1fr 1fr; }
-        .actions { grid-column: span 2; }
       }
     </style>
   </head>
   <body>
     <header>
       <h1>Seattle Housing Buyer Lens</h1>
-      <div class="sub">Public-record market view with MLS-ready schema. All charts and tables share one dynamic filter state.</div>
-      <div class="page-tabs" role="tablist">
-        <button class="page-tab active" data-view="brief" role="tab">Market Brief</button>
-        <button class="page-tab" data-view="charts" role="tab">Charts</button>
-        <button class="page-tab" data-view="records" role="tab">Records</button>
-        <button class="page-tab" data-view="data" role="tab">Data</button>
+      <div class="sub">Market intelligence for Seattle home buyers using public-record sales now, with optional MLS-enriched fields later.</div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-view="brief" role="tab">Market Brief</button>
+        <button class="tab" data-view="charts" role="tab">Charts</button>
+        <button class="tab" data-view="records" role="tab">Records</button>
+        <button class="tab" data-view="data" role="tab">Data</button>
       </div>
       <div class="status" id="datasetStatus">Initializing dataset...</div>
     </header>
 
-    <main class="shell">
+    <main class="app">
       <section class="panel">
-        <h3>Filters</h3>
+        <h3>Global Filters</h3>
         <div class="filters">
           <div class="field">
             <label for="fNeighborhood">Neighborhood</label>
@@ -287,22 +337,60 @@
           <div class="actions">
             <button class="btn" id="exportCsvBtn" type="button">Export Filtered CSV</button>
             <button class="btn alt" id="resetBtn" type="button">Reset</button>
+            <button class="btn alt" id="clearInteractionsBtn" type="button">Clear Cross-Filters</button>
           </div>
         </div>
-        <div class="filter-summary" id="filterSummary">No data loaded.</div>
+        <div class="summary" id="filterSummary">No dataset loaded.</div>
+        <div class="chips" id="activeChips"></div>
       </section>
 
       <section id="view-brief" class="view active">
-        <div class="kpi-grid">
-          <div class="kpi"><div class="label">Sales Count</div><div class="value" id="kSales">0</div></div>
-          <div class="kpi"><div class="label">Median Close Price</div><div class="value" id="kMedianClose">$0</div></div>
-          <div class="kpi"><div class="label">Median Sale / Assessed</div><div class="value" id="kMedianSA">0.00x</div></div>
-          <div class="kpi"><div class="label">Share Above Assessed</div><div class="value" id="kAboveAssessed">0%</div></div>
-          <div class="kpi"><div class="label">Median Price / SqFt</div><div class="value" id="kPsf">$0</div></div>
-          <div class="kpi"><div class="label">Median Days to Pending (MLS)</div><div class="value" id="kPendingDays">n/a</div></div>
-        </div>
         <section class="panel">
-          <h3>Buyer Notes</h3>
+          <h3>What This Dashboard Is For</h3>
+          <ul class="guide">
+            <li>Use this to evaluate where Seattle buyers are paying above assessed value and how pricing pressure shifts month to month.</li>
+            <li>Every KPI, chart row, and key table row is clickable and acts as a cross-filter for every other view.</li>
+            <li>In `PUBLIC_PROXY` mode, `listDate` and `pendingDate` are placeholders from recorded data. In `MLS_ENRICHED`, true MLS fields are used when provided.</li>
+            <li>Color intensity is outlier-capped at robust percentile bounds so one extreme sale does not flatten the rest of the visualization.</li>
+            <li>Start with price/date filters, then click chart bars or KPI tiles to focus on a slice.</li>
+          </ul>
+        </section>
+
+        <div class="kpi-grid">
+          <button class="kpi" data-kpi="clear" type="button">
+            <div class="label">Sales Count</div>
+            <div class="value" id="kSales">0</div>
+            <div class="hint">Click to clear all cross-filters</div>
+          </button>
+          <button class="kpi" data-kpi="highClose" type="button">
+            <div class="label">Median Close Price</div>
+            <div class="value" id="kMedianClose">$0</div>
+            <div class="hint">Click to filter to closes >= median</div>
+          </button>
+          <button class="kpi" data-kpi="ratioMid" type="button">
+            <div class="label">Median Sale / Assessed</div>
+            <div class="value" id="kMedianSA">0.00x</div>
+            <div class="hint">Click to filter 1.00x - 1.05x</div>
+          </button>
+          <button class="kpi" data-kpi="ratioGt1" type="button">
+            <div class="label">Share Above Assessed</div>
+            <div class="value" id="kAboveAssessed">0%</div>
+            <div class="hint">Click to filter S/A > 1.00x</div>
+          </button>
+          <button class="kpi" data-kpi="highPsf" type="button">
+            <div class="label">Median Price / SqFt</div>
+            <div class="value" id="kPsf">$0</div>
+            <div class="hint">Click to filter $/sqft >= median</div>
+          </button>
+          <button class="kpi" data-kpi="mlsOnly" type="button">
+            <div class="label">Median Days to Pending (MLS)</div>
+            <div class="value" id="kPendingDays">n/a</div>
+            <div class="hint">Click to filter to MLS-enriched rows</div>
+          </button>
+        </div>
+
+        <section class="panel">
+          <h3>Current Slice Insights</h3>
           <ul class="insights" id="insights"></ul>
         </section>
       </section>
@@ -342,7 +430,7 @@
 
       <section id="view-records" class="view">
         <section class="panel">
-          <h3>Row-Level Sales Summary</h3>
+          <h3>Row-Level Summary</h3>
           <table>
             <thead>
               <tr>
@@ -356,32 +444,33 @@
                 <th>Close Price</th>
                 <th>Assessed</th>
                 <th>S/A</th>
+                <th>Δ vs List@Pending</th>
                 <th>Data Mode</th>
               </tr>
             </thead>
             <tbody id="recordRows"></tbody>
           </table>
-          <div class="note">Public proxy rows use recorded sale data. MLS-enriched rows can carry true list/pending fields.</div>
+          <div class="note">Address links open Zillow search pages. Columns with color fill are outlier-capped to protect readability.</div>
         </section>
       </section>
 
       <section id="view-data" class="view">
         <section class="panel">
-          <h3>Data Source and Upload</h3>
+          <h3>Dataset Loading</h3>
           <div class="note" id="uploadStatus">No file loaded.</div>
           <input id="csvFile" type="file" accept=".csv" />
 
-          <p class="note">Auto-load target file name:</p>
+          <p class="note">Auto-load target filename:</p>
           <div class="mono">public_sales_proxy_1p1m_1p4m_last6mo.csv</div>
 
           <p class="note">Minimum columns:</p>
           <div class="mono">id,address,type,closePrice</div>
 
           <p class="note">Recommended columns:</p>
-          <div class="mono">dataMode,neighborhood,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
+          <div class="mono">dataMode,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
 
-          <p class="note">Interpretation reminder:</p>
-          <div class="mono">Public records do not include true original list date or pending date. In PUBLIC_PROXY mode, those fields are placeholders unless MLS fields are provided.</div>
+          <p class="note">Intended use:</p>
+          <div class="mono">Buyer-side market interpretation and neighborhood comparison, not property valuation advice. PUBLIC_PROXY mode does not have true original list/pending timestamps.</div>
         </section>
       </section>
     </main>
@@ -411,6 +500,7 @@
         "98107": "Ballard",
         "98108": "Georgetown / South Park",
         "98109": "South Lake Union / Queen Anne",
+        "98111": "Downtown",
         "98112": "Capitol Hill / Madison Park",
         "98115": "Ravenna / Wedgwood",
         "98116": "West Seattle",
@@ -419,58 +509,87 @@
         "98119": "Queen Anne / Magnolia",
         "98121": "Belltown",
         "98122": "Capitol Hill / Central District",
+        "98124": "Downtown",
         "98125": "Lake City / North Seattle",
         "98126": "West Seattle / Delridge",
         "98133": "Northgate / Bitter Lake",
         "98134": "SoDo",
         "98136": "West Seattle / Fauntleroy",
         "98144": "Mount Baker / Central District",
+        "98154": "Downtown",
+        "98164": "Downtown",
+        "98174": "Downtown",
         "98177": "North Beach / Crown Hill",
+        "98194": "Downtown",
         "98199": "Magnolia",
       };
 
       const state = {
         rows: [],
         filtered: [],
+        baseRows: [],
+        interactions: {
+          month: null,
+          neighborhood: null,
+          type: null,
+          ratioBucket: null,
+          mode: null,
+          priceTier: null,
+          psfTier: null,
+        },
       };
+
+      function esc(v) {
+        return String(v ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
 
       function toDate(value) {
         if (!value) return null;
         const v = String(value).trim();
         if (!v) return null;
-        const isoDateLike = /^\d{4}-\d{2}-\d{2}$/;
-        const d = isoDateLike.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
+        const iso = /^\d{4}-\d{2}-\d{2}$/;
+        const d = iso.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
         return Number.isNaN(d.getTime()) ? null : d;
       }
 
       function toIso(value) {
         const d = toDate(value);
         if (!d) return "";
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        return `${y}-${m}-${day}`;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       }
 
-      function num(value) {
-        if (value === null || value === undefined || value === "") return 0;
-        const n = Number(String(value).replace(/[^0-9.-]/g, ""));
+      function num(v) {
+        if (v === null || v === undefined || v === "") return 0;
+        const n = Number(String(v).replace(/[^0-9.-]/g, ""));
         return Number.isFinite(n) ? n : 0;
       }
 
-      function formatMoney(n) {
-        return Number(n || 0).toLocaleString("en-US", {
-          style: "currency",
-          currency: "USD",
-          maximumFractionDigits: 0,
-        });
+      function formatMoney(v) {
+        return Number(v || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
       }
 
-      function median(arr) {
-        if (!arr.length) return 0;
-        const sorted = [...arr].sort((a, b) => a - b);
+      function median(values) {
+        if (!values.length) return 0;
+        const sorted = [...values].sort((a, b) => a - b);
         const mid = Math.floor(sorted.length / 2);
         return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      }
+
+      function quantile(values, q) {
+        if (!values.length) return 0;
+        const sorted = [...values].sort((a, b) => a - b);
+        const pos = (sorted.length - 1) * q;
+        const base = Math.floor(pos);
+        const rest = pos - base;
+        if (sorted[base + 1] !== undefined) {
+          return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+        }
+        return sorted[base];
       }
 
       function daysBetween(a, b) {
@@ -478,6 +597,12 @@
         const d2 = toDate(b);
         if (!d1 || !d2) return null;
         return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+      }
+
+      function monthKey(isoDate) {
+        const d = toDate(isoDate);
+        if (!d) return "Unknown";
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       }
 
       function parseCsvLine(line) {
@@ -510,7 +635,7 @@
         const headers = parseCsvLine(lines[0]);
         const idx = Object.fromEntries(headers.map((h, i) => [h, i]));
         const required = ["id", "address", "type", "closePrice"];
-        const missing = required.filter((k) => idx[k] === undefined);
+        const missing = required.filter((key) => idx[key] === undefined);
         if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}`);
 
         return lines.slice(1).filter((line) => line.trim()).map((line) => {
@@ -557,9 +682,7 @@
         const raw = String(rawNeighborhood || "").trim();
         if (/[a-z]/i.test(raw)) return raw;
         const z = (String(zip || "").match(/[0-9]{5}/) || [])[0] || "";
-        if (ZIP_NEIGHBORHOOD[z]) return ZIP_NEIGHBORHOOD[z];
-        if (/^981[0-9]{2}$/.test(z)) return `Seattle ${z}`;
-        return "Seattle (Other)";
+        return ZIP_NEIGHBORHOOD[z] || "Seattle (Other)";
       }
 
       function labelType(rawType, typeCode) {
@@ -574,6 +697,7 @@
         const saleDate = source.saleDate || source.closeDate || source.pendingDate || source.listDate || source.mlsCloseDate || "";
         const listDate = source.mlsListDate || source.listDate || "";
         const pendingDate = source.mlsPendingDate || source.pendingDate || "";
+
         const closePrice = num(source.mlsClosePrice || source.closePrice);
         const assessedValue = num(source.assessedValue);
         const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || assessedValue || closePrice);
@@ -581,10 +705,14 @@
         const saleToAssessed = assessedValue > 0 ? closePrice / assessedValue : 0;
         const delta = closePrice - listPriceAtPending;
         const deltaPct = listPriceAtPending > 0 ? delta / listPriceAtPending : 0;
-        const pricePerSqft = source.sqft > 0 ? closePrice / source.sqft : 0;
+        const sqft = num(source.sqft);
+        const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
 
         return {
           ...source,
+          id: source.id || "",
+          address: source.address || "",
+          zip: source.zip || "",
           dataMode,
           typeLabel: labelType(source.type, source.typeCode),
           neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
@@ -596,7 +724,7 @@
           listPriceAtPending,
           beds: num(source.beds),
           baths: num(source.baths),
-          sqft: num(source.sqft),
+          sqft,
           yearBuilt: num(source.yearBuilt),
           daysToPending,
           saleToAssessed,
@@ -606,25 +734,12 @@
         };
       }
 
-      function uniqueValues(rows, key) {
-        return ["All", ...Array.from(new Set(rows.map((r) => r[key]).filter(Boolean))).sort()];
+      function zillowUrl(row) {
+        const q = encodeURIComponent(`${row.address} Seattle WA ${row.zip || ""}`.trim());
+        return `https://www.zillow.com/homes/${q}_rb/`;
       }
 
-      function populateFilters() {
-        const normalized = state.rows.map(normalizeRow);
-
-        const neighborhoodOptions = uniqueValues(normalized, "neighborhoodLabel");
-        document.getElementById("fNeighborhood").innerHTML = neighborhoodOptions
-          .map((v) => `<option value="${v}">${v}</option>`)
-          .join("");
-
-        const typeOptions = uniqueValues(normalized, "typeLabel");
-        document.getElementById("fType").innerHTML = typeOptions
-          .map((v) => `<option value="${v}">${v}</option>`)
-          .join("");
-      }
-
-      function readFilters() {
+      function getFormFilters() {
         return {
           neighborhood: document.getElementById("fNeighborhood").value,
           type: document.getElementById("fType").value,
@@ -637,131 +752,298 @@
         };
       }
 
-      function applyFilters() {
-        const f = readFilters();
+      function uniqueValues(rows, key) {
+        return ["All", ...Array.from(new Set(rows.map((r) => r[key]).filter(Boolean))).sort()];
+      }
+
+      function refreshFilterOptions(rows) {
+        const prevNeighborhood = document.getElementById("fNeighborhood").value || "All";
+        const prevType = document.getElementById("fType").value || "All";
+
+        const neighborhoods = uniqueValues(rows, "neighborhoodLabel");
+        const types = uniqueValues(rows, "typeLabel");
+
+        document.getElementById("fNeighborhood").innerHTML = neighborhoods.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+        document.getElementById("fType").innerHTML = types.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+
+        document.getElementById("fNeighborhood").value = neighborhoods.includes(prevNeighborhood) ? prevNeighborhood : "All";
+        document.getElementById("fType").value = types.includes(prevType) ? prevType : "All";
+      }
+
+      function computeBaseRows() {
+        const form = getFormFilters();
         let rows = state.rows.map(normalizeRow).filter((r) => r.closePrice > 0 && !!r.saleDate);
 
-        if (f.neighborhood !== "All") rows = rows.filter((r) => r.neighborhoodLabel === f.neighborhood);
-        if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
-        if (f.mode !== "All") rows = rows.filter((r) => r.dataMode === f.mode);
-        if (f.minClose) rows = rows.filter((r) => r.closePrice >= f.minClose);
-        if (f.maxClose) rows = rows.filter((r) => r.closePrice <= f.maxClose);
-        if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
-        if (f.dateTo) rows = rows.filter((r) => r.saleDate <= f.dateTo);
+        if (form.neighborhood !== "All") rows = rows.filter((r) => r.neighborhoodLabel === form.neighborhood);
+        if (form.type !== "All") rows = rows.filter((r) => r.typeLabel === form.type);
+        if (form.mode !== "All") rows = rows.filter((r) => r.dataMode === form.mode);
+        if (form.minClose) rows = rows.filter((r) => r.closePrice >= form.minClose);
+        if (form.maxClose) rows = rows.filter((r) => r.closePrice <= form.maxClose);
+        if (form.dateFrom) rows = rows.filter((r) => r.saleDate >= form.dateFrom);
+        if (form.dateTo) rows = rows.filter((r) => r.saleDate <= form.dateTo);
 
-        if (f.scope === "pending7") {
+        if (form.scope === "pending7") {
           rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null && r.daysToPending <= 7);
         }
 
-        state.filtered = rows;
-        renderAll();
+        return rows;
       }
 
-      function renderFilterSummary(rows) {
-        const mlsCount = rows.filter((r) => r.dataMode === "MLS_ENRICHED").length;
-        const publicCount = rows.length - mlsCount;
+      function computeStats(rows) {
+        const closeVals = rows.map((r) => r.closePrice);
+        const ratioVals = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const psfVals = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
+        const pendingVals = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null).map((r) => r.daysToPending);
+        return {
+          medianClose: median(closeVals),
+          medianRatio: median(ratioVals),
+          medianPsf: median(psfVals),
+          medianPendingDays: median(pendingVals),
+        };
+      }
+
+      function inRatioBucket(value, bucket) {
+        if (bucket === "lt095") return value > 0 && value < 0.95;
+        if (bucket === "095to100") return value >= 0.95 && value < 1.0;
+        if (bucket === "100to105") return value >= 1.0 && value <= 1.05;
+        if (bucket === "gt105") return value > 1.05;
+        if (bucket === "gt100") return value > 1.0;
+        return true;
+      }
+
+      function applyInteractionFilters(baseRows, baseStats) {
+        const i = state.interactions;
+        return baseRows.filter((r) => {
+          if (i.month && monthKey(r.saleDate) !== i.month) return false;
+          if (i.neighborhood && r.neighborhoodLabel !== i.neighborhood) return false;
+          if (i.type && r.typeLabel !== i.type) return false;
+          if (i.mode && r.dataMode !== i.mode) return false;
+          if (i.ratioBucket && !inRatioBucket(r.saleToAssessed, i.ratioBucket)) return false;
+          if (i.priceTier === "aboveMedian" && r.closePrice < baseStats.medianClose) return false;
+          if (i.psfTier === "aboveMedian") {
+            if (r.pricePerSqft <= 0 || r.pricePerSqft < baseStats.medianPsf) return false;
+          }
+          return true;
+        });
+      }
+
+      function buildSequentialScale(values) {
+        if (!values.length) return () => 0;
+        const low = quantile(values, 0.05);
+        const high = quantile(values, 0.95);
+        const span = high - low;
+        if (span <= 0) return () => 0.5;
+        return (v) => {
+          const clamped = Math.max(low, Math.min(high, v));
+          return (clamped - low) / span;
+        };
+      }
+
+      function buildDivergingScale(values) {
+        const abs = values.map((v) => Math.abs(v)).filter((v) => v > 0);
+        if (!abs.length) return () => 0;
+        const cap = quantile(abs, 0.95) || 1;
+        return (v) => {
+          const clamped = Math.max(-cap, Math.min(cap, v));
+          return clamped / cap;
+        };
+      }
+
+      function seqHeatStyle(norm, tone) {
+        const pct = Math.round(Math.max(0, Math.min(1, norm)) * 100);
+        return `background: linear-gradient(90deg, ${tone} ${pct}%, rgba(255,255,255,0.04) ${pct}%);`;
+      }
+
+      function divHeatStyle(norm) {
+        const pct = Math.round(Math.max(0, Math.min(1, Math.abs(norm))) * 100);
+        const tone = norm >= 0 ? "rgba(47, 191, 118, 0.34)" : "rgba(225, 84, 106, 0.34)";
+        return `background: linear-gradient(90deg, ${tone} ${pct}%, rgba(255,255,255,0.04) ${pct}%);`;
+      }
+
+      function interactionLabel(key, value) {
+        const mapping = {
+          month: "Month",
+          neighborhood: "Neighborhood",
+          type: "Type",
+          ratioBucket: "Ratio Bucket",
+          mode: "Mode",
+          priceTier: "Price Tier",
+          psfTier: "$/SqFt Tier",
+        };
+        const prettyValue = {
+          lt095: "< 0.95x",
+          "095to100": "0.95x - 1.00x",
+          "100to105": "1.00x - 1.05x",
+          gt105: "> 1.05x",
+          gt100: "> 1.00x",
+          aboveMedian: "Above Median",
+        };
+        return `${mapping[key] || key}: ${prettyValue[value] || value}`;
+      }
+
+      function renderInteractionChips() {
+        const container = document.getElementById("activeChips");
+        const entries = Object.entries(state.interactions).filter(([, value]) => value);
+        if (!entries.length) {
+          container.innerHTML = `<span class="chip">No cross-filters active</span>`;
+          return;
+        }
+        container.innerHTML = entries.map(([key, value]) => {
+          return `<span class="chip">${esc(interactionLabel(key, value))}<button type="button" data-clear-interaction="${esc(key)}">x</button></span>`;
+        }).join("");
+      }
+
+      function setKpiActiveStates() {
+        document.querySelectorAll(".kpi").forEach((el) => el.classList.remove("active"));
+        if (state.interactions.priceTier === "aboveMedian") document.querySelector('[data-kpi="highClose"]').classList.add("active");
+        if (state.interactions.ratioBucket === "100to105") document.querySelector('[data-kpi="ratioMid"]').classList.add("active");
+        if (state.interactions.ratioBucket === "gt100") document.querySelector('[data-kpi="ratioGt1"]').classList.add("active");
+        if (state.interactions.psfTier === "aboveMedian") document.querySelector('[data-kpi="highPsf"]').classList.add("active");
+        if (state.interactions.mode === "MLS_ENRICHED") document.querySelector('[data-kpi="mlsOnly"]').classList.add("active");
+      }
+
+      function renderSummary(filtered, baseRows) {
+        const mlsCount = filtered.filter((r) => r.dataMode === "MLS_ENRICHED").length;
+        const publicCount = filtered.length - mlsCount;
         document.getElementById("filterSummary").textContent =
-          `Showing ${rows.length} sales | ${publicCount} Public Proxy | ${mlsCount} MLS Enriched`;
+          `Base rows: ${baseRows.length} | Current slice: ${filtered.length} | Public Proxy: ${publicCount} | MLS Enriched: ${mlsCount}`;
       }
 
-      function renderKpis(rows) {
-        const medianClose = median(rows.map((r) => r.closePrice));
-        const ratios = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
-        const overAssessedPct = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
-        const psfMedian = median(rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft));
+      function renderKpis(rows, baseStats) {
+        const ratioVals = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const psfVals = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
         const mlsPending = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null).map((r) => r.daysToPending);
 
         document.getElementById("kSales").textContent = rows.length;
-        document.getElementById("kMedianClose").textContent = formatMoney(medianClose);
-        document.getElementById("kMedianSA").textContent = `${median(ratios).toFixed(2)}x`;
-        document.getElementById("kAboveAssessed").textContent = `${overAssessedPct.toFixed(1)}%`;
-        document.getElementById("kPsf").textContent = formatMoney(psfMedian);
+        document.getElementById("kMedianClose").textContent = formatMoney(median(rows.map((r) => r.closePrice)));
+        document.getElementById("kMedianSA").textContent = `${median(ratioVals).toFixed(2)}x`;
+
+        const aboveAssessed = ratioVals.length ? (ratioVals.filter((v) => v > 1).length / ratioVals.length) * 100 : 0;
+        document.getElementById("kAboveAssessed").textContent = `${aboveAssessed.toFixed(1)}%`;
+        document.getElementById("kPsf").textContent = formatMoney(median(psfVals));
         document.getElementById("kPendingDays").textContent = mlsPending.length ? `${median(mlsPending).toFixed(0)} days` : "n/a";
+
+        setKpiActiveStates();
       }
 
-      function monthKey(isoDate) {
-        const d = toDate(isoDate);
-        if (!d) return "Unknown";
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      }
-
-      function renderBarChart(containerId, items, valueAccessor, labelAccessor, tailAccessor, warm) {
-        const el = document.getElementById(containerId);
-        if (!items.length) {
-          el.innerHTML = `<div class="note">No rows for current filters.</div>`;
+      function renderInsights(rows, baseStats) {
+        const el = document.getElementById("insights");
+        if (!rows.length) {
+          el.innerHTML = `<li>No rows match current filters. Broaden neighborhood, price, date, or clear cross-filters.</li>`;
           return;
         }
-        const max = Math.max(...items.map((i) => valueAccessor(i)), 1);
-        el.innerHTML = items.map((item) => {
-          const value = valueAccessor(item);
-          const width = Math.round((value / max) * 100);
+
+        const ratioVals = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const overShare = ratioVals.length ? (ratioVals.filter((v) => v > 1).length / ratioVals.length) * 100 : 0;
+
+        const neighborhoodCounts = {};
+        rows.forEach((r) => { neighborhoodCounts[r.neighborhoodLabel] = (neighborhoodCounts[r.neighborhoodLabel] || 0) + 1; });
+        const topNeighborhood = Object.entries(neighborhoodCounts).sort((a, b) => b[1] - a[1])[0];
+
+        const monthlyCounts = {};
+        rows.forEach((r) => { const m = monthKey(r.saleDate); monthlyCounts[m] = (monthlyCounts[m] || 0) + 1; });
+        const hottestMonth = Object.entries(monthlyCounts).sort((a, b) => b[1] - a[1])[0];
+
+        const lines = [
+          `Median close price is ${formatMoney(median(rows.map((r) => r.closePrice)))} across ${rows.length} homes in this slice.`,
+          `${overShare.toFixed(1)}% of homes closed above assessed value (median S/A ${median(ratioVals).toFixed(2)}x).`,
+          `Highest transaction concentration is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
+          `Most active month here is ${hottestMonth ? hottestMonth[0] : "n/a"} (${hottestMonth ? hottestMonth[1] : 0} sales).`,
+        ];
+
+        const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null);
+        if (mlsRows.length) {
+          lines.push(`MLS-enriched rows show median ${median(mlsRows.map((r) => r.daysToPending)).toFixed(0)} days to pending.`);
+        } else {
+          lines.push("No MLS-enriched rows in this slice, so true original list-to-pending timing is unavailable.");
+        }
+
+        lines.push("Outlier capping is applied to color intensity and bar scaling using robust percentile bounds.");
+
+        el.innerHTML = lines.map((line) => `<li>${esc(line)}</li>`).join("");
+      }
+
+      function renderBarChart(containerId, items, valueFn, labelFn, tailFn, warm) {
+        const container = document.getElementById(containerId);
+        if (!items.length) {
+          container.innerHTML = `<div class="note">No rows for current filters.</div>`;
+          return;
+        }
+        const robustTop = Math.max(quantile(items.map((x) => valueFn(x)), 0.95), 1);
+        container.innerHTML = items.map((item) => {
+          const value = valueFn(item);
+          const widthPct = Math.min(100, Math.round((value / robustTop) * 100));
+          const active = state.interactions.month === item.month;
           return `
-            <div class="bar-row">
-              <div>${labelAccessor(item)}</div>
-              <div class="track"><div class="fill ${warm ? "warm" : ""}" style="width:${width}%"></div></div>
-              <div>${tailAccessor(item)}</div>
-            </div>
+            <button class="bar-btn ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button">
+              <span>${esc(labelFn(item))}</span>
+              <span class="track"><span class="fill ${warm ? "warm" : ""}" style="width:${widthPct}%"></span></span>
+              <span>${esc(tailFn(item))}</span>
+            </button>
           `;
         }).join("");
       }
 
-      function renderVolumeChart(rows) {
-        const grouped = {};
+      function renderCharts(rows) {
+        const byMonthVolume = {};
         rows.forEach((r) => {
-          const key = monthKey(r.saleDate);
-          if (!grouped[key]) grouped[key] = { month: key, count: 0 };
-          grouped[key].count += 1;
+          const m = monthKey(r.saleDate);
+          if (!byMonthVolume[m]) byMonthVolume[m] = { month: m, count: 0 };
+          byMonthVolume[m].count += 1;
         });
-        const items = Object.values(grouped).sort((a, b) => a.month.localeCompare(b.month));
+        const volumeItems = Object.values(byMonthVolume).sort((a, b) => a.month.localeCompare(b.month));
+
         renderBarChart(
           "chartVolume",
-          items,
-          (i) => i.count,
-          (i) => i.month,
-          (i) => `${i.count} sales`,
+          volumeItems,
+          (x) => x.count,
+          (x) => x.month,
+          (x) => `${x.count} sales`,
           false
         );
-      }
 
-      function renderMedianPriceChart(rows) {
-        const grouped = {};
+        const byMonthPrice = {};
         rows.forEach((r) => {
-          const key = monthKey(r.saleDate);
-          if (!grouped[key]) grouped[key] = [];
-          grouped[key].push(r.closePrice);
+          const m = monthKey(r.saleDate);
+          if (!byMonthPrice[m]) byMonthPrice[m] = [];
+          byMonthPrice[m].push(r.closePrice);
         });
-        const items = Object.entries(grouped)
+        const priceItems = Object.entries(byMonthPrice)
           .map(([month, prices]) => ({ month, medianPrice: median(prices) }))
           .sort((a, b) => a.month.localeCompare(b.month));
+
         renderBarChart(
           "chartMedianPrice",
-          items,
-          (i) => i.medianPrice,
-          (i) => i.month,
-          (i) => formatMoney(i.medianPrice),
+          priceItems,
+          (x) => x.medianPrice,
+          (x) => x.month,
+          (x) => formatMoney(x.medianPrice),
           true
         );
       }
 
-      function renderRatioBuckets(rows) {
+      function renderRatioTable(rows) {
         const tbody = document.getElementById("ratioRows");
         if (!rows.length) {
           tbody.innerHTML = `<tr><td colspan="4">No rows for current filters.</td></tr>`;
           return;
         }
+
         const buckets = [
-          { label: "< 0.95x", min: -Infinity, max: 0.95 },
-          { label: "0.95x - 1.00x", min: 0.95, max: 1.0 },
-          { label: "1.00x - 1.05x", min: 1.0, max: 1.05 },
-          { label: "> 1.05x", min: 1.05, max: Infinity },
+          { key: "lt095", label: "< 0.95x" },
+          { key: "095to100", label: "0.95x - 1.00x" },
+          { key: "100to105", label: "1.00x - 1.05x" },
+          { key: "gt105", label: "> 1.05x" },
         ];
+
         const total = rows.length;
         tbody.innerHTML = buckets.map((b) => {
-          const set = rows.filter((r) => r.saleToAssessed > b.min && r.saleToAssessed <= b.max);
+          const set = rows.filter((r) => inRatioBucket(r.saleToAssessed, b.key));
           const share = total ? ((set.length / total) * 100).toFixed(1) : "0.0";
+          const active = state.interactions.ratioBucket === b.key;
           return `
-            <tr>
-              <td>${b.label}</td>
+            <tr class="clickable ${active ? "active" : ""}" data-set-interaction="ratioBucket" data-set-value="${b.key}">
+              <td>${esc(b.label)}</td>
               <td>${set.length}</td>
               <td>${share}%</td>
               <td>${formatMoney(median(set.map((r) => r.closePrice)))}</td>
@@ -776,117 +1058,108 @@
           tbody.innerHTML = `<tr><td colspan="4">No rows for current filters.</td></tr>`;
           return;
         }
+
         const grouped = {};
         rows.forEach((r) => {
           if (!grouped[r.neighborhoodLabel]) grouped[r.neighborhoodLabel] = [];
           grouped[r.neighborhoodLabel].push(r);
         });
+
         const ranked = Object.entries(grouped)
           .map(([name, set]) => ({
             name,
             count: set.length,
             medianClose: median(set.map((r) => r.closePrice)),
-            medianSA: median(set.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed)),
+            medianRatio: median(set.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed)),
           }))
           .sort((a, b) => (b.count - a.count) || (b.medianClose - a.medianClose))
-          .slice(0, 15);
+          .slice(0, 18);
 
-        tbody.innerHTML = ranked.map((r) => `
-          <tr>
-            <td>${r.name}</td>
-            <td>${r.count}</td>
-            <td>${formatMoney(r.medianClose)}</td>
-            <td>${r.medianSA.toFixed(2)}x</td>
-          </tr>
-        `).join("");
-      }
-
-      function renderInsights(rows) {
-        const el = document.getElementById("insights");
-        if (!rows.length) {
-          el.innerHTML = `<li>No rows match current filters. Widen price/date or switch scope back to All Sales.</li>`;
-          return;
-        }
-
-        const medianClose = median(rows.map((r) => r.closePrice));
-        const medianSA = median(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
-        const overShare = rows.filter((r) => r.saleToAssessed > 1).length / rows.length;
-        const groupedByNeighborhood = {};
-        rows.forEach((r) => {
-          groupedByNeighborhood[r.neighborhoodLabel] = (groupedByNeighborhood[r.neighborhoodLabel] || 0) + 1;
-        });
-        const topNeighborhood = Object.entries(groupedByNeighborhood).sort((a, b) => b[1] - a[1])[0];
-
-        const monthlyCounts = {};
-        rows.forEach((r) => {
-          const m = monthKey(r.saleDate);
-          monthlyCounts[m] = (monthlyCounts[m] || 0) + 1;
-        });
-        const hottestMonth = Object.entries(monthlyCounts).sort((a, b) => b[1] - a[1])[0];
-
-        const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null);
-        const publicShare = rows.filter((r) => r.dataMode === "PUBLIC_PROXY").length / rows.length;
-
-        const lines = [
-          `Median close price in this slice is ${formatMoney(medianClose)} across ${rows.length} sales.`,
-          `${(overShare * 100).toFixed(1)}% of homes closed above assessed value (median S/A ${medianSA.toFixed(2)}x).`,
-          `Most active neighborhood in this filter is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
-          `Peak month in this view is ${hottestMonth ? hottestMonth[0] : "n/a"} (${hottestMonth ? hottestMonth[1] : 0} sales).`,
-        ];
-
-        if (mlsRows.length) {
-          lines.push(`MLS-enriched subset shows median ${median(mlsRows.map((r) => r.daysToPending)).toFixed(0)} days to pending.`);
-        } else {
-          lines.push("No MLS-enriched rows in this filter, so true days-to-pending/list-to-close metrics are unavailable here.");
-        }
-
-        if (publicShare >= 0.5) {
-          lines.push("Public Proxy mode uses recorded sale data; list and pending dates are placeholders unless MLS fields are supplied.");
-        }
-
-        el.innerHTML = lines.map((line) => `<li>${line}</li>`).join("");
+        tbody.innerHTML = ranked.map((r) => {
+          const active = state.interactions.neighborhood === r.name;
+          return `
+            <tr class="clickable ${active ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.name)}">
+              <td>${esc(r.name)}</td>
+              <td>${r.count}</td>
+              <td>${formatMoney(r.medianClose)}</td>
+              <td>${r.medianRatio.toFixed(2)}x</td>
+            </tr>
+          `;
+        }).join("");
       }
 
       function renderRecords(rows) {
         const tbody = document.getElementById("recordRows");
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="11">No rows for current filters.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="12">No rows for current filters.</td></tr>`;
           return;
         }
+
+        const closeScale = buildSequentialScale(rows.map((r) => r.closePrice));
+        const ratioScale = buildSequentialScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
+        const deltaScale = buildDivergingScale(rows.map((r) => r.delta));
+
         tbody.innerHTML = rows
           .slice()
           .sort((a, b) => b.saleDate.localeCompare(a.saleDate))
-          .map((r) => `
-            <tr>
-              <td>${r.address}</td>
-              <td>${r.neighborhoodLabel}</td>
-              <td>${r.typeLabel}</td>
-              <td>${r.beds || 0}</td>
-              <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
-              <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
-              <td>${r.saleDate || "n/a"}</td>
-              <td>${formatMoney(r.closePrice)}</td>
-              <td>${formatMoney(r.assessedValue)}</td>
-              <td>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</td>
-              <td><span class="mode">${r.dataMode}</span></td>
-            </tr>
-          `)
+          .map((r) => {
+            const closeStyle = seqHeatStyle(closeScale(r.closePrice), "rgba(54, 153, 235, 0.30)");
+            const ratioStyle = seqHeatStyle(r.saleToAssessed > 0 ? ratioScale(r.saleToAssessed) : 0, "rgba(58, 195, 142, 0.30)");
+            const deltaStyle = divHeatStyle(deltaScale(r.delta));
+
+            const nActive = state.interactions.neighborhood === r.neighborhoodLabel;
+            const tActive = state.interactions.type === r.typeLabel;
+
+            return `
+              <tr>
+                <td><a href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address)}</a></td>
+                <td><button type="button" class="tag-btn ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
+                <td><button type="button" class="tag-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
+                <td>${r.beds || 0}</td>
+                <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
+                <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
+                <td><button type="button" class="tag-btn ${state.interactions.month === monthKey(r.saleDate) ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(monthKey(r.saleDate))}">${esc(r.saleDate || "n/a")}</button></td>
+                <td><span class="heat" style="${closeStyle}">${formatMoney(r.closePrice)}</span></td>
+                <td>${formatMoney(r.assessedValue)}</td>
+                <td><span class="heat" style="${ratioStyle}">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</span></td>
+                <td><span class="heat" style="${deltaStyle}">${formatMoney(r.delta)}</span></td>
+                <td><span class="mode-pill">${esc(r.dataMode)}</span></td>
+              </tr>
+            `;
+          })
           .join("");
       }
 
-      function renderAll() {
-        const rows = state.filtered;
-        renderFilterSummary(rows);
-        renderKpis(rows);
-        renderInsights(rows);
-        renderVolumeChart(rows);
-        renderMedianPriceChart(rows);
-        renderRatioBuckets(rows);
-        renderRankTable(rows);
-        renderRecords(rows);
+      function renderEverything() {
+        const baseRows = computeBaseRows();
+        state.baseRows = baseRows;
+        const baseStats = computeStats(baseRows);
+
+        const filtered = applyInteractionFilters(baseRows, baseStats);
+        state.filtered = filtered;
+
+        renderSummary(filtered, baseRows);
+        renderInteractionChips();
+        renderKpis(filtered, baseStats);
+        renderInsights(filtered, baseStats);
+        renderCharts(filtered);
+        renderRatioTable(filtered);
+        renderRankTable(filtered);
+        renderRecords(filtered);
       }
 
-      function resetFilters() {
+      function toggleInteraction(key, value) {
+        const current = state.interactions[key];
+        state.interactions[key] = current === value ? null : value;
+        renderEverything();
+      }
+
+      function clearAllInteractions() {
+        Object.keys(state.interactions).forEach((k) => { state.interactions[k] = null; });
+        renderEverything();
+      }
+
+      function resetFormFilters() {
         document.getElementById("fNeighborhood").value = "All";
         document.getElementById("fType").value = "All";
         document.getElementById("fMode").value = "All";
@@ -895,27 +1168,25 @@
         document.getElementById("fMaxClose").value = "";
         document.getElementById("fDateFrom").value = "";
         document.getElementById("fDateTo").value = "";
-        applyFilters();
       }
 
-      function escapeCsv(value) {
-        const text = String(value ?? "");
-        if (text.includes(",") || text.includes('"') || text.includes("\n")) {
-          return `"${text.replace(/"/g, '""')}"`;
+      function escapeCsv(v) {
+        const s = String(v ?? "");
+        if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+          return `"${s.replace(/"/g, '""')}"`;
         }
-        return text;
+        return s;
       }
 
       function exportFilteredCsv() {
-        const rows = state.filtered;
-        if (!rows.length) return;
+        if (!state.filtered.length) return;
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
           "closePrice","assessedValue","saleToAssessed","listPriceAtPending","delta","deltaPct",
           "beds","baths","sqft","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
-        rows.forEach((r) => {
+        state.filtered.forEach((r) => {
           lines.push([
             r.id,
             r.address,
@@ -950,44 +1221,73 @@
         URL.revokeObjectURL(url);
       }
 
-      async function autoLoadDefault() {
+      async function autoLoadDefaultDataset() {
         const status = document.getElementById("datasetStatus");
         try {
           const response = await fetch(DEFAULT_DATASET, { cache: "no-store" });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const text = await response.text();
           state.rows = parseCsv(text);
-          populateFilters();
-          applyFilters();
+          const normalized = state.rows.map(normalizeRow);
+          refreshFilterOptions(normalized);
+          renderEverything();
           document.getElementById("uploadStatus").textContent = `Auto-loaded ${DEFAULT_DATASET}.`;
           status.textContent = `Auto-loaded ${DEFAULT_DATASET} (${state.rows.length} rows).`;
         } catch (err) {
-          status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) or upload CSV in Data tab.";
           state.rows = [];
-          populateFilters();
-          applyFilters();
+          refreshFilterOptions([]);
+          renderEverything();
+          status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) or upload CSV in Data tab.";
         }
       }
 
       function bindEvents() {
         ["fNeighborhood", "fType", "fMode", "fScope", "fMinClose", "fMaxClose", "fDateFrom", "fDateTo"]
           .forEach((id) => {
-            document.getElementById(id).addEventListener("input", applyFilters);
-            document.getElementById(id).addEventListener("change", applyFilters);
+            document.getElementById(id).addEventListener("input", renderEverything);
+            document.getElementById(id).addEventListener("change", renderEverything);
           });
 
+        document.getElementById("resetBtn").addEventListener("click", () => {
+          resetFormFilters();
+          renderEverything();
+        });
+        document.getElementById("clearInteractionsBtn").addEventListener("click", clearAllInteractions);
         document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
-        document.getElementById("resetBtn").addEventListener("click", resetFilters);
 
-        document.querySelectorAll(".page-tab").forEach((btn) => {
+        document.querySelectorAll(".tab").forEach((btn) => {
           btn.addEventListener("click", () => {
-            document.querySelectorAll(".page-tab").forEach((b) => b.classList.remove("active"));
+            document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
             const target = btn.getAttribute("data-view");
-            document.querySelectorAll(".view").forEach((view) => {
-              view.classList.toggle("active", view.id === `view-${target}`);
-            });
+            document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${target}`));
           });
+        });
+
+        document.addEventListener("click", (evt) => {
+          const set = evt.target.closest("[data-set-interaction]");
+          if (set) {
+            toggleInteraction(set.getAttribute("data-set-interaction"), set.getAttribute("data-set-value"));
+            return;
+          }
+
+          const clear = evt.target.closest("[data-clear-interaction]");
+          if (clear) {
+            const key = clear.getAttribute("data-clear-interaction");
+            state.interactions[key] = null;
+            renderEverything();
+            return;
+          }
+
+          const kpi = evt.target.closest("[data-kpi]");
+          if (!kpi) return;
+          const action = kpi.getAttribute("data-kpi");
+          if (action === "clear") return clearAllInteractions();
+          if (action === "highClose") return toggleInteraction("priceTier", "aboveMedian");
+          if (action === "ratioMid") return toggleInteraction("ratioBucket", "100to105");
+          if (action === "ratioGt1") return toggleInteraction("ratioBucket", "gt100");
+          if (action === "highPsf") return toggleInteraction("psfTier", "aboveMedian");
+          if (action === "mlsOnly") return toggleInteraction("mode", "MLS_ENRICHED");
         });
 
         document.getElementById("csvFile").addEventListener("change", (evt) => {
@@ -997,8 +1297,10 @@
           reader.onload = () => {
             try {
               state.rows = parseCsv(reader.result);
-              populateFilters();
-              applyFilters();
+              const normalized = state.rows.map(normalizeRow);
+              refreshFilterOptions(normalized);
+              clearAllInteractions();
+              renderEverything();
               document.getElementById("uploadStatus").textContent = `Loaded ${state.rows.length} rows from ${file.name}.`;
               document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${state.rows.length} rows).`;
             } catch (err) {
@@ -1011,7 +1313,7 @@
 
       function init() {
         bindEvents();
-        autoLoadDefault();
+        autoLoadDefaultDataset();
       }
 
       init();

@@ -44,6 +44,12 @@ const ZIP_NEIGHBORHOOD = {
   "98144": "Mount Baker / Central District",
   "98177": "North Beach / Crown Hill",
   "98199": "Magnolia",
+  "98111": "Downtown",
+  "98124": "Downtown",
+  "98154": "Downtown",
+  "98164": "Downtown",
+  "98174": "Downtown",
+  "98194": "Downtown",
 };
 
 function parseCsvLine(line) {
@@ -105,11 +111,17 @@ function looksNumeric(v) {
   return /^[0-9]+$/.test(String(v || "").trim());
 }
 
-function zipToNeighborhood(zip) {
+function mappedZipNeighborhood(zip) {
   const z = (String(zip || "").match(/[0-9]{5}/) || [])[0] || "";
-  if (ZIP_NEIGHBORHOOD[z]) return ZIP_NEIGHBORHOOD[z];
-  if (/^981[0-9]{2}$/.test(z)) return `Seattle ${z}`;
-  return "Seattle (Other)";
+  return ZIP_NEIGHBORHOOD[z] || "";
+}
+
+function zipToNeighborhood(zip) {
+  return mappedZipNeighborhood(zip) || "Seattle (Other)";
+}
+
+function areaSubKey(area, subArea) {
+  return `${String(area || "").trim()}::${String(subArea || "").trim()}`;
 }
 
 async function readPropertyTypeMap() {
@@ -206,6 +218,46 @@ async function readResBldgMap() {
 }
 
 async function buildSeattleAccountMap(parcelMap) {
+  const areaSubCounts = new Map();
+
+  // Pass 1: learn neighborhood label by (area, subArea) from rows with explicitly mapped Seattle ZIPs.
+  {
+    const stream = fs.createReadStream(ACCOUNT_FILE);
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    let idx = null;
+    for await (const line of rl) {
+      if (!line) continue;
+      if (!idx) {
+        const header = parseCsvLine(line);
+        idx = Object.fromEntries(header.map((h, i) => [clean(h), i]));
+        continue;
+      }
+      const cols = parseCsvLine(line);
+      const major = clean(cols[idx.Major]);
+      const minor = clean(cols[idx.Minor]);
+      const key = `${major}-${minor}`;
+      const cityState = clean(cols[idx.CityState]).toUpperCase();
+      const parcel = parcelMap.get(key);
+      const isSeattle = parcel ? true : cityState.includes("SEATTLE");
+      if (!isSeattle || !parcel) continue;
+
+      const zip = clean(cols[idx.ZipCode]);
+      const inferred = mappedZipNeighborhood(zip);
+      if (!inferred) continue;
+      const k = areaSubKey(parcel.area, parcel.subArea);
+      if (!areaSubCounts.has(k)) areaSubCounts.set(k, new Map());
+      const byLabel = areaSubCounts.get(k);
+      byLabel.set(inferred, (byLabel.get(inferred) || 0) + 1);
+    }
+  }
+
+  const areaSubNeighborhood = new Map();
+  for (const [k, labelCounts] of areaSubCounts.entries()) {
+    const best = [...labelCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (best) areaSubNeighborhood.set(k, best[0]);
+  }
+
+  // Pass 2: build account map using area/subArea-derived neighborhood where available.
   const stream = fs.createReadStream(ACCOUNT_FILE);
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
@@ -239,7 +291,11 @@ async function buildSeattleAccountMap(parcelMap) {
     const addr = clean(cols[idx.AddrLine]);
     const zip = clean(cols[idx.ZipCode]);
     const subArea = parcel?.subArea || "";
-    const neighborhood = subArea && !looksNumeric(subArea) ? subArea : zipToNeighborhood(zip);
+    const area = parcel?.area || "";
+    const neighborhoodFromArea = areaSubNeighborhood.get(areaSubKey(area, subArea)) || "";
+    const neighborhood = subArea && !looksNumeric(subArea)
+      ? subArea
+      : (neighborhoodFromArea || zipToNeighborhood(zip));
 
     if (!existing || assessed > existing.assessedValue) {
       map.set(key, {
