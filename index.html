@@ -6,28 +6,30 @@
     <title>Seattle Housing Buyer Lens</title>
     <style>
       :root {
-        --bg-0: #05080f;
-        --bg-1: #0b1322;
-        --card: #101a2b;
-        --card-2: #0d1726;
-        --line: #24344e;
-        --ink: #edf3ff;
-        --muted: #9ab0d0;
-        --accent: #3ca8ff;
-        --accent-2: #32d18f;
-        --warm: #f0ad4e;
+        --bg: #0a1220;
+        --bg-elev: #111c2f;
+        --bg-elev-2: #16243b;
+        --line: #2a3e5f;
+        --text: #ecf3ff;
+        --muted: #9fb4d4;
+        --primary: #4da6ff;
+        --primary-2: #3dd59d;
+        --warn: #e6b35a;
+        --danger: #e6718c;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        color: var(--ink);
-        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
         background:
-          radial-gradient(1200px 600px at -10% -20%, #193463 0%, transparent 55%),
-          radial-gradient(900px 500px at 110% -10%, #4d1f5c 0%, transparent 50%),
-          linear-gradient(180deg, var(--bg-1), var(--bg-0));
+          radial-gradient(1100px 600px at -15% -25%, #17335f 0%, transparent 55%),
+          radial-gradient(1000px 600px at 115% -15%, #4a1f59 0%, transparent 52%),
+          var(--bg);
+        color: var(--text);
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
       }
-      a { color: #86ccff; }
+      a { color: #95d0ff; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
       header {
         max-width: 1260px;
         margin: 0 auto;
@@ -35,57 +37,60 @@
       }
       h1 {
         margin: 0;
-        letter-spacing: 0.4px;
         font-size: 34px;
+        letter-spacing: 0.4px;
       }
-      .sub {
-        margin-top: 7px;
+      .subtitle {
+        margin-top: 8px;
         color: var(--muted);
         font-size: 14px;
       }
       .status {
-        margin-top: 9px;
+        margin-top: 8px;
         color: var(--muted);
         font-size: 12px;
       }
+
       .tabs {
         margin-top: 14px;
         display: inline-flex;
         border: 1px solid var(--line);
         border-radius: 999px;
         overflow: hidden;
-        background: rgba(13, 23, 38, 0.8);
+        background: rgba(17, 28, 47, 0.88);
       }
       .tab {
-        background: transparent;
         border: none;
+        background: transparent;
         color: var(--muted);
-        padding: 9px 14px;
         font-size: 13px;
+        padding: 9px 14px;
         cursor: pointer;
       }
       .tab.active {
         color: #fff;
-        background: linear-gradient(135deg, #1e4f8a, #2f8fae);
+        background: linear-gradient(135deg, #275ea7, #2d8cb4);
       }
+
       .app {
         max-width: 1260px;
         margin: 0 auto;
-        padding: 14px 22px 28px;
+        padding: 14px 22px 30px;
         display: grid;
         gap: 14px;
       }
       .panel {
-        background: linear-gradient(180deg, rgba(16,26,43,0.94), rgba(11,20,36,0.94));
+        background: linear-gradient(180deg, rgba(17,28,47,0.96), rgba(13,22,36,0.95));
         border: 1px solid var(--line);
         border-radius: 14px;
         padding: 14px;
-        box-shadow: 0 12px 26px rgba(0,0,0,0.32);
+        box-shadow: 0 12px 28px rgba(0,0,0,0.34);
       }
       .panel h3 {
         margin: 0 0 10px;
         font-size: 18px;
       }
+
       .filters {
         display: grid;
         grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -99,12 +104,12 @@
       }
       select, input {
         width: 100%;
+        color: var(--text);
+        background: #0c1728;
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 8px 10px;
         font-size: 14px;
-        color: #f5f8ff;
-        background: #0a1220;
       }
       .actions {
         display: flex;
@@ -112,23 +117,23 @@
         gap: 8px;
       }
       .btn {
-        border: 1px solid #3375c2;
+        border: 1px solid #2f76c4;
         border-radius: 10px;
         padding: 9px 12px;
-        background: linear-gradient(135deg, #225ca1, #2f99bd);
-        color: #fff;
         font-size: 13px;
+        color: #fff;
+        background: linear-gradient(135deg, #21589d, #2b93ba);
         cursor: pointer;
       }
       .btn.alt {
-        background: #0a1220;
         border-color: var(--line);
-        color: #d5e4ff;
+        background: #0c1728;
+        color: #d3e5ff;
       }
       .summary {
         margin-top: 8px;
-        font-size: 12px;
         color: var(--muted);
+        font-size: 12px;
       }
       .chips {
         margin-top: 8px;
@@ -137,47 +142,30 @@
         gap: 8px;
       }
       .chip {
-        font-size: 12px;
-        border: 1px solid #35567a;
-        background: #15233a;
-        color: #d4e6ff;
-        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid #35547a;
+        background: #15253d;
+        color: #d8e8ff;
+        font-size: 12px;
       }
       .chip button {
-        margin-left: 6px;
         border: none;
         background: transparent;
-        color: #95b9e2;
+        color: #9ec0e8;
         cursor: pointer;
-        font-size: 12px;
       }
+
       .view { display: none; }
       .view.active { display: grid; gap: 14px; }
-      .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 10px;
-      }
-      .kpi {
-        width: 100%;
-        text-align: left;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: linear-gradient(180deg, #112340, #0e1d34);
-        color: #fff;
-        padding: 10px;
-        cursor: pointer;
-      }
-      .kpi:hover { border-color: #3e7ac3; }
-      .kpi.active { border-color: #4eb2ff; box-shadow: 0 0 0 1px rgba(78,178,255,0.35) inset; }
-      .kpi .label { color: var(--muted); font-size: 12px; }
-      .kpi .value { margin-top: 6px; font-size: 23px; }
-      .kpi .hint { margin-top: 6px; color: #79a9d8; font-size: 11px; }
+
       .guide {
         margin: 0;
         padding-left: 18px;
-        color: #dbe8ff;
+        color: #dce9ff;
         display: grid;
         gap: 7px;
       }
@@ -187,6 +175,41 @@
         display: grid;
         gap: 7px;
       }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .kpi {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: linear-gradient(180deg, #122440, #0f1d33);
+        padding: 10px;
+        display: grid;
+        gap: 6px;
+      }
+      .kpi .label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .kpi .value {
+        font-size: 22px;
+      }
+      .kpi .kbtn {
+        justify-self: start;
+        border: 1px solid #37567a;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 11px;
+        color: #dcecff;
+        background: #12233a;
+        cursor: pointer;
+      }
+      .kpi .kbtn.active {
+        border-color: #4eb2ff;
+      }
+
       .two-col {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -196,29 +219,38 @@
         display: grid;
         gap: 8px;
       }
-      .bar-btn {
-        border: 1px solid rgba(45, 68, 100, 0.35);
-        background: #0e1a2d;
+      .bar-row {
+        width: 100%;
+        border: 1px solid #2d4363;
         border-radius: 10px;
-        color: #dbe8ff;
+        background: #0f1b2f;
+        color: #dce8ff;
         cursor: pointer;
         padding: 6px;
         display: grid;
-        grid-template-columns: 110px 1fr 160px;
+        grid-template-columns: 110px 1fr 150px;
         gap: 8px;
         align-items: center;
         font-size: 13px;
       }
-      .bar-btn.active { border-color: #4eb2ff; }
+      .bar-row.active {
+        border-color: #4eb2ff;
+      }
       .track {
         width: 100%;
         height: 11px;
         border-radius: 999px;
+        background: #1f2f49;
         overflow: hidden;
-        background: #1e2d44;
       }
-      .fill { height: 100%; background: linear-gradient(90deg, #368ee8, #56d2ff); }
-      .fill.warm { background: linear-gradient(90deg, #cc8233, #f2be63); }
+      .fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3d93ed, #56d1ff);
+      }
+      .fill.warm {
+        background: linear-gradient(90deg, #cc8536, #f3c366);
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -227,46 +259,59 @@
       th, td {
         text-align: left;
         padding: 8px 6px;
-        border-bottom: 1px solid rgba(44, 62, 90, 0.7);
+        border-bottom: 1px solid rgba(42,62,95,0.78);
       }
-      th { color: var(--muted); font-weight: 600; }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
       tr.clickable { cursor: pointer; }
-      tr.clickable:hover { background: rgba(54,95,151,0.15); }
-      tr.active { background: rgba(78,178,255,0.16); }
-      .mode-pill {
-        display: inline-block;
-        font-size: 11px;
-        padding: 2px 8px;
+      tr.clickable:hover { background: rgba(56,92,147,0.16); }
+      tr.clickable.active { background: rgba(78,178,255,0.17); }
+
+      .mini-btn {
+        border: 1px solid #35547a;
         border-radius: 999px;
-        background: #15243c;
-        border: 1px solid #2f4b70;
-      }
-      .heat {
-        border-radius: 8px;
-        padding: 3px 6px;
-        display: inline-block;
-        min-width: 92px;
-      }
-      .tag-btn {
-        border: 1px solid #365579;
         background: #12233a;
-        border-radius: 999px;
         color: #dcecff;
         font-size: 11px;
         padding: 2px 8px;
         cursor: pointer;
       }
-      .tag-btn.active { border-color: #4eb2ff; }
+      .mini-btn.active {
+        border-color: #4eb2ff;
+      }
+      .mode {
+        display: inline-block;
+        border: 1px solid #35547a;
+        border-radius: 999px;
+        background: #15253d;
+        color: #dcecff;
+        font-size: 11px;
+        padding: 2px 8px;
+      }
+      .heat {
+        display: inline-block;
+        min-width: 92px;
+        border-radius: 8px;
+        padding: 3px 6px;
+      }
+
       .mono {
         font-family: "SFMono-Regular", Menlo, Consolas, monospace;
         font-size: 12px;
-        white-space: pre-wrap;
-        background: #0a1322;
+        background: #0b1526;
         border: 1px solid var(--line);
         border-radius: 10px;
+        white-space: pre-wrap;
         padding: 10px;
       }
-      .note { margin-top: 8px; color: var(--muted); font-size: 12px; }
+      .note {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -281,9 +326,9 @@
   <body>
     <header>
       <h1>Seattle Housing Buyer Lens</h1>
-      <div class="sub">Market intelligence for Seattle home buyers using public-record sales now, with optional MLS-enriched fields later.</div>
+      <div class="subtitle">Buyer-focused market view for Seattle. Public-record sales now, MLS-enriched fields later. Every chart and metric can filter the entire dashboard.</div>
       <div class="tabs" role="tablist">
-        <button class="tab active" data-view="brief" role="tab">Market Brief</button>
+        <button class="tab active" data-view="overview" role="tab">Overview</button>
         <button class="tab" data-view="charts" role="tab">Charts</button>
         <button class="tab" data-view="records" role="tab">Records</button>
         <button class="tab" data-view="data" role="tab">Data</button>
@@ -337,60 +382,60 @@
           <div class="actions">
             <button class="btn" id="exportCsvBtn" type="button">Export Filtered CSV</button>
             <button class="btn alt" id="resetBtn" type="button">Reset</button>
-            <button class="btn alt" id="clearInteractionsBtn" type="button">Clear Cross-Filters</button>
+            <button class="btn alt" id="clearCrossBtn" type="button">Clear Cross-Filters</button>
           </div>
         </div>
-        <div class="summary" id="filterSummary">No dataset loaded.</div>
+        <div class="summary" id="filterSummary">No data loaded.</div>
         <div class="chips" id="activeChips"></div>
       </section>
 
-      <section id="view-brief" class="view active">
+      <section id="view-overview" class="view active">
         <section class="panel">
-          <h3>What This Dashboard Is For</h3>
+          <h3>How To Use This Dashboard</h3>
           <ul class="guide">
-            <li>Use this to evaluate where Seattle buyers are paying above assessed value and how pricing pressure shifts month to month.</li>
-            <li>Every KPI, chart row, and key table row is clickable and acts as a cross-filter for every other view.</li>
-            <li>In `PUBLIC_PROXY` mode, `listDate` and `pendingDate` are placeholders from recorded data. In `MLS_ENRICHED`, true MLS fields are used when provided.</li>
-            <li>Color intensity is outlier-capped at robust percentile bounds so one extreme sale does not flatten the rest of the visualization.</li>
-            <li>Start with price/date filters, then click chart bars or KPI tiles to focus on a slice.</li>
+            <li>Start with price/date filters to define your buy box, then click chart rows or table rows to drill down.</li>
+            <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
+            <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
+            <li>Public Proxy mode has real close prices and assessed values, but not true original list/pending timestamps.</li>
+            <li>MLS Enriched mode supports true list/pending/close fields when your realtor provides them.</li>
           </ul>
         </section>
 
         <div class="kpi-grid">
-          <button class="kpi" data-kpi="clear" type="button">
+          <article class="kpi">
             <div class="label">Sales Count</div>
             <div class="value" id="kSales">0</div>
-            <div class="hint">Click to clear all cross-filters</div>
-          </button>
-          <button class="kpi" data-kpi="highClose" type="button">
+            <button class="kbtn" data-kpi-action="clear">Clear Cross-Filters</button>
+          </article>
+          <article class="kpi">
             <div class="label">Median Close Price</div>
             <div class="value" id="kMedianClose">$0</div>
-            <div class="hint">Click to filter to closes >= median</div>
-          </button>
-          <button class="kpi" data-kpi="ratioMid" type="button">
+            <button class="kbtn" data-kpi-action="closeTier">Filter Close >= Median</button>
+          </article>
+          <article class="kpi">
             <div class="label">Median Sale / Assessed</div>
             <div class="value" id="kMedianSA">0.00x</div>
-            <div class="hint">Click to filter 1.00x - 1.05x</div>
-          </button>
-          <button class="kpi" data-kpi="ratioGt1" type="button">
+            <button class="kbtn" data-kpi-action="ratioMid">Filter 1.00x - 1.05x</button>
+          </article>
+          <article class="kpi">
             <div class="label">Share Above Assessed</div>
             <div class="value" id="kAboveAssessed">0%</div>
-            <div class="hint">Click to filter S/A > 1.00x</div>
-          </button>
-          <button class="kpi" data-kpi="highPsf" type="button">
+            <button class="kbtn" data-kpi-action="ratioGt1">Filter S/A > 1.00x</button>
+          </article>
+          <article class="kpi">
             <div class="label">Median Price / SqFt</div>
             <div class="value" id="kPsf">$0</div>
-            <div class="hint">Click to filter $/sqft >= median</div>
-          </button>
-          <button class="kpi" data-kpi="mlsOnly" type="button">
-            <div class="label">Median Days to Pending (MLS)</div>
+            <button class="kbtn" data-kpi-action="psfTier">Filter $/SqFt >= Median</button>
+          </article>
+          <article class="kpi">
+            <div class="label">Median Days To Pending (MLS)</div>
             <div class="value" id="kPendingDays">n/a</div>
-            <div class="hint">Click to filter to MLS-enriched rows</div>
-          </button>
+            <button class="kbtn" data-kpi-action="mlsOnly">Filter MLS Rows</button>
+          </article>
         </div>
 
         <section class="panel">
-          <h3>Current Slice Insights</h3>
+          <h3>Current Slice Readout</h3>
           <ul class="insights" id="insights"></ul>
         </section>
       </section>
@@ -403,12 +448,12 @@
           </section>
           <section class="panel">
             <h3>Monthly Median Close Price</h3>
-            <div class="chart" id="chartMedianPrice"></div>
+            <div class="chart" id="chartMedian"></div>
           </section>
         </div>
         <div class="two-col">
           <section class="panel">
-            <h3>Sale / Assessed Distribution</h3>
+            <h3>Sale / Assessed Buckets</h3>
             <table>
               <thead>
                 <tr><th>Bucket</th><th>Count</th><th>Share</th><th>Median Close</th></tr>
@@ -444,23 +489,23 @@
                 <th>Close Price</th>
                 <th>Assessed</th>
                 <th>S/A</th>
-                <th>Δ vs List@Pending</th>
+                <th>Delta vs List@Pending</th>
                 <th>Data Mode</th>
               </tr>
             </thead>
             <tbody id="recordRows"></tbody>
           </table>
-          <div class="note">Address links open Zillow search pages. Columns with color fill are outlier-capped to protect readability.</div>
+          <div class="note">Address links open Zillow search results. Heat gradients cap outliers using robust percentiles.</div>
         </section>
       </section>
 
       <section id="view-data" class="view">
         <section class="panel">
-          <h3>Dataset Loading</h3>
+          <h3>Data Source and Upload</h3>
           <div class="note" id="uploadStatus">No file loaded.</div>
           <input id="csvFile" type="file" accept=".csv" />
 
-          <p class="note">Auto-load target filename:</p>
+          <p class="note">Auto-load filename:</p>
           <div class="mono">public_sales_proxy_1p1m_1p4m_last6mo.csv</div>
 
           <p class="note">Minimum columns:</p>
@@ -470,7 +515,7 @@
           <div class="mono">dataMode,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
 
           <p class="note">Intended use:</p>
-          <div class="mono">Buyer-side market interpretation and neighborhood comparison, not property valuation advice. PUBLIC_PROXY mode does not have true original list/pending timestamps.</div>
+          <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode does not contain true original listing timeline fields.</div>
         </section>
       </section>
     </main>
@@ -526,15 +571,15 @@
 
       const state = {
         rows: [],
-        filtered: [],
         baseRows: [],
+        filteredRows: [],
         interactions: {
           month: null,
           neighborhood: null,
           type: null,
           ratioBucket: null,
           mode: null,
-          priceTier: null,
+          closeTier: null,
           psfTier: null,
         },
       };
@@ -550,10 +595,10 @@
 
       function toDate(value) {
         if (!value) return null;
-        const v = String(value).trim();
-        if (!v) return null;
+        const raw = String(value).trim();
+        if (!raw) return null;
         const iso = /^\d{4}-\d{2}-\d{2}$/;
-        const d = iso.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
+        const d = iso.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
         return Number.isNaN(d.getTime()) ? null : d;
       }
 
@@ -570,7 +615,11 @@
       }
 
       function formatMoney(v) {
-        return Number(v || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+        return Number(v || 0).toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 0,
+        });
       }
 
       function median(values) {
@@ -592,17 +641,17 @@
         return sorted[base];
       }
 
+      function monthKey(isoDate) {
+        const d = toDate(isoDate);
+        if (!d) return "Unknown";
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      }
+
       function daysBetween(a, b) {
         const d1 = toDate(a);
         const d2 = toDate(b);
         if (!d1 || !d2) return null;
         return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-      }
-
-      function monthKey(isoDate) {
-        const d = toDate(isoDate);
-        if (!d) return "Unknown";
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       }
 
       function parseCsvLine(line) {
@@ -634,8 +683,9 @@
         if (lines.length < 2) return [];
         const headers = parseCsvLine(lines[0]);
         const idx = Object.fromEntries(headers.map((h, i) => [h, i]));
+
         const required = ["id", "address", "type", "closePrice"];
-        const missing = required.filter((key) => idx[key] === undefined);
+        const missing = required.filter((k) => idx[k] === undefined);
         if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}`);
 
         return lines.slice(1).filter((line) => line.trim()).map((line) => {
@@ -659,17 +709,18 @@
             sqft: num(pick("sqft")),
             yearBuilt: num(pick("yearBuilt")),
             zip: pick("zip"),
-            districtName: pick("districtName"),
-            area: pick("area"),
-            subArea: pick("subArea"),
-            sqFtLot: num(pick("sqFtLot")),
-            zoning: pick("zoning"),
             mlsListDate: pick("mlsListDate"),
             mlsPendingDate: pick("mlsPendingDate"),
             mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
             mlsClosePrice: num(pick("mlsClosePrice")),
           };
         });
+      }
+
+      function titleCase(text) {
+        return String(text || "")
+          .toLowerCase()
+          .replace(/\b\w/g, (m) => m.toUpperCase());
       }
 
       function inferMode(row) {
@@ -687,20 +738,24 @@
 
       function labelType(rawType, typeCode) {
         const raw = String(rawType || "").trim();
-        if (/[a-z]/i.test(raw)) return raw;
+        if (/[a-z]/i.test(raw)) {
+          if (/^[A-Z0-9\s,()\-]+$/.test(raw)) return titleCase(raw);
+          return raw;
+        }
         const code = String(num(typeCode || raw) || "");
         return TYPE_LABELS[code] || (code ? `Type ${code}` : "Unknown");
       }
 
       function normalizeRow(source) {
         const dataMode = inferMode(source);
-        const saleDate = source.saleDate || source.closeDate || source.pendingDate || source.listDate || source.mlsCloseDate || "";
+        const saleDate = source.saleDate || source.pendingDate || source.listDate || "";
         const listDate = source.mlsListDate || source.listDate || "";
         const pendingDate = source.mlsPendingDate || source.pendingDate || "";
 
         const closePrice = num(source.mlsClosePrice || source.closePrice);
         const assessedValue = num(source.assessedValue);
         const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || assessedValue || closePrice);
+
         const daysToPending = daysBetween(listDate, pendingDate);
         const saleToAssessed = assessedValue > 0 ? closePrice / assessedValue : 0;
         const delta = closePrice - listPriceAtPending;
@@ -710,9 +765,6 @@
 
         return {
           ...source,
-          id: source.id || "",
-          address: source.address || "",
-          zip: source.zip || "",
           dataMode,
           typeLabel: labelType(source.type, source.typeCode),
           neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
@@ -734,12 +786,29 @@
         };
       }
 
-      function zillowUrl(row) {
-        const q = encodeURIComponent(`${row.address} Seattle WA ${row.zip || ""}`.trim());
-        return `https://www.zillow.com/homes/${q}_rb/`;
+      function uniqueValues(rows, key) {
+        return ["All", ...Array.from(new Set(rows.map((r) => r[key]).filter(Boolean))).sort()];
       }
 
-      function getFormFilters() {
+      function refreshSelectOptions() {
+        const normalized = state.rows.map(normalizeRow);
+        const neighborhoods = uniqueValues(normalized, "neighborhoodLabel");
+        const types = uniqueValues(normalized, "typeLabel");
+
+        const nSelect = document.getElementById("fNeighborhood");
+        const tSelect = document.getElementById("fType");
+
+        const currentN = nSelect.value || "All";
+        const currentT = tSelect.value || "All";
+
+        nSelect.innerHTML = neighborhoods.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+        tSelect.innerHTML = types.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+
+        nSelect.value = neighborhoods.includes(currentN) ? currentN : "All";
+        tSelect.value = types.includes(currentT) ? currentT : "All";
+      }
+
+      function readFormFilters() {
         return {
           neighborhood: document.getElementById("fNeighborhood").value,
           type: document.getElementById("fType").value,
@@ -752,66 +821,42 @@
         };
       }
 
-      function uniqueValues(rows, key) {
-        return ["All", ...Array.from(new Set(rows.map((r) => r[key]).filter(Boolean))).sort()];
-      }
-
-      function refreshFilterOptions(rows) {
-        const prevNeighborhood = document.getElementById("fNeighborhood").value || "All";
-        const prevType = document.getElementById("fType").value || "All";
-
-        const neighborhoods = uniqueValues(rows, "neighborhoodLabel");
-        const types = uniqueValues(rows, "typeLabel");
-
-        document.getElementById("fNeighborhood").innerHTML = neighborhoods.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-        document.getElementById("fType").innerHTML = types.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-
-        document.getElementById("fNeighborhood").value = neighborhoods.includes(prevNeighborhood) ? prevNeighborhood : "All";
-        document.getElementById("fType").value = types.includes(prevType) ? prevType : "All";
-      }
-
       function computeBaseRows() {
-        const form = getFormFilters();
+        const f = readFormFilters();
         let rows = state.rows.map(normalizeRow).filter((r) => r.closePrice > 0 && !!r.saleDate);
 
-        if (form.neighborhood !== "All") rows = rows.filter((r) => r.neighborhoodLabel === form.neighborhood);
-        if (form.type !== "All") rows = rows.filter((r) => r.typeLabel === form.type);
-        if (form.mode !== "All") rows = rows.filter((r) => r.dataMode === form.mode);
-        if (form.minClose) rows = rows.filter((r) => r.closePrice >= form.minClose);
-        if (form.maxClose) rows = rows.filter((r) => r.closePrice <= form.maxClose);
-        if (form.dateFrom) rows = rows.filter((r) => r.saleDate >= form.dateFrom);
-        if (form.dateTo) rows = rows.filter((r) => r.saleDate <= form.dateTo);
+        if (f.neighborhood !== "All") rows = rows.filter((r) => r.neighborhoodLabel === f.neighborhood);
+        if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
+        if (f.mode !== "All") rows = rows.filter((r) => r.dataMode === f.mode);
+        if (f.minClose) rows = rows.filter((r) => r.closePrice >= f.minClose);
+        if (f.maxClose) rows = rows.filter((r) => r.closePrice <= f.maxClose);
+        if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
+        if (f.dateTo) rows = rows.filter((r) => r.saleDate <= f.dateTo);
 
-        if (form.scope === "pending7") {
+        if (f.scope === "pending7") {
           rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null && r.daysToPending <= 7);
         }
 
         return rows;
       }
 
-      function computeStats(rows) {
-        const closeVals = rows.map((r) => r.closePrice);
-        const ratioVals = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
-        const psfVals = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
-        const pendingVals = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null).map((r) => r.daysToPending);
+      function computeBaseStats(rows) {
         return {
-          medianClose: median(closeVals),
-          medianRatio: median(ratioVals),
-          medianPsf: median(psfVals),
-          medianPendingDays: median(pendingVals),
+          medianClose: median(rows.map((r) => r.closePrice)),
+          medianPsf: median(rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft)),
         };
       }
 
-      function inRatioBucket(value, bucket) {
-        if (bucket === "lt095") return value > 0 && value < 0.95;
-        if (bucket === "095to100") return value >= 0.95 && value < 1.0;
-        if (bucket === "100to105") return value >= 1.0 && value <= 1.05;
-        if (bucket === "gt105") return value > 1.05;
-        if (bucket === "gt100") return value > 1.0;
+      function inRatioBucket(value, key) {
+        if (key === "lt095") return value > 0 && value < 0.95;
+        if (key === "095to100") return value >= 0.95 && value < 1.0;
+        if (key === "100to105") return value >= 1.0 && value <= 1.05;
+        if (key === "gt105") return value > 1.05;
+        if (key === "gt100") return value > 1.0;
         return true;
       }
 
-      function applyInteractionFilters(baseRows, baseStats) {
+      function applyInteractions(baseRows, stats) {
         const i = state.interactions;
         return baseRows.filter((r) => {
           if (i.month && monthKey(r.saleDate) !== i.month) return false;
@@ -819,58 +864,25 @@
           if (i.type && r.typeLabel !== i.type) return false;
           if (i.mode && r.dataMode !== i.mode) return false;
           if (i.ratioBucket && !inRatioBucket(r.saleToAssessed, i.ratioBucket)) return false;
-          if (i.priceTier === "aboveMedian" && r.closePrice < baseStats.medianClose) return false;
+          if (i.closeTier === "aboveMedian" && r.closePrice < stats.medianClose) return false;
           if (i.psfTier === "aboveMedian") {
-            if (r.pricePerSqft <= 0 || r.pricePerSqft < baseStats.medianPsf) return false;
+            if (r.pricePerSqft <= 0 || r.pricePerSqft < stats.medianPsf) return false;
           }
           return true;
         });
       }
 
-      function buildSequentialScale(values) {
-        if (!values.length) return () => 0;
-        const low = quantile(values, 0.05);
-        const high = quantile(values, 0.95);
-        const span = high - low;
-        if (span <= 0) return () => 0.5;
-        return (v) => {
-          const clamped = Math.max(low, Math.min(high, v));
-          return (clamped - low) / span;
-        };
-      }
-
-      function buildDivergingScale(values) {
-        const abs = values.map((v) => Math.abs(v)).filter((v) => v > 0);
-        if (!abs.length) return () => 0;
-        const cap = quantile(abs, 0.95) || 1;
-        return (v) => {
-          const clamped = Math.max(-cap, Math.min(cap, v));
-          return clamped / cap;
-        };
-      }
-
-      function seqHeatStyle(norm, tone) {
-        const pct = Math.round(Math.max(0, Math.min(1, norm)) * 100);
-        return `background: linear-gradient(90deg, ${tone} ${pct}%, rgba(255,255,255,0.04) ${pct}%);`;
-      }
-
-      function divHeatStyle(norm) {
-        const pct = Math.round(Math.max(0, Math.min(1, Math.abs(norm))) * 100);
-        const tone = norm >= 0 ? "rgba(47, 191, 118, 0.34)" : "rgba(225, 84, 106, 0.34)";
-        return `background: linear-gradient(90deg, ${tone} ${pct}%, rgba(255,255,255,0.04) ${pct}%);`;
-      }
-
       function interactionLabel(key, value) {
-        const mapping = {
+        const titles = {
           month: "Month",
           neighborhood: "Neighborhood",
           type: "Type",
-          ratioBucket: "Ratio Bucket",
+          ratioBucket: "Ratio",
           mode: "Mode",
-          priceTier: "Price Tier",
-          psfTier: "$/SqFt Tier",
+          closeTier: "Close Price",
+          psfTier: "Price/SqFt",
         };
-        const prettyValue = {
+        const values = {
           lt095: "< 0.95x",
           "095to100": "0.95x - 1.00x",
           "100to105": "1.00x - 1.05x",
@@ -878,88 +890,85 @@
           gt100: "> 1.00x",
           aboveMedian: "Above Median",
         };
-        return `${mapping[key] || key}: ${prettyValue[value] || value}`;
+        return `${titles[key] || key}: ${values[value] || value}`;
       }
 
-      function renderInteractionChips() {
-        const container = document.getElementById("activeChips");
-        const entries = Object.entries(state.interactions).filter(([, value]) => value);
+      function renderChips() {
+        const entries = Object.entries(state.interactions).filter(([, v]) => v);
+        const el = document.getElementById("activeChips");
         if (!entries.length) {
-          container.innerHTML = `<span class="chip">No cross-filters active</span>`;
+          el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
-        container.innerHTML = entries.map(([key, value]) => {
-          return `<span class="chip">${esc(interactionLabel(key, value))}<button type="button" data-clear-interaction="${esc(key)}">x</button></span>`;
+        el.innerHTML = entries.map(([k, v]) => {
+          return `<span class="chip">${esc(interactionLabel(k, v))}<button type="button" data-clear-interaction="${esc(k)}">x</button></span>`;
         }).join("");
       }
 
-      function setKpiActiveStates() {
-        document.querySelectorAll(".kpi").forEach((el) => el.classList.remove("active"));
-        if (state.interactions.priceTier === "aboveMedian") document.querySelector('[data-kpi="highClose"]').classList.add("active");
-        if (state.interactions.ratioBucket === "100to105") document.querySelector('[data-kpi="ratioMid"]').classList.add("active");
-        if (state.interactions.ratioBucket === "gt100") document.querySelector('[data-kpi="ratioGt1"]').classList.add("active");
-        if (state.interactions.psfTier === "aboveMedian") document.querySelector('[data-kpi="highPsf"]').classList.add("active");
-        if (state.interactions.mode === "MLS_ENRICHED") document.querySelector('[data-kpi="mlsOnly"]').classList.add("active");
-      }
-
       function renderSummary(filtered, baseRows) {
-        const mlsCount = filtered.filter((r) => r.dataMode === "MLS_ENRICHED").length;
-        const publicCount = filtered.length - mlsCount;
+        const mls = filtered.filter((r) => r.dataMode === "MLS_ENRICHED").length;
+        const pub = filtered.length - mls;
         document.getElementById("filterSummary").textContent =
-          `Base rows: ${baseRows.length} | Current slice: ${filtered.length} | Public Proxy: ${publicCount} | MLS Enriched: ${mlsCount}`;
+          `Base rows: ${baseRows.length} | Current slice: ${filtered.length} | Public Proxy: ${pub} | MLS Enriched: ${mls}`;
       }
 
-      function renderKpis(rows, baseStats) {
-        const ratioVals = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
-        const psfVals = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
+      function renderKpis(rows, stats) {
+        const ratios = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const psf = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
         const mlsPending = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null).map((r) => r.daysToPending);
 
         document.getElementById("kSales").textContent = rows.length;
         document.getElementById("kMedianClose").textContent = formatMoney(median(rows.map((r) => r.closePrice)));
-        document.getElementById("kMedianSA").textContent = `${median(ratioVals).toFixed(2)}x`;
-
-        const aboveAssessed = ratioVals.length ? (ratioVals.filter((v) => v > 1).length / ratioVals.length) * 100 : 0;
-        document.getElementById("kAboveAssessed").textContent = `${aboveAssessed.toFixed(1)}%`;
-        document.getElementById("kPsf").textContent = formatMoney(median(psfVals));
+        document.getElementById("kMedianSA").textContent = `${median(ratios).toFixed(2)}x`;
+        const above = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
+        document.getElementById("kAboveAssessed").textContent = `${above.toFixed(1)}%`;
+        document.getElementById("kPsf").textContent = formatMoney(median(psf));
         document.getElementById("kPendingDays").textContent = mlsPending.length ? `${median(mlsPending).toFixed(0)} days` : "n/a";
 
-        setKpiActiveStates();
+        document.querySelectorAll(".kbtn").forEach((b) => b.classList.remove("active"));
+        if (state.interactions.closeTier === "aboveMedian") document.querySelector('[data-kpi-action="closeTier"]').classList.add("active");
+        if (state.interactions.ratioBucket === "100to105") document.querySelector('[data-kpi-action="ratioMid"]').classList.add("active");
+        if (state.interactions.ratioBucket === "gt100") document.querySelector('[data-kpi-action="ratioGt1"]').classList.add("active");
+        if (state.interactions.psfTier === "aboveMedian") document.querySelector('[data-kpi-action="psfTier"]').classList.add("active");
+        if (state.interactions.mode === "MLS_ENRICHED") document.querySelector('[data-kpi-action="mlsOnly"]').classList.add("active");
       }
 
-      function renderInsights(rows, baseStats) {
+      function renderInsights(rows) {
         const el = document.getElementById("insights");
         if (!rows.length) {
-          el.innerHTML = `<li>No rows match current filters. Broaden neighborhood, price, date, or clear cross-filters.</li>`;
+          el.innerHTML = `<li>No rows match current filters. Widen criteria or clear cross-filters.</li>`;
           return;
         }
 
-        const ratioVals = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
-        const overShare = ratioVals.length ? (ratioVals.filter((v) => v > 1).length / ratioVals.length) * 100 : 0;
+        const ratios = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const overShare = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
 
-        const neighborhoodCounts = {};
-        rows.forEach((r) => { neighborhoodCounts[r.neighborhoodLabel] = (neighborhoodCounts[r.neighborhoodLabel] || 0) + 1; });
-        const topNeighborhood = Object.entries(neighborhoodCounts).sort((a, b) => b[1] - a[1])[0];
+        const byNeighborhood = {};
+        rows.forEach((r) => { byNeighborhood[r.neighborhoodLabel] = (byNeighborhood[r.neighborhoodLabel] || 0) + 1; });
+        const topNeighborhood = Object.entries(byNeighborhood).sort((a, b) => b[1] - a[1])[0];
 
-        const monthlyCounts = {};
-        rows.forEach((r) => { const m = monthKey(r.saleDate); monthlyCounts[m] = (monthlyCounts[m] || 0) + 1; });
-        const hottestMonth = Object.entries(monthlyCounts).sort((a, b) => b[1] - a[1])[0];
+        const byMonth = {};
+        rows.forEach((r) => {
+          const m = monthKey(r.saleDate);
+          byMonth[m] = (byMonth[m] || 0) + 1;
+        });
+        const topMonth = Object.entries(byMonth).sort((a, b) => b[1] - a[1])[0];
 
         const lines = [
           `Median close price is ${formatMoney(median(rows.map((r) => r.closePrice)))} across ${rows.length} homes in this slice.`,
-          `${overShare.toFixed(1)}% of homes closed above assessed value (median S/A ${median(ratioVals).toFixed(2)}x).`,
-          `Highest transaction concentration is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
-          `Most active month here is ${hottestMonth ? hottestMonth[0] : "n/a"} (${hottestMonth ? hottestMonth[1] : 0} sales).`,
+          `${overShare.toFixed(1)}% of homes closed above assessed value (median S/A ${median(ratios).toFixed(2)}x).`,
+          `Highest activity is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
+          `Most active month is ${topMonth ? topMonth[0] : "n/a"} (${topMonth ? topMonth[1] : 0} sales).`,
         ];
 
         const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null);
         if (mlsRows.length) {
-          lines.push(`MLS-enriched rows show median ${median(mlsRows.map((r) => r.daysToPending)).toFixed(0)} days to pending.`);
+          lines.push(`MLS-enriched subset median days-to-pending: ${median(mlsRows.map((r) => r.daysToPending)).toFixed(0)} days.`);
         } else {
-          lines.push("No MLS-enriched rows in this slice, so true original list-to-pending timing is unavailable.");
+          lines.push("No MLS-enriched rows in this slice, so true list/pending timing is unavailable here.");
         }
 
-        lines.push("Outlier capping is applied to color intensity and bar scaling using robust percentile bounds.");
-
+        lines.push("Color scales cap outlier influence at robust percentile bounds (5th-95th).\n");
         el.innerHTML = lines.map((line) => `<li>${esc(line)}</li>`).join("");
       }
 
@@ -969,15 +978,15 @@
           container.innerHTML = `<div class="note">No rows for current filters.</div>`;
           return;
         }
-        const robustTop = Math.max(quantile(items.map((x) => valueFn(x)), 0.95), 1);
+
+        const robustTop = Math.max(quantile(items.map((i) => valueFn(i)), 0.95), 1);
         container.innerHTML = items.map((item) => {
-          const value = valueFn(item);
-          const widthPct = Math.min(100, Math.round((value / robustTop) * 100));
+          const width = Math.min(100, Math.round((valueFn(item) / robustTop) * 100));
           const active = state.interactions.month === item.month;
           return `
-            <button class="bar-btn ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button">
+            <button class="bar-row ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button">
               <span>${esc(labelFn(item))}</span>
-              <span class="track"><span class="fill ${warm ? "warm" : ""}" style="width:${widthPct}%"></span></span>
+              <span class="track"><span class="fill ${warm ? "warm" : ""}" style="width:${width}%"></span></span>
               <span>${esc(tailFn(item))}</span>
             </button>
           `;
@@ -985,44 +994,28 @@
       }
 
       function renderCharts(rows) {
-        const byMonthVolume = {};
+        const volume = {};
         rows.forEach((r) => {
           const m = monthKey(r.saleDate);
-          if (!byMonthVolume[m]) byMonthVolume[m] = { month: m, count: 0 };
-          byMonthVolume[m].count += 1;
+          if (!volume[m]) volume[m] = { month: m, count: 0 };
+          volume[m].count += 1;
         });
-        const volumeItems = Object.values(byMonthVolume).sort((a, b) => a.month.localeCompare(b.month));
+        const volumeRows = Object.values(volume).sort((a, b) => a.month.localeCompare(b.month));
+        renderBarChart("chartVolume", volumeRows, (x) => x.count, (x) => x.month, (x) => `${x.count} sales`, false);
 
-        renderBarChart(
-          "chartVolume",
-          volumeItems,
-          (x) => x.count,
-          (x) => x.month,
-          (x) => `${x.count} sales`,
-          false
-        );
-
-        const byMonthPrice = {};
+        const price = {};
         rows.forEach((r) => {
           const m = monthKey(r.saleDate);
-          if (!byMonthPrice[m]) byMonthPrice[m] = [];
-          byMonthPrice[m].push(r.closePrice);
+          if (!price[m]) price[m] = [];
+          price[m].push(r.closePrice);
         });
-        const priceItems = Object.entries(byMonthPrice)
-          .map(([month, prices]) => ({ month, medianPrice: median(prices) }))
+        const priceRows = Object.entries(price)
+          .map(([month, vals]) => ({ month, medianPrice: median(vals) }))
           .sort((a, b) => a.month.localeCompare(b.month));
-
-        renderBarChart(
-          "chartMedianPrice",
-          priceItems,
-          (x) => x.medianPrice,
-          (x) => x.month,
-          (x) => formatMoney(x.medianPrice),
-          true
-        );
+        renderBarChart("chartMedian", priceRows, (x) => x.medianPrice, (x) => x.month, (x) => formatMoney(x.medianPrice), true);
       }
 
-      function renderRatioTable(rows) {
+      function renderRatioRows(rows) {
         const tbody = document.getElementById("ratioRows");
         if (!rows.length) {
           tbody.innerHTML = `<tr><td colspan="4">No rows for current filters.</td></tr>`;
@@ -1042,7 +1035,7 @@
           const share = total ? ((set.length / total) * 100).toFixed(1) : "0.0";
           const active = state.interactions.ratioBucket === b.key;
           return `
-            <tr class="clickable ${active ? "active" : ""}" data-set-interaction="ratioBucket" data-set-value="${b.key}">
+            <tr class="clickable ${active ? "active" : ""}" data-set-interaction="ratioBucket" data-set-value="${esc(b.key)}">
               <td>${esc(b.label)}</td>
               <td>${set.length}</td>
               <td>${share}%</td>
@@ -1052,7 +1045,7 @@
         }).join("");
       }
 
-      function renderRankTable(rows) {
+      function renderRankRows(rows) {
         const tbody = document.getElementById("rankRows");
         if (!rows.length) {
           tbody.innerHTML = `<tr><td colspan="4">No rows for current filters.</td></tr>`;
@@ -1065,7 +1058,7 @@
           grouped[r.neighborhoodLabel].push(r);
         });
 
-        const ranked = Object.entries(grouped)
+        const rank = Object.entries(grouped)
           .map(([name, set]) => ({
             name,
             count: set.length,
@@ -1075,7 +1068,7 @@
           .sort((a, b) => (b.count - a.count) || (b.medianClose - a.medianClose))
           .slice(0, 18);
 
-        tbody.innerHTML = ranked.map((r) => {
+        tbody.innerHTML = rank.map((r) => {
           const active = state.interactions.neighborhood === r.name;
           return `
             <tr class="clickable ${active ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.name)}">
@@ -1088,75 +1081,103 @@
         }).join("");
       }
 
-      function renderRecords(rows) {
+      function seqScale(values) {
+        if (!values.length) return () => 0;
+        const low = quantile(values, 0.05);
+        const high = quantile(values, 0.95);
+        const span = Math.max(high - low, 1);
+        return (v) => {
+          const clamped = Math.max(low, Math.min(high, v));
+          return (clamped - low) / span;
+        };
+      }
+
+      function divScale(values) {
+        const abs = values.map((v) => Math.abs(v)).filter((v) => v > 0);
+        if (!abs.length) return () => 0;
+        const cap = Math.max(quantile(abs, 0.95), 1);
+        return (v) => Math.max(-1, Math.min(1, v / cap));
+      }
+
+      function seqHeat(norm, color) {
+        const pct = Math.round(Math.max(0, Math.min(1, norm)) * 100);
+        return `background: linear-gradient(90deg, ${color} ${pct}%, rgba(255,255,255,0.03) ${pct}%);`;
+      }
+
+      function divHeat(norm) {
+        const pct = Math.round(Math.max(0, Math.min(1, Math.abs(norm))) * 100);
+        const color = norm >= 0 ? "rgba(61, 213, 157, 0.34)" : "rgba(230, 113, 140, 0.34)";
+        return `background: linear-gradient(90deg, ${color} ${pct}%, rgba(255,255,255,0.03) ${pct}%);`;
+      }
+
+      function zillowUrl(row) {
+        const q = encodeURIComponent(`${row.address} Seattle WA ${row.zip || ""}`.trim());
+        return `https://www.zillow.com/homes/${q}_rb/`;
+      }
+
+      function renderRecordRows(rows) {
         const tbody = document.getElementById("recordRows");
         if (!rows.length) {
           tbody.innerHTML = `<tr><td colspan="12">No rows for current filters.</td></tr>`;
           return;
         }
 
-        const closeScale = buildSequentialScale(rows.map((r) => r.closePrice));
-        const ratioScale = buildSequentialScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
-        const deltaScale = buildDivergingScale(rows.map((r) => r.delta));
+        const closeNorm = seqScale(rows.map((r) => r.closePrice));
+        const ratioNorm = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
+        const deltaNorm = divScale(rows.map((r) => r.delta));
 
         tbody.innerHTML = rows
           .slice()
           .sort((a, b) => b.saleDate.localeCompare(a.saleDate))
           .map((r) => {
-            const closeStyle = seqHeatStyle(closeScale(r.closePrice), "rgba(54, 153, 235, 0.30)");
-            const ratioStyle = seqHeatStyle(r.saleToAssessed > 0 ? ratioScale(r.saleToAssessed) : 0, "rgba(58, 195, 142, 0.30)");
-            const deltaStyle = divHeatStyle(deltaScale(r.delta));
-
             const nActive = state.interactions.neighborhood === r.neighborhoodLabel;
             const tActive = state.interactions.type === r.typeLabel;
-
+            const mActive = state.interactions.month === monthKey(r.saleDate);
             return `
               <tr>
                 <td><a href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address)}</a></td>
-                <td><button type="button" class="tag-btn ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
-                <td><button type="button" class="tag-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
+                <td><button class="mini-btn ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
+                <td><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
                 <td>${r.beds || 0}</td>
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
-                <td><button type="button" class="tag-btn ${state.interactions.month === monthKey(r.saleDate) ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(monthKey(r.saleDate))}">${esc(r.saleDate || "n/a")}</button></td>
-                <td><span class="heat" style="${closeStyle}">${formatMoney(r.closePrice)}</span></td>
+                <td><button class="mini-btn ${mActive ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(monthKey(r.saleDate))}">${esc(r.saleDate || "n/a")}</button></td>
+                <td><span class="heat" style="${seqHeat(closeNorm(r.closePrice), "rgba(77,166,255,0.33)")}">${formatMoney(r.closePrice)}</span></td>
                 <td>${formatMoney(r.assessedValue)}</td>
-                <td><span class="heat" style="${ratioStyle}">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</span></td>
-                <td><span class="heat" style="${deltaStyle}">${formatMoney(r.delta)}</span></td>
-                <td><span class="mode-pill">${esc(r.dataMode)}</span></td>
+                <td><span class="heat" style="${seqHeat(r.saleToAssessed > 0 ? ratioNorm(r.saleToAssessed) : 0, "rgba(61,213,157,0.33)")}">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</span></td>
+                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${formatMoney(r.delta)}</span></td>
+                <td><span class="mode">${esc(r.dataMode)}</span></td>
               </tr>
             `;
           })
           .join("");
       }
 
-      function renderEverything() {
+      function renderAll() {
         const baseRows = computeBaseRows();
         state.baseRows = baseRows;
-        const baseStats = computeStats(baseRows);
-
-        const filtered = applyInteractionFilters(baseRows, baseStats);
-        state.filtered = filtered;
+        const stats = computeBaseStats(baseRows);
+        const filtered = applyInteractions(baseRows, stats);
+        state.filteredRows = filtered;
 
         renderSummary(filtered, baseRows);
-        renderInteractionChips();
-        renderKpis(filtered, baseStats);
-        renderInsights(filtered, baseStats);
+        renderChips();
+        renderKpis(filtered, stats);
+        renderInsights(filtered);
         renderCharts(filtered);
-        renderRatioTable(filtered);
-        renderRankTable(filtered);
-        renderRecords(filtered);
+        renderRatioRows(filtered);
+        renderRankRows(filtered);
+        renderRecordRows(filtered);
       }
 
-      function toggleInteraction(key, value) {
-        const current = state.interactions[key];
-        state.interactions[key] = current === value ? null : value;
-        renderEverything();
+      function setInteraction(key, value) {
+        state.interactions[key] = state.interactions[key] === value ? null : value;
+        renderAll();
       }
 
-      function clearAllInteractions() {
+      function clearCrossFilters() {
         Object.keys(state.interactions).forEach((k) => { state.interactions[k] = null; });
-        renderEverything();
+        renderAll();
       }
 
       function resetFormFilters() {
@@ -1172,21 +1193,19 @@
 
       function escapeCsv(v) {
         const s = String(v ?? "");
-        if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-          return `"${s.replace(/"/g, '""')}"`;
-        }
+        if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
         return s;
       }
 
       function exportFilteredCsv() {
-        if (!state.filtered.length) return;
+        if (!state.filteredRows.length) return;
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
           "closePrice","assessedValue","saleToAssessed","listPriceAtPending","delta","deltaPct",
           "beds","baths","sqft","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
-        state.filtered.forEach((r) => {
+        state.filteredRows.forEach((r) => {
           lines.push([
             r.id,
             r.address,
@@ -1221,43 +1240,23 @@
         URL.revokeObjectURL(url);
       }
 
-      async function autoLoadDefaultDataset() {
-        const status = document.getElementById("datasetStatus");
-        try {
-          const response = await fetch(DEFAULT_DATASET, { cache: "no-store" });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const text = await response.text();
-          state.rows = parseCsv(text);
-          const normalized = state.rows.map(normalizeRow);
-          refreshFilterOptions(normalized);
-          renderEverything();
-          document.getElementById("uploadStatus").textContent = `Auto-loaded ${DEFAULT_DATASET}.`;
-          status.textContent = `Auto-loaded ${DEFAULT_DATASET} (${state.rows.length} rows).`;
-        } catch (err) {
-          state.rows = [];
-          refreshFilterOptions([]);
-          renderEverything();
-          status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) or upload CSV in Data tab.";
-        }
-      }
-
       function bindEvents() {
-        ["fNeighborhood", "fType", "fMode", "fScope", "fMinClose", "fMaxClose", "fDateFrom", "fDateTo"]
-          .forEach((id) => {
-            document.getElementById(id).addEventListener("input", renderEverything);
-            document.getElementById(id).addEventListener("change", renderEverything);
-          });
+        ["fNeighborhood", "fType", "fMode", "fScope", "fMinClose", "fMaxClose", "fDateFrom", "fDateTo"].forEach((id) => {
+          const el = document.getElementById(id);
+          el.addEventListener("input", renderAll);
+          el.addEventListener("change", renderAll);
+        });
 
         document.getElementById("resetBtn").addEventListener("click", () => {
           resetFormFilters();
-          renderEverything();
+          renderAll();
         });
-        document.getElementById("clearInteractionsBtn").addEventListener("click", clearAllInteractions);
+        document.getElementById("clearCrossBtn").addEventListener("click", clearCrossFilters);
         document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
 
         document.querySelectorAll(".tab").forEach((btn) => {
           btn.addEventListener("click", () => {
-            document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
+            document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
             btn.classList.add("active");
             const target = btn.getAttribute("data-view");
             document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${target}`));
@@ -1267,7 +1266,7 @@
         document.addEventListener("click", (evt) => {
           const set = evt.target.closest("[data-set-interaction]");
           if (set) {
-            toggleInteraction(set.getAttribute("data-set-interaction"), set.getAttribute("data-set-value"));
+            setInteraction(set.getAttribute("data-set-interaction"), set.getAttribute("data-set-value"));
             return;
           }
 
@@ -1275,19 +1274,19 @@
           if (clear) {
             const key = clear.getAttribute("data-clear-interaction");
             state.interactions[key] = null;
-            renderEverything();
+            renderAll();
             return;
           }
 
-          const kpi = evt.target.closest("[data-kpi]");
+          const kpi = evt.target.closest("[data-kpi-action]");
           if (!kpi) return;
-          const action = kpi.getAttribute("data-kpi");
-          if (action === "clear") return clearAllInteractions();
-          if (action === "highClose") return toggleInteraction("priceTier", "aboveMedian");
-          if (action === "ratioMid") return toggleInteraction("ratioBucket", "100to105");
-          if (action === "ratioGt1") return toggleInteraction("ratioBucket", "gt100");
-          if (action === "highPsf") return toggleInteraction("psfTier", "aboveMedian");
-          if (action === "mlsOnly") return toggleInteraction("mode", "MLS_ENRICHED");
+          const action = kpi.getAttribute("data-kpi-action");
+          if (action === "clear") return clearCrossFilters();
+          if (action === "closeTier") return setInteraction("closeTier", "aboveMedian");
+          if (action === "ratioMid") return setInteraction("ratioBucket", "100to105");
+          if (action === "ratioGt1") return setInteraction("ratioBucket", "gt100");
+          if (action === "psfTier") return setInteraction("psfTier", "aboveMedian");
+          if (action === "mlsOnly") return setInteraction("mode", "MLS_ENRICHED");
         });
 
         document.getElementById("csvFile").addEventListener("change", (evt) => {
@@ -1297,10 +1296,9 @@
           reader.onload = () => {
             try {
               state.rows = parseCsv(reader.result);
-              const normalized = state.rows.map(normalizeRow);
-              refreshFilterOptions(normalized);
-              clearAllInteractions();
-              renderEverything();
+              refreshSelectOptions();
+              clearCrossFilters();
+              renderAll();
               document.getElementById("uploadStatus").textContent = `Loaded ${state.rows.length} rows from ${file.name}.`;
               document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${state.rows.length} rows).`;
             } catch (err) {
@@ -1311,9 +1309,28 @@
         });
       }
 
+      async function autoLoadDefault() {
+        const status = document.getElementById("datasetStatus");
+        try {
+          const response = await fetch(DEFAULT_DATASET, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const text = await response.text();
+          state.rows = parseCsv(text);
+          refreshSelectOptions();
+          renderAll();
+          document.getElementById("uploadStatus").textContent = `Auto-loaded ${DEFAULT_DATASET}.`;
+          status.textContent = `Auto-loaded ${DEFAULT_DATASET} (${state.rows.length} rows).`;
+        } catch (err) {
+          state.rows = [];
+          refreshSelectOptions();
+          renderAll();
+          status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) or upload CSV in Data tab.";
+        }
+      }
+
       function init() {
         bindEvents();
-        autoLoadDefaultDataset();
+        autoLoadDefault();
       }
 
       init();
