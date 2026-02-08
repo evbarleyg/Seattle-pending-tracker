@@ -4,6 +4,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Seattle Housing Buyer Lens</title>
+    <meta name="description" content="Interactive Seattle housing dashboard for buyers. Cross-filter neighborhood, property type, price bands, and sale timing using King County public record data." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Seattle Housing Buyer Lens" />
+    <meta property="og:description" content="Buyer-focused Seattle housing dashboard with dynamic filters, market KPIs, and row-level records." />
+    <meta property="og:url" content="https://evbarleyg.github.io/Seattle-pending-tracker/" />
+    <meta property="og:image" content="https://evbarleyg.github.io/Seattle-pending-tracker/assets/share-preview.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Seattle Housing Buyer Lens" />
+    <meta name="twitter:description" content="Interactive buyer dashboard for Seattle home sales and pricing pressure." />
+    <meta name="twitter:image" content="https://evbarleyg.github.io/Seattle-pending-tracker/assets/share-preview.svg" />
+    <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" sizes="any" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="assets/ebg-icon.svg" />
+    <meta name="theme-color" content="#1f5ea8" />
     <style>
       :root {
         --bg: #0a1220;
@@ -235,42 +250,88 @@
         display: grid;
         gap: 8px;
       }
-      .bar-row {
-        width: 100%;
+      .vchart {
+        min-height: 280px;
+        display: grid;
+        grid-template-columns: 58px 1fr;
+        gap: 10px;
+      }
+      .y-axis {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: flex-end;
+        color: var(--muted);
+        font-size: 11px;
+        padding: 2px 0 18px;
+      }
+      .plot {
+        border-left: 1px solid #2d4363;
+        border-bottom: 1px solid #2d4363;
+        padding: 6px 6px 0 8px;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(64px, 1fr);
+        gap: 8px;
+        align-items: end;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+      }
+      .vbar {
         border: 1px solid #2d4363;
-        border-radius: 10px;
+        border-radius: 10px 10px 0 0;
         background: #0f1b2f;
         color: #dce8ff;
         cursor: pointer;
-        padding: 6px;
         display: grid;
-        grid-template-columns: 110px 1fr 150px;
-        gap: 8px;
-        align-items: center;
-        font-size: 13px;
+        grid-template-rows: 1fr auto auto;
+        padding: 6px 4px 4px;
+        min-height: 165px;
       }
-      .bar-row.active {
+      .vbar.active {
         border-color: #4eb2ff;
       }
-      .track {
+      .vbar-track {
+        align-self: end;
         width: 100%;
-        height: 11px;
-        border-radius: 999px;
-        background: #1f2f49;
-        overflow: hidden;
-      }
-      .fill {
         height: 100%;
-        background: linear-gradient(90deg, #3d93ed, #56d1ff);
+        display: flex;
+        align-items: end;
+        justify-content: center;
       }
-      .fill.warm {
-        background: linear-gradient(90deg, #cc8536, #f3c366);
+      .vbar-fill {
+        display: block;
+        width: 78%;
+        border-radius: 8px 8px 0 0;
+        background: linear-gradient(180deg, #56d1ff, #3d93ed);
+        min-height: 6px;
+      }
+      .vbar-fill.warm {
+        background: linear-gradient(180deg, #f3c366, #cc8536);
+      }
+      .vbar-month {
+        margin-top: 6px;
+        text-align: center;
+        font-size: 12px;
+        color: #dce8ff;
+      }
+      .vbar-value {
+        margin-top: 2px;
+        text-align: center;
+        font-size: 12px;
+        color: #b8cae4;
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+      }
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       th, td {
         text-align: left;
@@ -383,14 +444,19 @@
         border-color: #b9cde5;
         color: #244665;
       }
-      body.light .bar-row {
+      body.light .plot {
+        border-left-color: #c7d5e8;
+        border-bottom-color: #c7d5e8;
+      }
+      body.light .vbar {
         background: #ffffff;
         border-color: #c7d5e8;
         color: #1f3855;
       }
-      body.light .track { background: #dce7f5; }
-      body.light .fill { background: linear-gradient(90deg, #2d80d7, #42bde7); }
-      body.light .fill.warm { background: linear-gradient(90deg, #c07b2f, #e3b24f); }
+      body.light .vbar-fill { background: linear-gradient(180deg, #42bde7, #2d80d7); }
+      body.light .vbar-fill.warm { background: linear-gradient(180deg, #e3b24f, #c07b2f); }
+      body.light .vbar-month { color: #1f3855; }
+      body.light .vbar-value { color: #4a6586; }
       body.light th,
       body.light td { border-bottom-color: #d2deed; }
       body.light tr.clickable:hover { background: rgba(77, 133, 200, 0.12); }
@@ -421,6 +487,22 @@
         .header-controls {
           flex-direction: column;
           align-items: flex-start;
+        }
+        header {
+          padding: 20px 14px 8px;
+        }
+        .app {
+          padding: 10px 14px 20px;
+        }
+        h1 {
+          font-size: 28px;
+        }
+        .vchart {
+          min-height: 230px;
+          grid-template-columns: 46px 1fr;
+        }
+        .plot {
+          grid-auto-columns: minmax(56px, 1fr);
         }
       }
     </style>
@@ -498,6 +580,7 @@
         <section class="panel">
           <h3>How To Use This Dashboard</h3>
           <ul class="guide">
+            <li>App opens with default filters set to <strong>Single Family</strong> and <strong>$1.1M-$1.4M</strong> so you can start with a focused buy-box view.</li>
             <li>Start with price/date filters to define your buy box, then click chart rows or table rows to drill down.</li>
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
@@ -559,21 +642,25 @@
         <div class="two-col">
           <section class="panel">
             <h3>Sale / Assessed Buckets</h3>
-            <table>
-              <thead>
-                <tr><th>Bucket</th><th>Count</th><th>Share</th><th>Median Close</th></tr>
-              </thead>
-              <tbody id="ratioRows"></tbody>
-            </table>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Bucket</th><th>Count</th><th>Share</th><th>Median Close</th></tr>
+                </thead>
+                <tbody id="ratioRows"></tbody>
+              </table>
+            </div>
           </section>
           <section class="panel">
             <h3>Neighborhood Leaderboard</h3>
-            <table>
-              <thead>
-                <tr><th>Neighborhood</th><th>Count</th><th>Median Close</th><th>Median S/A</th></tr>
-              </thead>
-              <tbody id="rankRows"></tbody>
-            </table>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Neighborhood</th><th>Count</th><th>Median Close</th><th>Median S/A</th></tr>
+                </thead>
+                <tbody id="rankRows"></tbody>
+              </table>
+            </div>
           </section>
         </div>
       </section>
@@ -581,25 +668,27 @@
       <section id="view-records" class="view">
         <section class="panel">
           <h3>Row-Level Summary</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Address</th>
-                <th>Neighborhood</th>
-                <th>Type</th>
-                <th>Beds</th>
-                <th>Baths</th>
-                <th>SqFt</th>
-                <th>Sale Date</th>
-                <th>Close Price</th>
-                <th>Assessed</th>
-                <th>S/A</th>
-                <th>Delta vs List@Pending</th>
-                <th>Data Mode</th>
-              </tr>
-            </thead>
-            <tbody id="recordRows"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th>Neighborhood</th>
+                  <th>Type</th>
+                  <th>Beds</th>
+                  <th>Baths</th>
+                  <th>SqFt</th>
+                  <th>Sale Date</th>
+                  <th>Close Price</th>
+                  <th>Assessed</th>
+                  <th>S/A</th>
+                  <th>Delta vs List@Pending</th>
+                  <th>Data Mode</th>
+                </tr>
+              </thead>
+              <tbody id="recordRows"></tbody>
+            </table>
+          </div>
           <div class="note">Address links open Zillow search results. Heat gradients cap outliers using robust percentiles.</div>
         </section>
       </section>
@@ -611,7 +700,7 @@
           <input id="csvFile" type="file" accept=".csv" />
 
           <p class="note">Auto-load filename:</p>
-          <div class="mono">public_sales_proxy_1p1m_1p4m_last6mo.csv</div>
+          <div class="mono">public_sales_proxy_all_prices_last6mo.csv</div>
 
           <p class="note">Minimum columns:</p>
           <div class="mono">id,address,type,closePrice</div>
@@ -626,18 +715,20 @@
     </main>
 
     <script>
-      const DEFAULT_DATASET = "public_sales_proxy_1p1m_1p4m_last6mo.csv";
+      const DEFAULT_DATASET = "public_sales_proxy_all_prices_last6mo.csv";
+      const DEFAULT_MIN_CLOSE = 1100000;
+      const DEFAULT_MAX_CLOSE = 1400000;
 
       const TYPE_LABELS = {
-        "11": "Single-family house",
-        "12": "Residential multi-family (2-4 units)",
-        "13": "Residential multi-family (5+ units)",
-        "14": "Residential condominium",
+        "11": "Single Family",
+        "12": "Multi-Family (2-4 Units)",
+        "13": "Multi-Family (5+ Units)",
+        "14": "Condo",
         "15": "Mobile home park/court",
-        "18": "Other residential",
+        "18": "Other Residential",
         "19": "Vacation/cabin",
-        "50": "Commercial or non-residential condo",
-        "91": "Undeveloped land",
+        "50": "Commercial / Non-Residential Condo",
+        "91": "Land",
       };
 
       const ZIP_NEIGHBORHOOD = {
@@ -752,6 +843,15 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       }
 
+      function monthLabel(month) {
+        const m = String(month || "");
+        if (!/^\d{4}-\d{2}$/.test(m)) return m || "Unknown";
+        const [yy, mm] = m.split("-");
+        const d = new Date(`${yy}-${mm}-01T00:00:00`);
+        if (Number.isNaN(d.getTime())) return m;
+        return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+      }
+
       function daysBetween(a, b) {
         const d1 = toDate(a);
         const d2 = toDate(b);
@@ -844,11 +944,44 @@
       function labelType(rawType, typeCode) {
         const raw = String(rawType || "").trim();
         if (/[a-z]/i.test(raw)) {
-          if (/^[A-Z0-9\s,()\-]+$/.test(raw)) return titleCase(raw);
-          return raw;
+          const pretty = /^[A-Z0-9\s,()\-]+$/.test(raw) ? titleCase(raw) : raw;
+          const norm = pretty.toLowerCase();
+          if (norm.includes("single family")) return "Single Family";
+          if (norm.includes("condomini")) return "Condo";
+          if (norm.includes("2-4 units")) return "Multi-Family (2-4 Units)";
+          if (norm.includes("5+ units")) return "Multi-Family (5+ Units)";
+          if (norm.includes("land")) return "Land";
+          return pretty;
         }
         const code = String(num(typeCode || raw) || "");
         return TYPE_LABELS[code] || (code ? `Type ${code}` : "Unknown");
+      }
+
+      function normalizeForMatch(v) {
+        return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      }
+
+      function findDefaultSingleFamilyLabel() {
+        const options = [...document.getElementById("fType").options].map((opt) => opt.value);
+        const normalized = options.map((value) => ({ value, norm: normalizeForMatch(value) }));
+        const exact = normalized.find((x) => x.norm === "single family");
+        if (exact) return exact.value;
+        const contains = normalized.find((x) => x.norm.includes("single family"));
+        if (contains) return contains.value;
+        const household = normalized.find((x) => x.norm.includes("household single family"));
+        if (household) return household.value;
+        return "All";
+      }
+
+      function applyDefaultFormFilters() {
+        document.getElementById("fNeighborhood").value = "All";
+        document.getElementById("fType").value = findDefaultSingleFamilyLabel();
+        document.getElementById("fMode").value = "All";
+        document.getElementById("fScope").value = "all";
+        document.getElementById("fMinClose").value = String(DEFAULT_MIN_CLOSE);
+        document.getElementById("fMaxClose").value = String(DEFAULT_MAX_CLOSE);
+        document.getElementById("fDateFrom").value = "";
+        document.getElementById("fDateTo").value = "";
       }
 
       function normalizeRow(source) {
@@ -1063,7 +1196,7 @@
           `Median close price is ${formatMoney(median(rows.map((r) => r.closePrice)))} across ${rows.length} homes in this slice.`,
           `${overShare.toFixed(1)}% of homes closed above assessed value (median S/A ${median(ratios).toFixed(2)}x).`,
           `Highest activity is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
-          `Most active month is ${topMonth ? topMonth[0] : "n/a"} (${topMonth ? topMonth[1] : 0} sales).`,
+          `Most active month is ${topMonth ? monthLabel(topMonth[0]) : "n/a"} (${topMonth ? topMonth[1] : 0} sales).`,
         ];
 
         const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null);
@@ -1077,25 +1210,51 @@
         el.innerHTML = lines.map((line) => `<li>${esc(line)}</li>`).join("");
       }
 
-      function renderBarChart(containerId, items, valueFn, labelFn, tailFn, warm) {
+      function renderColumnChart(containerId, items, valueFn, labelFn, tailFn, warm) {
         const container = document.getElementById(containerId);
         if (!items.length) {
           container.innerHTML = `<div class="note">No rows for current filters.</div>`;
           return;
         }
 
-        const robustTop = Math.max(quantile(items.map((i) => valueFn(i)), 0.95), 1);
-        container.innerHTML = items.map((item) => {
-          const width = Math.min(100, Math.round((valueFn(item) / robustTop) * 100));
+        const vals = items.map((i) => valueFn(i));
+        const qLow = quantile(vals, 0.05);
+        const qHigh = quantile(vals, 0.95);
+        const minVal = Math.min(...vals);
+        const maxVal = Math.max(...vals);
+        const low = Number.isFinite(qLow) ? qLow : minVal;
+        const high = Number.isFinite(qHigh) ? qHigh : maxVal;
+        const span = Math.max(high - low, 1);
+
+        const topLabel = tailFn({ v: high, raw: maxVal, kind: "top" });
+        const midLabel = tailFn({ v: low + span / 2, raw: (minVal + maxVal) / 2, kind: "mid" });
+        const lowLabel = tailFn({ v: low, raw: minVal, kind: "low" });
+
+        const bars = items.map((item) => {
+          const raw = valueFn(item);
+          const clamped = Math.max(low, Math.min(high, raw));
+          const norm = (clamped - low) / span;
+          const height = 12 + (norm * 88);
           const active = state.interactions.month === item.month;
           return `
-            <button class="bar-row ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button">
-              <span>${esc(labelFn(item))}</span>
-              <span class="track"><span class="fill ${warm ? "warm" : ""}" style="width:${width}%"></span></span>
-              <span>${esc(tailFn(item))}</span>
+            <button class="vbar ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button">
+              <span class="vbar-track"><span class="vbar-fill ${warm ? "warm" : ""}" style="height:${height}%"></span></span>
+              <span class="vbar-month">${esc(labelFn(item))}</span>
+              <span class="vbar-value">${esc(tailFn({ v: raw, raw, kind: "point" }))}</span>
             </button>
           `;
         }).join("");
+
+        container.innerHTML = `
+          <div class="vchart">
+            <div class="y-axis">
+              <span>${esc(topLabel)}</span>
+              <span>${esc(midLabel)}</span>
+              <span>${esc(lowLabel)}</span>
+            </div>
+            <div class="plot">${bars}</div>
+          </div>
+        `;
       }
 
       function renderCharts(rows) {
@@ -1106,7 +1265,14 @@
           volume[m].count += 1;
         });
         const volumeRows = Object.values(volume).sort((a, b) => a.month.localeCompare(b.month));
-        renderBarChart("chartVolume", volumeRows, (x) => x.count, (x) => x.month, (x) => `${x.count} sales`, false);
+        renderColumnChart(
+          "chartVolume",
+          volumeRows,
+          (x) => x.count,
+          (x) => monthLabel(x.month),
+          (x) => `${Math.round(x.v).toLocaleString("en-US")} sales`,
+          false
+        );
 
         const price = {};
         rows.forEach((r) => {
@@ -1117,7 +1283,14 @@
         const priceRows = Object.entries(price)
           .map(([month, vals]) => ({ month, medianPrice: median(vals) }))
           .sort((a, b) => a.month.localeCompare(b.month));
-        renderBarChart("chartMedian", priceRows, (x) => x.medianPrice, (x) => x.month, (x) => formatMoney(x.medianPrice), true);
+        renderColumnChart(
+          "chartMedian",
+          priceRows,
+          (x) => x.medianPrice,
+          (x) => monthLabel(x.month),
+          (x) => formatMoney(x.v),
+          true
+        );
       }
 
       function renderRatioRows(rows) {
@@ -1286,14 +1459,7 @@
       }
 
       function resetFormFilters() {
-        document.getElementById("fNeighborhood").value = "All";
-        document.getElementById("fType").value = "All";
-        document.getElementById("fMode").value = "All";
-        document.getElementById("fScope").value = "all";
-        document.getElementById("fMinClose").value = "";
-        document.getElementById("fMaxClose").value = "";
-        document.getElementById("fDateFrom").value = "";
-        document.getElementById("fDateTo").value = "";
+        applyDefaultFormFilters();
       }
 
       function escapeCsv(v) {
@@ -1379,7 +1545,7 @@
 
         document.getElementById("resetBtn").addEventListener("click", () => {
           resetFormFilters();
-          renderAll();
+          clearCrossFilters();
         });
         document.getElementById("clearCrossBtn").addEventListener("click", clearCrossFilters);
         document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
@@ -1431,8 +1597,8 @@
             try {
               state.rows = parseCsv(reader.result);
               refreshSelectOptions();
+              applyDefaultFormFilters();
               clearCrossFilters();
-              renderAll();
               document.getElementById("uploadStatus").textContent = `Loaded ${state.rows.length} rows from ${file.name}.`;
               document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${state.rows.length} rows).`;
             } catch (err) {
@@ -1451,7 +1617,8 @@
           const text = await response.text();
           state.rows = parseCsv(text);
           refreshSelectOptions();
-          renderAll();
+          applyDefaultFormFilters();
+          clearCrossFilters();
           document.getElementById("uploadStatus").textContent = `Auto-loaded ${DEFAULT_DATASET}.`;
           status.textContent = `Auto-loaded ${DEFAULT_DATASET} (${state.rows.length} rows).`;
         } catch (err) {

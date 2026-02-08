@@ -11,12 +11,12 @@ const SALES_FILE = path.join(PROJECT_DIR, "EXTR_RPSale.csv");
 const PARCEL_FILE = path.join(PROJECT_DIR, "EXTR_Parcel.csv");
 const RESBLDG_FILE = path.join(PROJECT_DIR, "EXTR_ResBldg.csv");
 const LOOKUP_FILE = path.join(PROJECT_DIR, "EXTR_LookUp.csv");
-const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_1p1m_1p4m_last6mo.csv");
-
-const SALE_MIN = 1_100_000;
-const SALE_MAX = 1_400_000;
-const RANGE_START = new Date("2025-08-08T00:00:00");
-const RANGE_END = new Date("2026-02-08T23:59:59");
+const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_all_prices_last6mo.csv");
+const RANGE_END = new Date();
+RANGE_END.setHours(23, 59, 59, 999);
+const RANGE_START = new Date(RANGE_END);
+RANGE_START.setMonth(RANGE_START.getMonth() - 6);
+RANGE_START.setHours(0, 0, 0, 0);
 
 const ZIP_NEIGHBORHOOD = {
   "98101": "Downtown",
@@ -344,8 +344,6 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
     if (!account) continue;
 
     const salePrice = num(cols[idx.SalePrice]);
-    if (salePrice < SALE_MIN || salePrice > SALE_MAX) continue;
-
     const docDateRaw = clean(cols[idx.DocumentDate]);
     const docDate = toDate(docDateRaw);
     if (!docDate || docDate < RANGE_START || docDate > RANGE_END) continue;

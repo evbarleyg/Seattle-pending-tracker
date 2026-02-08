@@ -42,4 +42,4 @@ node scripts/serve.js
 
 `http://localhost:4173`
 
-The app auto-loads `public_sales_proxy_1p1m_1p4m_last6mo.csv` when served over HTTP.
+The app auto-loads `public_sales_proxy_all_prices_last6mo.csv` when served over HTTP.

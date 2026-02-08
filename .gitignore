@@ -7,4 +7,4 @@ EXTR_*.csv
 Value History/
 
 # Keep the app-ready derived dataset
-!public_sales_proxy_1p1m_1p4m_last6mo.csv
+!public_sales_proxy_all_prices_last6mo.csv
