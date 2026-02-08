@@ -1,0 +1,2 @@
+dataMode,id,address,neighborhood,type,listDate,pendingDate,listPriceAtPending,closePrice,assessedValue,beds,baths,sqft,yearBuilt,zip,districtName,area,subArea,sqFtLot,zoning,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice
+MLS_ENRICHED,MLS-0001,"1234 Sample St, Seattle 98101",Downtown,SFH,2025-11-01,2025-11-04,1249000,1325000,1180000,4,2.5,2280,2001,98101,SEATTLE,14,5,4000,LR2,2025-11-01,2025-11-04,1249000,1325000

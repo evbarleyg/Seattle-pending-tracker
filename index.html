@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Seattle Pending-in-7 Tracker (Dummy Data)</title>
+    <style>
+      :root {
+        --bg: #f7f4ef;
+        --card: #ffffff;
+        --ink: #1f1f1f;
+        --muted: #6b6b6b;
+        --accent: #0c4a6e;
+        --accent-2: #9f5f0f;
+        --border: #e3ded6;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", serif;
+        color: var(--ink);
+        background: radial-gradient(1200px 600px at 20% -10%, #f2e9db 0%, transparent 70%),
+                    radial-gradient(900px 500px at 90% 0%, #e8eef2 0%, transparent 60%),
+                    var(--bg);
+      }
+      header {
+        padding: 28px 20px 8px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 6px 0;
+        font-size: 30px;
+        letter-spacing: 0.3px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .status {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tabs {
+        margin-top: 14px;
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #fff;
+        overflow: hidden;
+      }
+      .tab {
+        padding: 8px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+      }
+      .tab.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      .grid {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+        display: grid;
+        gap: 16px;
+      }
+      .filters, .stats, .table-card, .upload-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.04);
+      }
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .filter-actions {
+        display: flex;
+        align-items: flex-end;
+      }
+      .btn {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .analysis-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .chart {
+        display: grid;
+        gap: 8px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 70px 1fr 140px;
+        gap: 8px;
+        align-items: center;
+      }
+      .bar-track {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: #eee8de;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #0c4a6e, #1e6a96);
+      }
+      .rank-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .rank-table th, .rank-table td {
+        border-bottom: 1px solid var(--border);
+        padding: 7px 6px;
+        font-size: 13px;
+      }
+      label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+      select, input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        font-size: 14px;
+        background: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .stat {
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #fbfaf7;
+      }
+      .stat .label { color: var(--muted); font-size: 12px; }
+      .stat .value { font-size: 20px; margin-top: 4px; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th, td {
+        text-align: left;
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--border);
+      }
+      th { color: var(--muted); font-weight: 600; }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eef2f6;
+        font-size: 11px;
+      }
+      .over { color: #0f6; }
+      .under { color: #b91c1c; }
+      .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+      .upload-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 16px;
+      }
+      .file-box {
+        border: 1px dashed var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        background: #fbfaf7;
+      }
+      .mono {
+        font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        background: #f5f5f5;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        white-space: pre-wrap;
+      }
+      .pill {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #f1efe9;
+        font-size: 12px;
+      }
+      .hidden { display: none; }
+      @media (max-width: 900px) {
+        .filters, .stats { grid-template-columns: 1fr 1fr; }
+        .analysis-grid { grid-template-columns: 1fr; }
+        .upload-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 600px) {
+        .filters, .stats { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Seattle Pending-in-7 Tracker</h1>
+      <div class="sub">Public proxy + MLS-enriched compatible dashboard. Filters show homes that went pending within 7 days and later closed.</div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="dashboard" role="tab">Dashboard</button>
+        <button class="tab" data-tab="upload" role="tab">CSV Upload</button>
+      </div>
+      <div class="status" id="datasetStatus">Initializing dataset...</div>
+    </header>
+
+    <section class="grid" id="dashboard">
+      <div class="filters">
+        <div>
+          <label for="neighborhood">Neighborhood</label>
+          <select id="neighborhood"></select>
+        </div>
+        <div>
+          <label for="type">Property Type</label>
+          <select id="type"></select>
+        </div>
+        <div>
+          <label for="minPrice">Min List Price</label>
+          <input id="minPrice" type="number" placeholder="e.g. 500000" />
+        </div>
+        <div>
+          <label for="maxPrice">Max List Price</label>
+          <input id="maxPrice" type="number" placeholder="e.g. 1500000" />
+        </div>
+        <div class="filter-actions">
+          <button id="exportCsvBtn" class="btn" type="button">Export Filtered CSV</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Pending within 7 days</div>
+          <div class="value" id="count">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Median $ Over List</div>
+          <div class="value" id="median">$0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Avg % Over List</div>
+          <div class="value" id="avgPct">0%</div>
+        </div>
+        <div class="stat">
+          <div class="label">Median Sale/Assessed</div>
+          <div class="value" id="saleToAssessed">0.00x</div>
+        </div>
+        <div class="stat">
+          <div class="label">Active Data Mode</div>
+          <div class="value" id="datasetMode">Public Proxy</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="analysis-grid">
+          <div>
+            <h3>Monthly Pending Trend</h3>
+            <div class="chart" id="monthlyTrend"></div>
+          </div>
+          <div>
+            <h3>Neighborhood Ranking</h3>
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th>Neighborhood</th>
+                  <th>Count</th>
+                  <th>Median Δ $</th>
+                  <th>Median S/A</th>
+                </tr>
+              </thead>
+              <tbody id="rankRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <br />
+        <table>
+          <thead>
+            <tr>
+              <th>Listing</th>
+              <th>Neighborhood</th>
+              <th>Type</th>
+              <th>List Date</th>
+              <th>Pending Date</th>
+              <th>List @ Pending</th>
+              <th>Assessed Value</th>
+              <th>Close Price</th>
+              <th>Δ $</th>
+              <th>Δ %</th>
+              <th>Sale/Assessed</th>
+              <th>Days to Pending</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="note">All data is synthetic unless you upload a CSV.</div>
+      </div>
+    </section>
+
+    <section class="grid hidden" id="upload">
+      <div class="upload-card">
+        <div class="upload-grid">
+          <div>
+            <h3>Upload a CSV</h3>
+            <p class="sub">Your CSV will replace the dummy dataset in the dashboard.</p>
+            <div class="file-box">
+              <input id="csvFile" type="file" accept=".csv" />
+              <div class="note" id="uploadStatus">No file loaded.</div>
+            </div>
+            <p class="sub">Required columns (exact header names):</p>
+            <div class="mono">id,address,neighborhood,type,listDate,pendingDate,listPriceAtPending,closePrice</div>
+            <p class="sub">Optional columns:</p>
+            <div class="mono">dataMode,assessedValue,beds,baths,sqft,yearBuilt,zip,districtName,area,subArea,sqFtLot,zoning,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
+            <p class="sub">Dates must be in <span class="pill">YYYY-MM-DD</span> format.</p>
+          </div>
+          <div>
+            <h3>Example CSV</h3>
+            <div class="mono">dataMode,id,address,neighborhood,type,listDate,pendingDate,listPriceAtPending,closePrice,assessedValue,beds,baths,sqft,yearBuilt
+PUBLIC_PROXY,SEA-201,2101 5th Ave,Belltown,Condo,2025-12-15,2025-12-19,690000,705000,640000,2,1.75,980,2011
+MLS_ENRICHED,SEA-202,8431 17th Ave NE,Maple Leaf,SFH,2025-12-20,2025-12-26,1125000,1180000,1060000,4,2.50,2310,2004</div>
+            <p class="note">Quoted CSV is supported, including commas inside addresses.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      let data = [
+        { id: "SEA-001", address: "4212 8th Ave NE", neighborhood: "Wallingford", type: "SFH", listDate: "2026-01-10", pendingDate: "2026-01-14", listPriceAtPending: 980000, closePrice: 1040000, assessedValue: 920000 },
+        { id: "SEA-002", address: "1701 E Spring St", neighborhood: "Capitol Hill", type: "Condo", listDate: "2026-01-09", pendingDate: "2026-01-12", listPriceAtPending: 625000, closePrice: 610000, assessedValue: 650000 },
+        { id: "SEA-003", address: "5200 Greenwood Ave N", neighborhood: "Greenwood", type: "SFH", listDate: "2026-01-05", pendingDate: "2026-01-10", listPriceAtPending: 860000, closePrice: 905000, assessedValue: 840000 },
+        { id: "SEA-004", address: "1122 34th Ave", neighborhood: "Madison Park", type: "SFH", listDate: "2026-01-08", pendingDate: "2026-01-16", listPriceAtPending: 1890000, closePrice: 1885000, assessedValue: 1815000 },
+        { id: "SEA-005", address: "601 19th Ave E", neighborhood: "Capitol Hill", type: "Townhome", listDate: "2026-01-12", pendingDate: "2026-01-14", listPriceAtPending: 899000, closePrice: 940000, assessedValue: 870000 },
+        { id: "SEA-006", address: "2442 NW 62nd St", neighborhood: "Ballard", type: "SFH", listDate: "2026-01-04", pendingDate: "2026-01-09", listPriceAtPending: 1125000, closePrice: 1170000, assessedValue: 1080000 },
+        { id: "SEA-007", address: "3512 S Hudson St", neighborhood: "Columbia City", type: "SFH", listDate: "2026-01-11", pendingDate: "2026-01-17", listPriceAtPending: 740000, closePrice: 760000, assessedValue: 715000 },
+        { id: "SEA-008", address: "2301 5th Ave", neighborhood: "Belltown", type: "Condo", listDate: "2026-01-03", pendingDate: "2026-01-06", listPriceAtPending: 515000, closePrice: 505000, assessedValue: 520000 },
+        { id: "SEA-009", address: "4103 24th Ave W", neighborhood: "Magnolia", type: "SFH", listDate: "2026-01-07", pendingDate: "2026-01-09", listPriceAtPending: 1495000, closePrice: 1530000, assessedValue: 1440000 },
+        { id: "SEA-010", address: "1808 12th Ave", neighborhood: "Capitol Hill", type: "SFH", listDate: "2026-01-02", pendingDate: "2026-01-05", listPriceAtPending: 995000, closePrice: 1015000, assessedValue: 970000 },
+        { id: "SEA-011", address: "7225 15th Ave NE", neighborhood: "Ravenna", type: "SFH", listDate: "2026-01-01", pendingDate: "2026-01-05", listPriceAtPending: 1180000, closePrice: 1215000, assessedValue: 1120000 },
+        { id: "SEA-012", address: "1200 11th Ave", neighborhood: "First Hill", type: "Condo", listDate: "2026-01-06", pendingDate: "2026-01-07", listPriceAtPending: 705000, closePrice: 735000, assessedValue: 690000 },
+        { id: "SEA-013", address: "3001 W Government Way", neighborhood: "Magnolia", type: "SFH", listDate: "2026-01-13", pendingDate: "2026-01-14", listPriceAtPending: 1325000, closePrice: 1310000, assessedValue: 1345000 },
+        { id: "SEA-014", address: "5021 48th Ave SW", neighborhood: "West Seattle", type: "SFH", listDate: "2026-01-09", pendingDate: "2026-01-12", listPriceAtPending: 975000, closePrice: 1005000, assessedValue: 930000 },
+        { id: "SEA-015", address: "3800 28th Ave S", neighborhood: "Mount Baker", type: "Townhome", listDate: "2026-01-08", pendingDate: "2026-01-11", listPriceAtPending: 695000, closePrice: 720000, assessedValue: 670000 },
+      ];
+      let lastFilteredRows = [];
+
+      function daysBetween(a, b) {
+        const d1 = new Date(a);
+        const d2 = new Date(b);
+        return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+      }
+
+      function formatMoney(n) {
+        return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+      }
+
+      function median(values) {
+        if (values.length === 0) return 0;
+        const sorted = [...values].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      }
+
+      function unique(list, key) {
+        return ["All", ...Array.from(new Set(list.map((x) => x[key]))).sort()];
+      }
+
+      function inferDataMode(row) {
+        if (row.dataMode) return row.dataMode;
+        const hasMls = row.mlsListDate || row.mlsPendingDate || row.mlsListPriceAtPending || row.mlsClosePrice;
+        return hasMls ? "MLS_ENRICHED" : "PUBLIC_PROXY";
+      }
+
+      function normalizeRow(row) {
+        const dataMode = inferDataMode(row);
+        const listDate = row.mlsListDate || row.listDate || "";
+        const pendingDate = row.mlsPendingDate || row.pendingDate || listDate;
+        const assessedValue = Number(row.assessedValue) || Number(row.listPriceAtPending) || 0;
+        const listPriceAtPending = Number(row.mlsListPriceAtPending) || Number(row.listPriceAtPending) || assessedValue;
+        const closePrice = Number(row.mlsClosePrice) || Number(row.closePrice) || 0;
+        return {
+          ...row,
+          dataMode,
+          listDate,
+          pendingDate,
+          assessedValue,
+          listPriceAtPending,
+          closePrice,
+          beds: Number(row.beds) || 0,
+          baths: Number(row.baths) || 0,
+          sqft: Number(row.sqft) || 0,
+          yearBuilt: Number(row.yearBuilt) || 0,
+        };
+      }
+
+      function populateSelect(el, items) {
+        el.innerHTML = items.map((v) => `<option value="${v}">${v}</option>`).join("");
+      }
+
+      function getFilters() {
+        return {
+          neighborhood: document.getElementById("neighborhood").value,
+          type: document.getElementById("type").value,
+          minPrice: Number(document.getElementById("minPrice").value || 0),
+          maxPrice: Number(document.getElementById("maxPrice").value || 0),
+        };
+      }
+
+      function applyFilters() {
+        const { neighborhood, type, minPrice, maxPrice } = getFilters();
+
+        const filtered = data
+          .map((source) => {
+            const d = normalizeRow(source);
+            const assessedValue = Number(d.assessedValue) || Number(d.listPriceAtPending);
+            return {
+              ...d,
+              assessedValue,
+              daysToPending: daysBetween(d.listDate, d.pendingDate),
+              delta: d.closePrice - d.listPriceAtPending,
+              deltaPct: (d.closePrice - d.listPriceAtPending) / d.listPriceAtPending,
+              saleToAssessed: assessedValue ? (d.closePrice / assessedValue) : 0,
+            };
+          })
+          .filter((d) => d.daysToPending <= 7)
+          .filter((d) => (neighborhood === "All" ? true : d.neighborhood === neighborhood))
+          .filter((d) => (type === "All" ? true : d.type === type))
+          .filter((d) => (minPrice ? d.listPriceAtPending >= minPrice : true))
+          .filter((d) => (maxPrice ? d.listPriceAtPending <= maxPrice : true));
+
+        lastFilteredRows = filtered;
+        renderStats(filtered);
+        renderTrend(filtered);
+        renderNeighborhoodRanking(filtered);
+        renderRows(filtered);
+      }
+
+      function renderStats(rows) {
+        document.getElementById("count").textContent = rows.length;
+        const deltas = rows.map((r) => r.delta);
+        const saleToAssessed = rows.filter((r) => r.assessedValue > 0).map((r) => r.saleToAssessed);
+        const pct = rows.length ? rows.reduce((a, r) => a + r.deltaPct, 0) / rows.length : 0;
+        const modeCounts = rows.reduce((acc, r) => {
+          acc[r.dataMode] = (acc[r.dataMode] || 0) + 1;
+          return acc;
+        }, {});
+        const primaryMode = Object.entries(modeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "PUBLIC_PROXY";
+        document.getElementById("median").textContent = formatMoney(median(deltas));
+        document.getElementById("avgPct").textContent = `${(pct * 100).toFixed(1)}%`;
+        document.getElementById("saleToAssessed").textContent = `${median(saleToAssessed).toFixed(2)}x`;
+        document.getElementById("datasetMode").textContent = primaryMode === "MLS_ENRICHED" ? "MLS Enriched" : "Public Proxy";
+      }
+
+      function renderRows(rows) {
+        const tbody = document.getElementById("rows");
+        tbody.innerHTML = rows
+          .sort((a, b) => a.pendingDate.localeCompare(b.pendingDate))
+          .map((r) => {
+            const deltaClass = r.delta >= 0 ? "over" : "under";
+            const deltaPct = (r.deltaPct * 100).toFixed(1) + "%";
+            return `
+              <tr>
+                <td><div>${r.address}</div><div class="badge">${r.id}</div></td>
+                <td>${r.neighborhood}</td>
+                <td>${r.type}</td>
+                <td>${r.listDate}</td>
+                <td>${r.pendingDate}</td>
+                <td>${formatMoney(r.listPriceAtPending)}</td>
+                <td>${formatMoney(r.assessedValue)}</td>
+                <td>${formatMoney(r.closePrice)}</td>
+                <td class="${deltaClass}">${formatMoney(r.delta)}</td>
+                <td class="${deltaClass}">${deltaPct}</td>
+                <td>${r.saleToAssessed.toFixed(2)}x</td>
+                <td>${r.daysToPending}</td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      function monthKey(dateText) {
+        const d = new Date(dateText);
+        if (Number.isNaN(d.getTime())) return "Unknown";
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        return `${y}-${m}`;
+      }
+
+      function renderTrend(rows) {
+        const container = document.getElementById("monthlyTrend");
+        if (!rows.length) {
+          container.innerHTML = `<div class="note">No rows for current filters.</div>`;
+          return;
+        }
+        const groups = {};
+        rows.forEach((r) => {
+          const key = monthKey(r.pendingDate);
+          if (!groups[key]) groups[key] = { count: 0, medianDeltaSource: [] };
+          groups[key].count += 1;
+          groups[key].medianDeltaSource.push(r.delta);
+        });
+        const entries = Object.entries(groups)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([month, val]) => ({ month, count: val.count, medianDelta: median(val.medianDeltaSource) }));
+        const maxCount = Math.max(...entries.map((e) => e.count), 1);
+        container.innerHTML = entries.map((e) => {
+          const pct = Math.round((e.count / maxCount) * 100);
+          return `
+            <div class="bar-row">
+              <div>${e.month}</div>
+              <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+              <div>${e.count} | ${formatMoney(e.medianDelta)}</div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderNeighborhoodRanking(rows) {
+        const tbody = document.getElementById("rankRows");
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="4">No rows for current filters.</td></tr>`;
+          return;
+        }
+        const grouped = {};
+        rows.forEach((r) => {
+          if (!grouped[r.neighborhood]) grouped[r.neighborhood] = [];
+          grouped[r.neighborhood].push(r);
+        });
+        const ranked = Object.entries(grouped).map(([name, set]) => ({
+          name,
+          count: set.length,
+          medianDelta: median(set.map((x) => x.delta)),
+          medianSA: median(set.map((x) => x.saleToAssessed)),
+        })).sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count;
+          return b.medianDelta - a.medianDelta;
+        });
+        tbody.innerHTML = ranked.map((r) => `
+          <tr>
+            <td>${r.name}</td>
+            <td>${r.count}</td>
+            <td>${formatMoney(r.medianDelta)}</td>
+            <td>${r.medianSA.toFixed(2)}x</td>
+          </tr>
+        `).join("");
+      }
+
+      function escapeCsv(value) {
+        const text = String(value ?? "");
+        if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+          return `"${text.replace(/\"/g, "\"\"")}"`;
+        }
+        return text;
+      }
+
+      function exportFilteredCsv() {
+        if (!lastFilteredRows.length) return;
+        const headers = [
+          "dataMode","id","address","neighborhood","type","listDate","pendingDate",
+          "listPriceAtPending","assessedValue","closePrice","beds","baths","sqft","yearBuilt",
+          "delta","deltaPct","saleToAssessed","daysToPending"
+        ];
+        const lines = [headers.join(",")];
+        lastFilteredRows.forEach((r) => {
+          const row = [
+            r.dataMode || "PUBLIC_PROXY", r.id, r.address, r.neighborhood, r.type, r.listDate, r.pendingDate,
+            r.listPriceAtPending, r.assessedValue, r.closePrice, r.beds || 0, r.baths || 0, r.sqft || 0, r.yearBuilt || 0,
+            r.delta, r.deltaPct, r.saleToAssessed, r.daysToPending
+          ];
+          lines.push(row.map(escapeCsv).join(","));
+        });
+        const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "filtered_pending_in_7.csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function initFilters() {
+        populateSelect(document.getElementById("neighborhood"), unique(data, "neighborhood"));
+        populateSelect(document.getElementById("type"), unique(data, "type"));
+      }
+
+      function initEvents() {
+        ["neighborhood", "type", "minPrice", "maxPrice"].forEach((id) => {
+          document.getElementById(id).addEventListener("input", applyFilters);
+        });
+        document.querySelectorAll(".tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            const tab = btn.getAttribute("data-tab");
+            document.getElementById("dashboard").classList.toggle("hidden", tab !== "dashboard");
+            document.getElementById("upload").classList.toggle("hidden", tab !== "upload");
+          });
+        });
+
+        document.getElementById("csvFile").addEventListener("change", handleCsvUpload);
+        document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
+      }
+
+      function parseCsv(text) {
+        function parseCsvLine(line) {
+          const out = [];
+          let cur = "";
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i += 1) {
+            const ch = line[i];
+            if (ch === "\"") {
+              if (inQuotes && line[i + 1] === "\"") {
+                cur += "\"";
+                i += 1;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (ch === "," && !inQuotes) {
+              out.push(cur.trim());
+              cur = "";
+            } else {
+              cur += ch;
+            }
+          }
+          out.push(cur.trim());
+          return out;
+        }
+
+        const lines = text.trim().split(/\r?\n/);
+        if (lines.length < 2) return [];
+        const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+        const required = ["id","address","neighborhood","type","listDate","pendingDate","listPriceAtPending","closePrice"];
+        const missing = required.filter((r) => !headers.includes(r));
+        if (missing.length) throw new Error("Missing required columns: " + missing.join(", "));
+
+        const idx = Object.fromEntries(headers.map((h, i) => [h, i]));
+        return lines.slice(1).filter((l) => l.trim()).map((line) => {
+          const cols = parseCsvLine(line);
+          return {
+            dataMode: idx.dataMode !== undefined ? cols[idx.dataMode]?.trim() || "" : "",
+            id: cols[idx.id]?.trim() || "",
+            address: cols[idx.address]?.trim() || "",
+            neighborhood: cols[idx.neighborhood]?.trim() || "",
+            type: cols[idx.type]?.trim() || "",
+            listDate: cols[idx.listDate]?.trim() || "",
+            pendingDate: cols[idx.pendingDate]?.trim() || "",
+            listPriceAtPending: Number(cols[idx.listPriceAtPending]) || 0,
+            closePrice: Number(cols[idx.closePrice]) || 0,
+            assessedValue: idx.assessedValue !== undefined ? (Number(cols[idx.assessedValue]) || 0) : 0,
+            beds: idx.beds !== undefined ? (Number(cols[idx.beds]) || 0) : 0,
+            baths: idx.baths !== undefined ? (Number(cols[idx.baths]) || 0) : 0,
+            sqft: idx.sqft !== undefined ? (Number(cols[idx.sqft]) || 0) : 0,
+            yearBuilt: idx.yearBuilt !== undefined ? (Number(cols[idx.yearBuilt]) || 0) : 0,
+            zip: idx.zip !== undefined ? cols[idx.zip]?.trim() || "" : "",
+            districtName: idx.districtName !== undefined ? cols[idx.districtName]?.trim() || "" : "",
+            area: idx.area !== undefined ? cols[idx.area]?.trim() || "" : "",
+            subArea: idx.subArea !== undefined ? cols[idx.subArea]?.trim() || "" : "",
+            sqFtLot: idx.sqFtLot !== undefined ? (Number(cols[idx.sqFtLot]) || 0) : 0,
+            zoning: idx.zoning !== undefined ? cols[idx.zoning]?.trim() || "" : "",
+            mlsListDate: idx.mlsListDate !== undefined ? cols[idx.mlsListDate]?.trim() || "" : "",
+            mlsPendingDate: idx.mlsPendingDate !== undefined ? cols[idx.mlsPendingDate]?.trim() || "" : "",
+            mlsListPriceAtPending: idx.mlsListPriceAtPending !== undefined ? (Number(cols[idx.mlsListPriceAtPending]) || 0) : 0,
+            mlsClosePrice: idx.mlsClosePrice !== undefined ? (Number(cols[idx.mlsClosePrice]) || 0) : 0,
+          };
+        });
+      }
+
+      function handleCsvUpload(evt) {
+        const file = evt.target.files[0];
+        const status = document.getElementById("uploadStatus");
+        if (!file) {
+          status.textContent = "No file loaded.";
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = parseCsv(reader.result);
+            data = parsed;
+            initFilters();
+            applyFilters();
+            status.textContent = `Loaded ${parsed.length} rows from ${file.name}.`;
+            document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${parsed.length} rows).`;
+          } catch (err) {
+            status.textContent = `Upload failed: ${err.message}`;
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      async function autoLoadDefaultDataset() {
+        const status = document.getElementById("datasetStatus");
+        const defaultName = "public_sales_proxy_1p1m_1p4m_last6mo.csv";
+        try {
+          const response = await fetch(defaultName, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const text = await response.text();
+          const parsed = parseCsv(text);
+          if (parsed.length === 0) {
+            status.textContent = "Auto-load file found but had no rows; using built-in sample data.";
+            return;
+          }
+          data = parsed;
+          initFilters();
+          applyFilters();
+          document.getElementById("uploadStatus").textContent = `Auto-loaded ${defaultName}.`;
+          status.textContent = `Auto-loaded ${defaultName} (${parsed.length} rows).`;
+        } catch (err) {
+          status.textContent = "Auto-load unavailable in current browser context; using built-in sample data.";
+        }
+      }
+
+      async function init() {
+        initFilters();
+        initEvents();
+        applyFilters();
+        await autoLoadDefaultDataset();
+      }
+
+      init();
+    </script>
+  </body>
+</html>

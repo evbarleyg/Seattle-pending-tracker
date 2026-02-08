@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Raw downloads and extracted bulk county datasets (too large for repo)
+*.zip
+EXTR_*.csv
+Value History/
+
+# Keep the app-ready derived dataset
+!public_sales_proxy_1p1m_1p4m_last6mo.csv
