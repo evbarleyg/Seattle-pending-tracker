@@ -471,6 +471,26 @@
         color: var(--muted);
         font-weight: 600;
       }
+      .th-sort {
+        appearance: none;
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 600;
+        padding: 0;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .th-sort.active {
+        color: var(--text);
+      }
+      .sort-ind {
+        font-size: 11px;
+        opacity: 0.8;
+      }
       tr.clickable { cursor: pointer; }
       tr.clickable:hover { background: rgba(56,92,147,0.16); }
       tr.clickable.active { background: rgba(78,178,255,0.17); }
@@ -857,18 +877,18 @@
             <table>
               <thead>
                 <tr>
-                  <th>Address</th>
-                  <th>Neighborhood</th>
-                  <th>Type</th>
-                  <th>Beds</th>
-                  <th>Baths</th>
-                  <th>SqFt</th>
-                  <th>Sale Date</th>
-                  <th>Close Price</th>
-                  <th>Assessed</th>
-                  <th>S/A</th>
-                  <th>Delta vs List@Pending</th>
-                  <th>Data Mode</th>
+                  <th><button class="th-sort" type="button" data-record-sort="address">Address <span class="sort-ind" data-sort-ind="address">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="neighborhood">Neighborhood <span class="sort-ind" data-sort-ind="neighborhood">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="type">Type <span class="sort-ind" data-sort-ind="type">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="beds">Beds <span class="sort-ind" data-sort-ind="beds">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="baths">Baths <span class="sort-ind" data-sort-ind="baths">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="sqft">SqFt <span class="sort-ind" data-sort-ind="sqft">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="assessedValue">Assessed <span class="sort-ind" data-sort-ind="assessedValue">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="saleToAssessed">S/A <span class="sort-ind" data-sort-ind="saleToAssessed">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="delta">Delta vs List@Pending <span class="sort-ind" data-sort-ind="delta">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="dataMode">Data Mode <span class="sort-ind" data-sort-ind="dataMode">&#8597;</span></button></th>
                 </tr>
               </thead>
               <tbody id="recordRows"></tbody>
@@ -902,6 +922,9 @@
       const DEFAULT_DATASET = "public_sales_proxy_all_prices_last6mo.csv";
       const DEFAULT_MIN_CLOSE = 1100000;
       const DEFAULT_MAX_CLOSE = 1400000;
+      const PRICE_SLIDER_MIN = 0;
+      const PRICE_SLIDER_CAP = 3000000;
+      const PRICE_SLIDER_STEP = 10000;
 
       const TYPE_LABELS = {
         "11": "Single Family",
@@ -953,6 +976,10 @@
         rows: [],
         baseRows: [],
         filteredRows: [],
+        recordSort: {
+          key: "saleDate",
+          dir: "desc",
+        },
         interactions: {
           month: null,
           neighborhood: null,
@@ -1242,21 +1269,13 @@
         summary.textContent = `${selected.length} neighborhoods selected`;
       }
 
-      function priceSliderBounds(rows) {
-        const prices = rows.map((r) => r.closePrice).filter((v) => v > 0);
-        if (!prices.length) {
-          return { min: 0, max: 3000000, step: 10000 };
-        }
-        const min = Math.max(0, Math.floor(Math.min(...prices) / 100000) * 100000);
-        const max = Math.max(min + 100000, Math.ceil(Math.max(...prices) / 100000) * 100000);
-        return { min, max, step: 10000 };
-      }
-
       function syncPriceSliderPair(changedId) {
         const minEl = document.getElementById("fMinClose");
         const maxEl = document.getElementById("fMaxClose");
-        let minVal = Number(minEl.value || 0);
-        let maxVal = Number(maxEl.value || 0);
+        let minVal = Number(minEl.value || PRICE_SLIDER_MIN);
+        let maxVal = Number(maxEl.value || PRICE_SLIDER_CAP);
+        minVal = Math.max(PRICE_SLIDER_MIN, Math.min(minVal, PRICE_SLIDER_CAP));
+        maxVal = Math.max(PRICE_SLIDER_MIN, Math.min(maxVal, PRICE_SLIDER_CAP));
         if (minVal > maxVal) {
           if (changedId === "fMinClose") {
             maxVal = minVal;
@@ -1267,24 +1286,25 @@
         minEl.value = String(minVal);
         maxEl.value = String(maxVal);
         document.getElementById("fMinCloseValue").textContent = formatMoney(minVal);
-        document.getElementById("fMaxCloseValue").textContent = formatMoney(maxVal);
+        document.getElementById("fMaxCloseValue").textContent = maxVal >= PRICE_SLIDER_CAP
+          ? "No max"
+          : formatMoney(maxVal);
       }
 
-      function configurePriceSliders(rows) {
-        const bounds = priceSliderBounds(rows);
+      function configurePriceSliders() {
         const minEl = document.getElementById("fMinClose");
         const maxEl = document.getElementById("fMaxClose");
         const minCurrent = Number(minEl.value || DEFAULT_MIN_CLOSE);
         const maxCurrent = Number(maxEl.value || DEFAULT_MAX_CLOSE);
 
         [minEl, maxEl].forEach((el) => {
-          el.min = String(bounds.min);
-          el.max = String(bounds.max);
-          el.step = String(bounds.step);
+          el.min = String(PRICE_SLIDER_MIN);
+          el.max = String(PRICE_SLIDER_CAP);
+          el.step = String(PRICE_SLIDER_STEP);
         });
 
-        const nextMin = Math.max(bounds.min, Math.min(minCurrent, bounds.max));
-        const nextMax = Math.max(nextMin, Math.min(maxCurrent, bounds.max));
+        const nextMin = Math.max(PRICE_SLIDER_MIN, Math.min(minCurrent, PRICE_SLIDER_CAP));
+        const nextMax = Math.max(nextMin, Math.min(maxCurrent, PRICE_SLIDER_CAP));
         minEl.value = String(nextMin);
         maxEl.value = String(nextMax);
         syncPriceSliderPair();
@@ -1315,17 +1335,18 @@
 
         tSelect.value = types.includes(currentT) ? currentT : "All";
         updateNeighborhoodSummary();
-        configurePriceSliders(normalized);
+        configurePriceSliders();
       }
 
       function readFormFilters() {
+        const maxRaw = Number(document.getElementById("fMaxClose").value || PRICE_SLIDER_CAP);
         return {
           neighborhoods: getSelectedNeighborhoods(),
           type: document.getElementById("fType").value,
           mode: document.getElementById("fMode").value,
           scope: document.getElementById("fScope").value,
-          minClose: Number(document.getElementById("fMinClose").value || 0),
-          maxClose: Number(document.getElementById("fMaxClose").value || 0),
+          minClose: Number(document.getElementById("fMinClose").value || PRICE_SLIDER_MIN),
+          maxClose: maxRaw >= PRICE_SLIDER_CAP ? null : maxRaw,
           dateFrom: document.getElementById("fDateFrom").value,
           dateTo: document.getElementById("fDateTo").value,
         };
@@ -1339,7 +1360,7 @@
         if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
         if (f.mode !== "All") rows = rows.filter((r) => r.dataMode === f.mode);
         if (f.minClose) rows = rows.filter((r) => r.closePrice >= f.minClose);
-        if (f.maxClose) rows = rows.filter((r) => r.closePrice <= f.maxClose);
+        if (f.maxClose !== null) rows = rows.filter((r) => r.closePrice <= f.maxClose);
         if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
         if (f.dateTo) rows = rows.filter((r) => r.saleDate <= f.dateTo);
 
@@ -1665,23 +1686,73 @@
         return `https://www.zillow.com/homes/${q}_rb/`;
       }
 
+      function getRecordSortValue(row, key) {
+        if (key === "address") return String(row.address || "");
+        if (key === "neighborhood") return String(row.neighborhoodLabel || "");
+        if (key === "type") return String(row.typeLabel || "");
+        if (key === "beds") return Number(row.beds || 0);
+        if (key === "baths") return Number(row.baths || 0);
+        if (key === "sqft") return Number(row.sqft || 0);
+        if (key === "saleDate") return String(row.saleDate || "");
+        if (key === "closePrice") return Number(row.closePrice || 0);
+        if (key === "assessedValue") return Number(row.assessedValue || 0);
+        if (key === "saleToAssessed") return Number(row.saleToAssessed || 0);
+        if (key === "delta") return Number(row.delta || 0);
+        if (key === "dataMode") return String(row.dataMode || "");
+        return "";
+      }
+
+      function applyRecordSort(rows) {
+        const { key, dir } = state.recordSort;
+        const factor = dir === "asc" ? 1 : -1;
+        return rows.slice().sort((a, b) => {
+          const av = getRecordSortValue(a, key);
+          const bv = getRecordSortValue(b, key);
+          if (typeof av === "number" && typeof bv === "number") return (av - bv) * factor;
+          return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * factor;
+        });
+      }
+
+      function updateRecordSortHeaderUI() {
+        document.querySelectorAll(".th-sort").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+        document.querySelectorAll("[data-sort-ind]").forEach((el) => {
+          el.textContent = "↕";
+        });
+        const active = document.querySelector(`.th-sort[data-record-sort="${state.recordSort.key}"]`);
+        if (active) active.classList.add("active");
+        const ind = document.querySelector(`[data-sort-ind="${state.recordSort.key}"]`);
+        if (ind) ind.textContent = state.recordSort.dir === "asc" ? "↑" : "↓";
+      }
+
+      function setRecordSort(key) {
+        const textKeys = new Set(["address", "neighborhood", "type", "dataMode"]);
+        if (state.recordSort.key === key) {
+          state.recordSort.dir = state.recordSort.dir === "asc" ? "desc" : "asc";
+        } else {
+          state.recordSort.key = key;
+          state.recordSort.dir = textKeys.has(key) ? "asc" : "desc";
+        }
+        renderAll();
+      }
+
       function renderRecordRows(rows) {
         const tbody = document.getElementById("recordRows");
         if (!rows.length) {
           tbody.innerHTML = `<tr><td colspan="12">No rows for current filters.</td></tr>`;
+          updateRecordSortHeaderUI();
           return;
         }
 
         const ratioNorm = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
         const deltaNorm = divScale(rows.map((r) => r.delta));
+        const sortedRows = applyRecordSort(rows);
 
-        tbody.innerHTML = rows
-          .slice()
-          .sort((a, b) => b.saleDate.localeCompare(a.saleDate))
+        tbody.innerHTML = sortedRows
           .map((r) => {
             const nActive = state.interactions.neighborhood === r.neighborhoodLabel;
             const tActive = state.interactions.type === r.typeLabel;
-            const mActive = state.interactions.month === monthKey(r.saleDate);
             return `
               <tr>
                 <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address)}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
@@ -1690,7 +1761,7 @@
                 <td>${r.beds || 0}</td>
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
-                <td><button class="mini-btn ${mActive ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(monthKey(r.saleDate))}">${esc(r.saleDate || "n/a")}</button></td>
+                <td>${esc(r.saleDate || "n/a")}</td>
                 <td>${formatMoney(r.closePrice)}</td>
                 <td>${formatMoney(r.assessedValue)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToAssessed > 0 ? ratioNorm(r.saleToAssessed) : 0, "rgba(61,213,157,0.33)")}">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</span></td>
@@ -1700,6 +1771,7 @@
             `;
           })
           .join("");
+        updateRecordSortHeaderUI();
       }
 
       function renderAll() {
@@ -1868,6 +1940,12 @@
         });
 
         document.addEventListener("click", (evt) => {
+          const sortBtn = evt.target.closest("[data-record-sort]");
+          if (sortBtn) {
+            setRecordSort(sortBtn.getAttribute("data-record-sort"));
+            return;
+          }
+
           const set = evt.target.closest("[data-set-interaction]");
           if (set) {
             setInteraction(set.getAttribute("data-set-interaction"), set.getAttribute("data-set-value"));
