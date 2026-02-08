@@ -40,10 +40,24 @@
           radial-gradient(1000px 600px at 115% -15%, #4a1f59 0%, transparent 52%),
           var(--bg);
         color: var(--text);
-        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+        font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       }
       a { color: #95d0ff; text-decoration: none; }
       a:hover { text-decoration: underline; }
+      .address-link {
+        color: #2c6fc2;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        font-weight: 600;
+      }
+      .address-link:hover {
+        color: #1d57a0;
+      }
+      .ext-icon {
+        margin-left: 4px;
+        font-size: 11px;
+        opacity: 0.85;
+      }
 
       header {
         max-width: 1260px;
@@ -127,6 +141,45 @@
         grid-template-columns: repeat(8, minmax(0, 1fr));
         gap: 10px;
       }
+      .filters-wrap > summary {
+        list-style: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .filters-wrap > summary::-webkit-details-marker {
+        display: none;
+      }
+      .filters-wrap > summary h3 {
+        margin: 0;
+      }
+      .filters-toggle {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        color: var(--muted);
+        background: #0f1b2f;
+      }
+      .filters-wrap .label-open {
+        display: none;
+      }
+      .filters-wrap .label-closed {
+        display: inline;
+      }
+      .filters-wrap[open] .label-open {
+        display: inline;
+      }
+      .filters-wrap[open] .label-closed {
+        display: none;
+      }
+      .filters-body {
+        margin-top: 10px;
+        display: grid;
+        gap: 8px;
+      }
       .field label {
         display: block;
         margin-bottom: 4px;
@@ -142,16 +195,92 @@
         padding: 8px 10px;
         font-size: 14px;
       }
-      .actions {
+      input[type="range"] {
+        padding: 0;
+        height: 24px;
+        background: transparent;
+        accent-color: #2f83dd;
+      }
+      .range-value {
+        margin-top: 2px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .multi-dd {
+        position: relative;
+      }
+      .multi-dd > summary {
+        list-style: none;
+        cursor: pointer;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: #0c1728;
+        color: var(--text);
+        font-size: 14px;
+      }
+      .multi-dd > summary::-webkit-details-marker {
+        display: none;
+      }
+      .multi-dd[open] > summary {
+        border-color: #3e83cc;
+      }
+      .multi-dd-panel {
+        position: absolute;
+        z-index: 25;
+        inset: calc(100% + 6px) 0 auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #0f1b2f;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+        padding: 10px;
+      }
+      .multi-dd-actions {
         display: flex;
-        align-items: flex-end;
+        justify-content: space-between;
+        margin-bottom: 8px;
         gap: 8px;
+      }
+      .mini-link {
+        border: 1px solid #35547a;
+        border-radius: 999px;
+        background: #12233a;
+        color: #dcecff;
+        font-size: 11px;
+        padding: 3px 8px;
+        cursor: pointer;
+      }
+      .multi-dd-options {
+        max-height: 260px;
+        overflow: auto;
+        display: grid;
+        gap: 6px;
+        padding-right: 2px;
+      }
+      .multi-opt {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #d8e8ff;
+      }
+      .multi-opt input {
+        width: auto;
+      }
+      .actions {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
       }
       .btn {
         border: 1px solid #2f76c4;
         border-radius: 10px;
-        padding: 9px 12px;
-        font-size: 13px;
+        padding: 6px 10px;
+        font-size: 12px;
+        line-height: 1.2;
+        white-space: nowrap;
         color: #fff;
         background: linear-gradient(135deg, #21589d, #2b93ba);
         cursor: pointer;
@@ -400,6 +529,12 @@
           #f3f8ff;
       }
       body.light a { color: #1f5ea8; }
+      body.light .address-link {
+        color: #1f5ea8;
+      }
+      body.light .address-link:hover {
+        color: #17467e;
+      }
       body.light .tabs {
         background: rgba(255, 255, 255, 0.88);
         border-color: #bfd0e6;
@@ -422,6 +557,23 @@
         background: #ffffff;
         border-color: #bccde2;
       }
+      body.light .range-value { color: #516884; }
+      body.light .multi-dd > summary {
+        color: #1a2f4a;
+        background: #ffffff;
+        border-color: #bccde2;
+      }
+      body.light .multi-dd-panel {
+        background: #ffffff;
+        border-color: #c4d4e8;
+        box-shadow: 0 12px 28px rgba(23, 60, 105, 0.16);
+      }
+      body.light .mini-link {
+        border-color: #b9cce5;
+        background: #eaf3ff;
+        color: #214767;
+      }
+      body.light .multi-opt { color: #234261; }
       body.light .btn.alt {
         color: #274667;
         background: #ffffff;
@@ -433,6 +585,11 @@
         color: #244160;
       }
       body.light .chip button { color: #476a91; }
+      body.light .filters-toggle {
+        border-color: #bccde2;
+        background: #ffffff;
+        color: #4f6783;
+      }
       body.light .guide,
       body.light .insights { color: #1f3552; }
       body.light .kpi {
@@ -504,13 +661,20 @@
         .plot {
           grid-auto-columns: minmax(56px, 1fr);
         }
+        .multi-dd-panel {
+          position: fixed;
+          left: 14px;
+          right: 14px;
+          inset: auto 14px 14px;
+          max-height: 50vh;
+        }
       }
     </style>
   </head>
   <body class="light">
     <header>
       <h1>Seattle Housing Buyer Lens</h1>
-      <div class="subtitle">Buyer-focused market view for Seattle. Public-record sales now, MLS-enriched fields later. Every chart and metric can filter the entire dashboard.</div>
+      <div class="subtitle">Buyer-focused market view for Seattle. Built on public-record sales, with optional MLS fields when available. Every chart and metric can filter the entire dashboard.</div>
       <div class="header-controls">
         <div class="tabs" role="tablist">
           <button class="tab active" data-view="overview" role="tab">Overview</button>
@@ -525,55 +689,76 @@
 
     <main class="app">
       <section class="panel">
-        <h3>Global Filters</h3>
-        <div class="filters">
-          <div class="field">
-            <label for="fNeighborhood">Neighborhood</label>
-            <select id="fNeighborhood"></select>
+        <details class="filters-wrap" id="globalFilters">
+          <summary>
+            <h3>Global Filters</h3>
+            <span class="filters-toggle">
+              <span class="label-closed">Show Filters</span>
+              <span class="label-open">Hide Filters</span>
+            </span>
+          </summary>
+          <div class="filters-body">
+            <div class="filters">
+              <div class="field">
+                <label for="fNeighborhoodSummary">Neighborhoods</label>
+                <details class="multi-dd" id="fNeighborhood">
+                  <summary id="fNeighborhoodSummary">All neighborhoods</summary>
+                  <div class="multi-dd-panel">
+                    <div class="multi-dd-actions">
+                      <button class="mini-link" id="fNeighborhoodSelectAll" type="button">Select All</button>
+                      <button class="mini-link" id="fNeighborhoodClear" type="button">Clear</button>
+                    </div>
+                    <div class="multi-dd-options" id="fNeighborhoodOptions"></div>
+                  </div>
+                </details>
+              </div>
+              <div class="field">
+                <label for="fType">Property Type</label>
+                <select id="fType"></select>
+              </div>
+              <div class="field">
+                <label for="fMode">Data Mode</label>
+                <select id="fMode">
+                  <option value="All">All</option>
+                  <option value="PUBLIC_PROXY">Public Proxy</option>
+                  <option value="MLS_ENRICHED">MLS Enriched</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="fScope">Scope</label>
+                <select id="fScope">
+                  <option value="all">All Sales</option>
+                  <option value="pending7">MLS Pending <= 7 Days</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="fMinClose">Min Close Price</label>
+                <input id="fMinClose" type="range" />
+                <div class="range-value" id="fMinCloseValue">$0</div>
+              </div>
+              <div class="field">
+                <label for="fMaxClose">Max Close Price</label>
+                <input id="fMaxClose" type="range" />
+                <div class="range-value" id="fMaxCloseValue">$0</div>
+              </div>
+              <div class="field">
+                <label for="fDateFrom">Sale Date From</label>
+                <input id="fDateFrom" type="date" />
+              </div>
+              <div class="field">
+                <label for="fDateTo">Sale Date To</label>
+                <input id="fDateTo" type="date" />
+              </div>
+              <div class="actions">
+                <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
+                <button class="btn alt" id="resetBtn" type="button">Reset</button>
+                <button class="btn alt" id="clearCrossBtn" type="button">Clear Cross-Filters</button>
+              </div>
+            </div>
+            <div class="summary" id="filterSummary">No data loaded.</div>
+            <div class="chips" id="activeChips"></div>
           </div>
-          <div class="field">
-            <label for="fType">Property Type</label>
-            <select id="fType"></select>
-          </div>
-          <div class="field">
-            <label for="fMode">Data Mode</label>
-            <select id="fMode">
-              <option value="All">All</option>
-              <option value="PUBLIC_PROXY">Public Proxy</option>
-              <option value="MLS_ENRICHED">MLS Enriched</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="fScope">Scope</label>
-            <select id="fScope">
-              <option value="all">All Sales</option>
-              <option value="pending7">MLS Pending <= 7 Days</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="fMinClose">Min Close Price</label>
-            <input id="fMinClose" type="number" placeholder="1100000" />
-          </div>
-          <div class="field">
-            <label for="fMaxClose">Max Close Price</label>
-            <input id="fMaxClose" type="number" placeholder="1400000" />
-          </div>
-          <div class="field">
-            <label for="fDateFrom">Sale Date From</label>
-            <input id="fDateFrom" type="date" />
-          </div>
-          <div class="field">
-            <label for="fDateTo">Sale Date To</label>
-            <input id="fDateTo" type="date" />
-          </div>
-          <div class="actions">
-            <button class="btn" id="exportCsvBtn" type="button">Export Filtered CSV</button>
-            <button class="btn alt" id="resetBtn" type="button">Reset</button>
-            <button class="btn alt" id="clearCrossBtn" type="button">Clear Cross-Filters</button>
-          </div>
-        </div>
-        <div class="summary" id="filterSummary">No data loaded.</div>
-        <div class="chips" id="activeChips"></div>
+        </details>
       </section>
 
       <section id="view-overview" class="view active">
@@ -585,7 +770,7 @@
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
             <li>Public Proxy mode has real close prices and assessed values, but not true original list/pending timestamps.</li>
-            <li>MLS Enriched mode supports true list/pending/close fields when your realtor provides them.</li>
+            <li>MLS Enriched mode can add true list/pending/close timing when those fields are available.</li>
           </ul>
         </section>
 
@@ -616,9 +801,9 @@
             <button class="kbtn" data-kpi-action="psfTier">Filter $/SqFt >= Median</button>
           </article>
           <article class="kpi">
-            <div class="label">Median Days To Pending (MLS)</div>
+            <div class="label">Median Days To Pending (MLS, if available)</div>
             <div class="value" id="kPendingDays">n/a</div>
-            <button class="kbtn" data-kpi-action="mlsOnly">Filter MLS Rows</button>
+            <button class="kbtn" data-kpi-action="mlsOnly">Filter MLS Rows (if any)</button>
           </article>
         </div>
 
@@ -695,9 +880,8 @@
 
       <section id="view-data" class="view">
         <section class="panel">
-          <h3>Data Source and Upload</h3>
-          <div class="note" id="uploadStatus">No file loaded.</div>
-          <input id="csvFile" type="file" accept=".csv" />
+          <h3>Data Source</h3>
+          <div class="note" id="uploadStatus">Auto-load enabled for the default dataset.</div>
 
           <p class="note">Auto-load filename:</p>
           <div class="mono">public_sales_proxy_all_prices_last6mo.csv</div>
@@ -709,7 +893,7 @@
           <div class="mono">dataMode,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
 
           <p class="note">Intended use:</p>
-          <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode does not contain true original listing timeline fields.</div>
+          <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details when available.</div>
         </section>
       </section>
     </main>
@@ -974,12 +1158,20 @@
       }
 
       function applyDefaultFormFilters() {
-        document.getElementById("fNeighborhood").value = "All";
+        setNeighborhoodSelections([]);
+        updateNeighborhoodSummary();
         document.getElementById("fType").value = findDefaultSingleFamilyLabel();
         document.getElementById("fMode").value = "All";
         document.getElementById("fScope").value = "all";
-        document.getElementById("fMinClose").value = String(DEFAULT_MIN_CLOSE);
-        document.getElementById("fMaxClose").value = String(DEFAULT_MAX_CLOSE);
+        const minEl = document.getElementById("fMinClose");
+        const maxEl = document.getElementById("fMaxClose");
+        const minBound = Number(minEl.min || 0);
+        const maxBound = Number(maxEl.max || 3000000);
+        const minDefault = Math.max(minBound, Math.min(DEFAULT_MIN_CLOSE, maxBound));
+        const maxDefault = Math.max(minDefault, Math.min(DEFAULT_MAX_CLOSE, maxBound));
+        minEl.value = String(minDefault);
+        maxEl.value = String(maxDefault);
+        syncPriceSliderPair();
         document.getElementById("fDateFrom").value = "";
         document.getElementById("fDateTo").value = "";
       }
@@ -1024,36 +1216,116 @@
         };
       }
 
+      function getSelectedNeighborhoods() {
+        return [...document.querySelectorAll("#fNeighborhoodOptions input[type='checkbox']:checked")]
+          .map((cb) => cb.value);
+      }
+
+      function setNeighborhoodSelections(values) {
+        const selected = new Set(values || []);
+        document.querySelectorAll("#fNeighborhoodOptions input[type='checkbox']").forEach((cb) => {
+          cb.checked = selected.has(cb.value);
+        });
+      }
+
+      function updateNeighborhoodSummary() {
+        const selected = getSelectedNeighborhoods();
+        const summary = document.getElementById("fNeighborhoodSummary");
+        if (!selected.length) {
+          summary.textContent = "All neighborhoods";
+          return;
+        }
+        if (selected.length === 1) {
+          summary.textContent = selected[0];
+          return;
+        }
+        summary.textContent = `${selected.length} neighborhoods selected`;
+      }
+
+      function priceSliderBounds(rows) {
+        const prices = rows.map((r) => r.closePrice).filter((v) => v > 0);
+        if (!prices.length) {
+          return { min: 0, max: 3000000, step: 10000 };
+        }
+        const min = Math.max(0, Math.floor(Math.min(...prices) / 100000) * 100000);
+        const max = Math.max(min + 100000, Math.ceil(Math.max(...prices) / 100000) * 100000);
+        return { min, max, step: 10000 };
+      }
+
+      function syncPriceSliderPair(changedId) {
+        const minEl = document.getElementById("fMinClose");
+        const maxEl = document.getElementById("fMaxClose");
+        let minVal = Number(minEl.value || 0);
+        let maxVal = Number(maxEl.value || 0);
+        if (minVal > maxVal) {
+          if (changedId === "fMinClose") {
+            maxVal = minVal;
+          } else {
+            minVal = maxVal;
+          }
+        }
+        minEl.value = String(minVal);
+        maxEl.value = String(maxVal);
+        document.getElementById("fMinCloseValue").textContent = formatMoney(minVal);
+        document.getElementById("fMaxCloseValue").textContent = formatMoney(maxVal);
+      }
+
+      function configurePriceSliders(rows) {
+        const bounds = priceSliderBounds(rows);
+        const minEl = document.getElementById("fMinClose");
+        const maxEl = document.getElementById("fMaxClose");
+        const minCurrent = Number(minEl.value || DEFAULT_MIN_CLOSE);
+        const maxCurrent = Number(maxEl.value || DEFAULT_MAX_CLOSE);
+
+        [minEl, maxEl].forEach((el) => {
+          el.min = String(bounds.min);
+          el.max = String(bounds.max);
+          el.step = String(bounds.step);
+        });
+
+        const nextMin = Math.max(bounds.min, Math.min(minCurrent, bounds.max));
+        const nextMax = Math.max(nextMin, Math.min(maxCurrent, bounds.max));
+        minEl.value = String(nextMin);
+        maxEl.value = String(nextMax);
+        syncPriceSliderPair();
+      }
+
       function uniqueValues(rows, key) {
         return ["All", ...Array.from(new Set(rows.map((r) => r[key]).filter(Boolean))).sort()];
       }
 
       function refreshSelectOptions() {
         const normalized = state.rows.map(normalizeRow);
-        const neighborhoods = uniqueValues(normalized, "neighborhoodLabel");
+        const neighborhoods = Array.from(new Set(normalized.map((r) => r.neighborhoodLabel).filter(Boolean))).sort();
         const types = uniqueValues(normalized, "typeLabel");
 
-        const nSelect = document.getElementById("fNeighborhood");
+        const nWrap = document.getElementById("fNeighborhoodOptions");
         const tSelect = document.getElementById("fType");
 
-        const currentN = nSelect.value || "All";
+        const currentN = new Set(getSelectedNeighborhoods());
         const currentT = tSelect.value || "All";
 
-        nSelect.innerHTML = neighborhoods.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+        nWrap.innerHTML = neighborhoods.length
+          ? neighborhoods.map((v) => {
+              const checked = currentN.has(v) ? "checked" : "";
+              return `<label class="multi-opt"><input type="checkbox" value="${esc(v)}" ${checked} /><span>${esc(v)}</span></label>`;
+            }).join("")
+          : `<div class="note">No neighborhoods in dataset.</div>`;
         tSelect.innerHTML = types.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
 
-        nSelect.value = neighborhoods.includes(currentN) ? currentN : "All";
         tSelect.value = types.includes(currentT) ? currentT : "All";
+        updateNeighborhoodSummary();
+        configurePriceSliders(normalized);
       }
 
       function readFormFilters() {
         return {
-          neighborhood: document.getElementById("fNeighborhood").value,
+          neighborhoods: getSelectedNeighborhoods(),
           type: document.getElementById("fType").value,
           mode: document.getElementById("fMode").value,
           scope: document.getElementById("fScope").value,
-          minClose: num(document.getElementById("fMinClose").value),
-          maxClose: num(document.getElementById("fMaxClose").value),
+          minClose: Number(document.getElementById("fMinClose").value || 0),
+          maxClose: Number(document.getElementById("fMaxClose").value || 0),
           dateFrom: document.getElementById("fDateFrom").value,
           dateTo: document.getElementById("fDateTo").value,
         };
@@ -1063,7 +1335,7 @@
         const f = readFormFilters();
         let rows = state.rows.map(normalizeRow).filter((r) => r.closePrice > 0 && !!r.saleDate);
 
-        if (f.neighborhood !== "All") rows = rows.filter((r) => r.neighborhoodLabel === f.neighborhood);
+        if (f.neighborhoods.length) rows = rows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
         if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
         if (f.mode !== "All") rows = rows.filter((r) => r.dataMode === f.mode);
         if (f.minClose) rows = rows.filter((r) => r.closePrice >= f.minClose);
@@ -1203,7 +1475,7 @@
         if (mlsRows.length) {
           lines.push(`MLS-enriched subset median days-to-pending: ${median(mlsRows.map((r) => r.daysToPending)).toFixed(0)} days.`);
         } else {
-          lines.push("No MLS-enriched rows in this slice, so true list/pending timing is unavailable here.");
+          lines.push("This slice currently uses public-record timing only. MLS timeline fields can be layered in when available.");
         }
 
         lines.push("Color scales cap outlier influence at robust percentile bounds (5th-95th).\n");
@@ -1400,7 +1672,6 @@
           return;
         }
 
-        const closeNorm = seqScale(rows.map((r) => r.closePrice));
         const ratioNorm = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
         const deltaNorm = divScale(rows.map((r) => r.delta));
 
@@ -1413,14 +1684,14 @@
             const mActive = state.interactions.month === monthKey(r.saleDate);
             return `
               <tr>
-                <td><a href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address)}</a></td>
+                <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address)}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
                 <td><button class="mini-btn ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
                 <td><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
                 <td>${r.beds || 0}</td>
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
                 <td><button class="mini-btn ${mActive ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(monthKey(r.saleDate))}">${esc(r.saleDate || "n/a")}</button></td>
-                <td><span class="heat" style="${seqHeat(closeNorm(r.closePrice), "rgba(77,166,255,0.33)")}">${formatMoney(r.closePrice)}</span></td>
+                <td>${formatMoney(r.closePrice)}</td>
                 <td>${formatMoney(r.assessedValue)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToAssessed > 0 ? ratioNorm(r.saleToAssessed) : 0, "rgba(61,213,157,0.33)")}">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</span></td>
                 <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${formatMoney(r.delta)}</span></td>
@@ -1537,10 +1808,39 @@
       }
 
       function bindEvents() {
-        ["fNeighborhood", "fType", "fMode", "fScope", "fMinClose", "fMaxClose", "fDateFrom", "fDateTo"].forEach((id) => {
+        ["fType", "fMode", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);
+        });
+        ["fMinClose", "fMaxClose"].forEach((id) => {
+          const el = document.getElementById(id);
+          el.addEventListener("input", () => {
+            syncPriceSliderPair(id);
+            renderAll();
+          });
+          el.addEventListener("change", () => {
+            syncPriceSliderPair(id);
+            renderAll();
+          });
+        });
+
+        const nOptions = document.getElementById("fNeighborhoodOptions");
+        nOptions.addEventListener("change", (evt) => {
+          if (!evt.target.matches("input[type='checkbox']")) return;
+          updateNeighborhoodSummary();
+          renderAll();
+        });
+        document.getElementById("fNeighborhoodSelectAll").addEventListener("click", () => {
+          const all = [...document.querySelectorAll("#fNeighborhoodOptions input[type='checkbox']")].map((cb) => cb.value);
+          setNeighborhoodSelections(all);
+          updateNeighborhoodSummary();
+          renderAll();
+        });
+        document.getElementById("fNeighborhoodClear").addEventListener("click", () => {
+          setNeighborhoodSelections([]);
+          updateNeighborhoodSummary();
+          renderAll();
         });
 
         document.getElementById("resetBtn").addEventListener("click", () => {
@@ -1552,6 +1852,10 @@
         document.getElementById("themeToggle").addEventListener("click", () => {
           const next = document.body.classList.contains("light") ? "dark" : "light";
           applyTheme(next);
+        });
+        document.getElementById("globalFilters").addEventListener("toggle", () => {
+          const dd = document.getElementById("fNeighborhood");
+          if (!document.getElementById("globalFilters").open) dd.removeAttribute("open");
         });
 
         document.querySelectorAll(".tab").forEach((btn) => {
@@ -1589,24 +1893,27 @@
           if (action === "mlsOnly") return setInteraction("mode", "MLS_ENRICHED");
         });
 
-        document.getElementById("csvFile").addEventListener("change", (evt) => {
-          const file = evt.target.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            try {
-              state.rows = parseCsv(reader.result);
-              refreshSelectOptions();
-              applyDefaultFormFilters();
-              clearCrossFilters();
-              document.getElementById("uploadStatus").textContent = `Loaded ${state.rows.length} rows from ${file.name}.`;
-              document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${state.rows.length} rows).`;
-            } catch (err) {
-              document.getElementById("uploadStatus").textContent = `Upload failed: ${err.message}`;
-            }
-          };
-          reader.readAsText(file);
-        });
+        const csvInput = document.getElementById("csvFile");
+        if (csvInput) {
+          csvInput.addEventListener("change", (evt) => {
+            const file = evt.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                state.rows = parseCsv(reader.result);
+                refreshSelectOptions();
+                applyDefaultFormFilters();
+                clearCrossFilters();
+                document.getElementById("uploadStatus").textContent = `Loaded ${state.rows.length} rows from ${file.name}.`;
+                document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${state.rows.length} rows).`;
+              } catch (err) {
+                document.getElementById("uploadStatus").textContent = `Upload failed: ${err.message}`;
+              }
+            };
+            reader.readAsText(file);
+          });
+        }
       }
 
       async function autoLoadDefault() {
@@ -1625,7 +1932,7 @@
           state.rows = [];
           refreshSelectOptions();
           renderAll();
-          status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) or upload CSV in Data tab.";
+          status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) so the default dataset can load.";
         }
       }
 
