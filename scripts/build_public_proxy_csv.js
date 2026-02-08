@@ -10,12 +10,41 @@ const ACCOUNT_FILE = path.join(PROJECT_DIR, "EXTR_RPAcct_NoName.csv");
 const SALES_FILE = path.join(PROJECT_DIR, "EXTR_RPSale.csv");
 const PARCEL_FILE = path.join(PROJECT_DIR, "EXTR_Parcel.csv");
 const RESBLDG_FILE = path.join(PROJECT_DIR, "EXTR_ResBldg.csv");
+const LOOKUP_FILE = path.join(PROJECT_DIR, "EXTR_LookUp.csv");
 const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_1p1m_1p4m_last6mo.csv");
 
 const SALE_MIN = 1_100_000;
 const SALE_MAX = 1_400_000;
 const RANGE_START = new Date("2025-08-08T00:00:00");
 const RANGE_END = new Date("2026-02-08T23:59:59");
+
+const ZIP_NEIGHBORHOOD = {
+  "98101": "Downtown",
+  "98102": "Capitol Hill / Eastlake",
+  "98103": "Fremont / Green Lake / Wallingford",
+  "98104": "Pioneer Square / International District",
+  "98105": "University District / Laurelhurst",
+  "98106": "Delridge / South Park",
+  "98107": "Ballard",
+  "98108": "Georgetown / South Park",
+  "98109": "South Lake Union / Queen Anne",
+  "98112": "Capitol Hill / Madison Park",
+  "98115": "Ravenna / Wedgwood",
+  "98116": "West Seattle",
+  "98117": "Ballard / Crown Hill",
+  "98118": "Columbia City / Rainier Valley",
+  "98119": "Queen Anne / Magnolia",
+  "98121": "Belltown",
+  "98122": "Capitol Hill / Central District",
+  "98125": "Lake City / North Seattle",
+  "98126": "West Seattle / Delridge",
+  "98133": "Northgate / Bitter Lake",
+  "98134": "SoDo",
+  "98136": "West Seattle / Fauntleroy",
+  "98144": "Mount Baker / Central District",
+  "98177": "North Beach / Crown Hill",
+  "98199": "Magnolia",
+};
 
 function parseCsvLine(line) {
   const out = [];
@@ -70,6 +99,42 @@ function safeCsv(v) {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
+}
+
+function looksNumeric(v) {
+  return /^[0-9]+$/.test(String(v || "").trim());
+}
+
+function zipToNeighborhood(zip) {
+  const z = (String(zip || "").match(/[0-9]{5}/) || [])[0] || "";
+  if (ZIP_NEIGHBORHOOD[z]) return ZIP_NEIGHBORHOOD[z];
+  if (/^981[0-9]{2}$/.test(z)) return `Seattle ${z}`;
+  return "Seattle (Other)";
+}
+
+async function readPropertyTypeMap() {
+  if (!fs.existsSync(LOOKUP_FILE)) return new Map();
+  const stream = fs.createReadStream(LOOKUP_FILE);
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+  let idx = null;
+  const map = new Map();
+  for await (const line of rl) {
+    if (!line) continue;
+    if (!idx) {
+      const header = parseCsvLine(line);
+      idx = Object.fromEntries(header.map((h, i) => [clean(h), i]));
+      continue;
+    }
+    const cols = parseCsvLine(line);
+    const luType = clean(cols[idx.LUType]);
+    if (luType !== "1") continue;
+    const luItem = clean(cols[idx.LUItem]);
+    const desc = clean(cols[idx.LUDescription]);
+    if (!luItem || !desc) continue;
+    map.set(String(Number(luItem)), desc);
+  }
+  return map;
 }
 
 async function readParcelMap() {
@@ -173,7 +238,8 @@ async function buildSeattleAccountMap(parcelMap) {
     const existing = map.get(key);
     const addr = clean(cols[idx.AddrLine]);
     const zip = clean(cols[idx.ZipCode]);
-    const neighborhood = parcel?.subArea || zip || "Unknown";
+    const subArea = parcel?.subArea || "";
+    const neighborhood = subArea && !looksNumeric(subArea) ? subArea : zipToNeighborhood(zip);
 
     if (!existing || assessed > existing.assessedValue) {
       map.set(key, {
@@ -192,14 +258,14 @@ async function buildSeattleAccountMap(parcelMap) {
   return map;
 }
 
-async function buildOutput(accountMap, resBldgMap) {
+async function buildOutput(accountMap, resBldgMap, typeMap) {
   const stream = fs.createReadStream(SALES_FILE);
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   const out = fs.createWriteStream(OUTPUT_FILE);
 
   out.write([
-    "dataMode","id","address","neighborhood","type",
-    "listDate","pendingDate","listPriceAtPending","closePrice","assessedValue",
+    "dataMode","id","address","neighborhood","type","typeCode",
+    "listDate","pendingDate","saleDate","listPriceAtPending","closePrice","assessedValue",
     "beds","baths","sqft","yearBuilt","zip","districtName","area","subArea","sqFtLot","zoning"
   ].join(",") + "\n");
 
@@ -229,7 +295,8 @@ async function buildOutput(accountMap, resBldgMap) {
     if (!docDate || docDate < RANGE_START || docDate > RANGE_END) continue;
 
     const id = clean(cols[idx.ExciseTaxNbr]) || `${major}${minor}`;
-    const type = clean(cols[idx.PropertyType]) || "Unknown";
+    const typeCode = clean(cols[idx.PropertyType]) || "";
+    const type = typeMap.get(String(Number(typeCode))) || (typeCode ? `Type ${typeCode}` : "Unknown");
     const iso = toIsoDate(docDateRaw);
     const listPriceAtPending = account.assessedValue;
     const bldg = resBldgMap.get(key) || { bedrooms: 0, baths: 0, sqft: 0, yearBuilt: 0 };
@@ -240,6 +307,8 @@ async function buildOutput(accountMap, resBldgMap) {
       account.address,
       account.neighborhood,
       type,
+      typeCode,
+      iso,
       iso,
       iso,
       String(Math.round(listPriceAtPending)),
@@ -271,8 +340,9 @@ async function main() {
 
   const parcelMap = await readParcelMap();
   const resBldgMap = await readResBldgMap();
+  const typeMap = await readPropertyTypeMap();
   const accountMap = await buildSeattleAccountMap(parcelMap);
-  const written = await buildOutput(accountMap, resBldgMap);
+  const written = await buildOutput(accountMap, resBldgMap, typeMap);
   // eslint-disable-next-line no-console
   console.log(`Wrote ${written} rows to ${OUTPUT_FILE}`);
 }
