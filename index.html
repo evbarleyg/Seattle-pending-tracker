@@ -71,6 +71,22 @@
         color: #fff;
         background: linear-gradient(135deg, #275ea7, #2d8cb4);
       }
+      .header-controls {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .theme-toggle {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 12px;
+        color: #d8e9ff;
+        background: rgba(17, 28, 47, 0.88);
+        cursor: pointer;
+      }
 
       .app {
         max-width: 1260px;
@@ -312,6 +328,88 @@
         font-size: 12px;
       }
 
+      /* Light theme defaults for readability */
+      body.light {
+        --line: #c7d4e7;
+        --text: #14233b;
+        --muted: #516884;
+        background:
+          radial-gradient(1100px 600px at -15% -25%, #d7e7ff 0%, transparent 55%),
+          radial-gradient(1000px 600px at 115% -15%, #efe2ff 0%, transparent 52%),
+          #f3f8ff;
+      }
+      body.light a { color: #1f5ea8; }
+      body.light .tabs {
+        background: rgba(255, 255, 255, 0.88);
+        border-color: #bfd0e6;
+      }
+      body.light .tab { color: #3c5777; }
+      body.light .tab.active { color: #fff; }
+      body.light .theme-toggle {
+        color: #294768;
+        background: rgba(255, 255, 255, 0.9);
+        border-color: #bfd0e6;
+      }
+      body.light .panel {
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,252,255,0.96));
+        border-color: #c6d4e5;
+        box-shadow: 0 10px 24px rgba(26, 59, 102, 0.12);
+      }
+      body.light select,
+      body.light input {
+        color: #1a2f4a;
+        background: #ffffff;
+        border-color: #bccde2;
+      }
+      body.light .btn.alt {
+        color: #274667;
+        background: #ffffff;
+        border-color: #b8cadf;
+      }
+      body.light .chip {
+        background: #edf4ff;
+        border-color: #c4d4ea;
+        color: #244160;
+      }
+      body.light .chip button { color: #476a91; }
+      body.light .guide,
+      body.light .insights { color: #1f3552; }
+      body.light .kpi {
+        background: linear-gradient(180deg, #f7fbff, #edf5ff);
+        border-color: #c8d7eb;
+      }
+      body.light .kpi .kbtn {
+        background: #eaf3ff;
+        border-color: #b9cde5;
+        color: #244665;
+      }
+      body.light .bar-row {
+        background: #ffffff;
+        border-color: #c7d5e8;
+        color: #1f3855;
+      }
+      body.light .track { background: #dce7f5; }
+      body.light .fill { background: linear-gradient(90deg, #2d80d7, #42bde7); }
+      body.light .fill.warm { background: linear-gradient(90deg, #c07b2f, #e3b24f); }
+      body.light th,
+      body.light td { border-bottom-color: #d2deed; }
+      body.light tr.clickable:hover { background: rgba(77, 133, 200, 0.12); }
+      body.light tr.clickable.active { background: rgba(77, 166, 255, 0.17); }
+      body.light .mini-btn {
+        border-color: #b9cce5;
+        background: #eaf3ff;
+        color: #214767;
+      }
+      body.light .mode {
+        border-color: #b9cce5;
+        background: #edf4ff;
+        color: #214767;
+      }
+      body.light .mono {
+        background: #f7fbff;
+        border-color: #c5d4e7;
+      }
+
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -320,18 +418,25 @@
       @media (max-width: 680px) {
         .filters { grid-template-columns: 1fr 1fr; }
         .kpi-grid { grid-template-columns: 1fr 1fr; }
+        .header-controls {
+          flex-direction: column;
+          align-items: flex-start;
+        }
       }
     </style>
   </head>
-  <body>
+  <body class="light">
     <header>
       <h1>Seattle Housing Buyer Lens</h1>
       <div class="subtitle">Buyer-focused market view for Seattle. Public-record sales now, MLS-enriched fields later. Every chart and metric can filter the entire dashboard.</div>
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-view="overview" role="tab">Overview</button>
-        <button class="tab" data-view="charts" role="tab">Charts</button>
-        <button class="tab" data-view="records" role="tab">Records</button>
-        <button class="tab" data-view="data" role="tab">Data</button>
+      <div class="header-controls">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-view="overview" role="tab">Overview</button>
+          <button class="tab" data-view="charts" role="tab">Charts</button>
+          <button class="tab" data-view="records" role="tab">Records</button>
+          <button class="tab" data-view="data" role="tab">Data</button>
+        </div>
+        <button class="theme-toggle" id="themeToggle" type="button">Switch To Dark Mode</button>
       </div>
       <div class="status" id="datasetStatus">Initializing dataset...</div>
     </header>
@@ -1240,6 +1345,31 @@
         URL.revokeObjectURL(url);
       }
 
+      function applyTheme(theme) {
+        const body = document.body;
+        body.classList.remove("light", "dark");
+        body.classList.add(theme);
+        const toggle = document.getElementById("themeToggle");
+        if (toggle) {
+          toggle.textContent = theme === "light" ? "Switch To Dark Mode" : "Switch To Light Mode";
+        }
+        try {
+          localStorage.setItem("buyer_lens_theme", theme);
+        } catch (err) {
+          // ignore storage errors
+        }
+      }
+
+      function initTheme() {
+        let saved = "light";
+        try {
+          saved = localStorage.getItem("buyer_lens_theme") || "light";
+        } catch (err) {
+          saved = "light";
+        }
+        applyTheme(saved === "dark" ? "dark" : "light");
+      }
+
       function bindEvents() {
         ["fNeighborhood", "fType", "fMode", "fScope", "fMinClose", "fMaxClose", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
@@ -1253,6 +1383,10 @@
         });
         document.getElementById("clearCrossBtn").addEventListener("click", clearCrossFilters);
         document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
+        document.getElementById("themeToggle").addEventListener("click", () => {
+          const next = document.body.classList.contains("light") ? "dark" : "light";
+          applyTheme(next);
+        });
 
         document.querySelectorAll(".tab").forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -1329,6 +1463,7 @@
       }
 
       function init() {
+        initTheme();
         bindEvents();
         autoLoadDefault();
       }
