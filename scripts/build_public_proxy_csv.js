@@ -99,6 +99,94 @@ function clean(v) {
   return String(v || "").replace(/^"|"$/g, "").trim();
 }
 
+function normalizeSpace(v) {
+  return String(v || "").replace(/\s+/g, " ").trim();
+}
+
+function zip5(v) {
+  return (String(v || "").match(/[0-9]{5}/) || [])[0] || "";
+}
+
+function isPoBox(v) {
+  return /^P\.?\s*O\.?\s*BOX\b/i.test(normalizeSpace(v));
+}
+
+function normalizeSitusAddress(addrRaw) {
+  let s = normalizeSpace(addrRaw);
+  if (!s) return "";
+  s = s.replace(/,\s*$/, "");
+  s = s.replace(/\b[0-9]{5}(?:-[0-9]{4})?\s*$/, "").trim();
+  return s;
+}
+
+function formatSeattleStreetAddress(street, zip) {
+  const s = normalizeSitusAddress(street);
+  if (!s) return "";
+  if (/\bSEATTLE\b/i.test(s)) return s;
+  const z = zip5(zip);
+  return z ? `${s}, Seattle ${z}` : `${s}, Seattle`;
+}
+
+function formatMailingAddress(addr, cityState, zip) {
+  const line = normalizeSpace(addr);
+  const city = normalizeSpace(cityState);
+  const z = zip5(zip);
+  const parts = [line, city].filter(Boolean);
+  if (z && !parts.join(" ").includes(z)) parts.push(z);
+  return parts.join(", ");
+}
+
+function looksStreetLike(v) {
+  const s = normalizeSpace(v);
+  return /^[0-9]/.test(s) && /[A-Za-z]/.test(s) && !isPoBox(s);
+}
+
+function chooseAddress(account, bldg) {
+  const accountStreet = normalizeSitusAddress(account.mailingLine);
+  const accountZip = zip5(account.zip);
+  const accountCity = normalizeSpace(account.mailingCityState);
+  const accountLooksGood = looksStreetLike(accountStreet);
+  const accountSeattleZip = accountZip.startsWith("981");
+
+  const situsStreet = normalizeSitusAddress(bldg.situsAddress);
+  const situsZip = zip5(bldg.situsZip);
+  const situsLooksGood = looksStreetLike(situsStreet);
+  const situsSeattleZip = situsZip.startsWith("981");
+
+  const preferSitus = (!accountLooksGood || !accountSeattleZip || isPoBox(accountStreet)) && situsLooksGood && situsSeattleZip;
+  if (preferSitus) {
+    return {
+      address: formatSeattleStreetAddress(situsStreet, situsZip),
+      addressSource: "SITUS_PROXY",
+      zip: situsZip || accountZip,
+    };
+  }
+
+  if (accountLooksGood) {
+    const cityPart = accountCity || "SEATTLE WA";
+    const z = accountZip || situsZip;
+    return {
+      address: `${accountStreet}, ${cityPart}${z ? ` ${z}` : ""}`.trim(),
+      addressSource: "MAILING_STREET",
+      zip: z,
+    };
+  }
+
+  if (situsLooksGood) {
+    return {
+      address: formatSeattleStreetAddress(situsStreet, situsZip),
+      addressSource: "SITUS_PROXY",
+      zip: situsZip || accountZip,
+    };
+  }
+
+  return {
+    address: account.mailingAddress || formatSeattleStreetAddress(situsStreet, situsZip) || "Seattle",
+    addressSource: "MAILING_FALLBACK",
+    zip: accountZip || situsZip,
+  };
+}
+
 function safeCsv(v) {
   const s = String(v ?? "");
   if (s.includes(",") || s.includes('"') || s.includes("\n")) {
@@ -202,15 +290,20 @@ async function readResBldgMap() {
 
     const cols = parseCsvLine(line);
     const key = `${clean(cols[idx.Major])}-${clean(cols[idx.Minor])}`;
+    const rawAddress = clean(cols[idx.Address]);
+    const bldgZip = zip5(clean(cols[idx.ZipCode]) || rawAddress);
     const candidate = {
       bedrooms: num(cols[idx.Bedrooms]),
       baths: num(cols[idx.BathFullCount]) + (num(cols[idx.Bath3qtrCount]) * 0.75) + (num(cols[idx.BathHalfCount]) * 0.5),
       sqft: num(cols[idx.SqFtTotLiving]),
       yearBuilt: num(cols[idx.YrBuilt]),
+      situsAddress: normalizeSitusAddress(rawAddress),
+      situsZip: bldgZip,
     };
 
     const current = map.get(key);
-    if (!current || candidate.sqft > current.sqft) {
+    const isBetterAddress = !!candidate.situsAddress && (!current || !current.situsAddress);
+    if (!current || candidate.sqft > current.sqft || isBetterAddress) {
       map.set(key, candidate);
     }
   }
@@ -300,9 +393,12 @@ async function buildSeattleAccountMap(parcelMap) {
     if (!existing || assessed > existing.assessedValue) {
       map.set(key, {
         assessedValue: assessed,
-        address: addr ? `${addr}, Seattle ${zip}` : `Seattle ${zip}`.trim(),
+        mailingLine: addr,
+        mailingCityState: cityState,
+        mailingZip: zip5(zip),
+        mailingAddress: formatMailingAddress(addr, cityState, zip),
         neighborhood,
-        zip,
+        zip: zip5(zip),
         districtName: parcel?.districtName || "Seattle",
         area: parcel?.area || "",
         subArea: parcel?.subArea || "",
@@ -321,6 +417,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
 
   out.write([
     "dataMode","id","address","neighborhood","type","typeCode",
+    "addressSource","major","minor","parcelNbr",
     "listDate","pendingDate","saleDate","listPriceAtPending","closePrice","assessedValue",
     "beds","baths","sqft","yearBuilt","zip","districtName","area","subArea","sqFtLot","zoning"
   ].join(",") + "\n");
@@ -353,15 +450,26 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
     const type = typeMap.get(String(Number(typeCode))) || (typeCode ? `Type ${typeCode}` : "Unknown");
     const iso = toIsoDate(docDateRaw);
     const listPriceAtPending = account.assessedValue;
-    const bldg = resBldgMap.get(key) || { bedrooms: 0, baths: 0, sqft: 0, yearBuilt: 0 };
+    const bldg = resBldgMap.get(key) || { bedrooms: 0, baths: 0, sqft: 0, yearBuilt: 0, situsAddress: "", situsZip: "" };
+    const chosen = chooseAddress(account, bldg);
+    const displayZip = chosen.zip || account.zip;
+    const addressSource = chosen.addressSource;
+    const displayAddress = (addressSource === "MAILING_FALLBACK" && isPoBox(chosen.address))
+      ? `Parcel ${major}-${minor} (address unavailable)`
+      : chosen.address;
+    const parcelNbr = `${major}${minor}`;
 
     const row = [
       "PUBLIC_PROXY",
       id,
-      account.address,
+      displayAddress,
       account.neighborhood,
       type,
       typeCode,
+      addressSource,
+      major,
+      minor,
+      parcelNbr,
       iso,
       iso,
       iso,
@@ -372,7 +480,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
       String(Number.isFinite(bldg.baths) ? bldg.baths.toFixed(2) : "0"),
       String(Math.round(bldg.sqft)),
       String(Math.round(bldg.yearBuilt)),
-      account.zip,
+      displayZip || account.zip,
       account.districtName,
       account.area,
       account.subArea,
