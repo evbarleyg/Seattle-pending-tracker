@@ -151,10 +151,10 @@ function chooseAddress(account, bldg) {
   const situsStreet = normalizeSitusAddress(bldg.situsAddress);
   const situsZip = zip5(bldg.situsZip);
   const situsLooksGood = looksStreetLike(situsStreet);
-  const situsSeattleZip = situsZip.startsWith("981");
+  const situsSeattleZip = !situsZip || situsZip.startsWith("981");
 
-  const preferSitus = (!accountLooksGood || !accountSeattleZip || isPoBox(accountStreet)) && situsLooksGood && situsSeattleZip;
-  if (preferSitus) {
+  // Prefer sold-property situs address whenever we have a plausible Seattle situs.
+  if (situsLooksGood && situsSeattleZip) {
     return {
       address: formatSeattleStreetAddress(situsStreet, situsZip),
       addressSource: "SITUS_PROXY",
