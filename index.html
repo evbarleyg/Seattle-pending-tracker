@@ -1142,7 +1142,7 @@
           <section class="panel">
             <h3>Seattle Neighborhood Map</h3>
             <div class="geo-map-wrap" id="geoMap"></div>
-            <div class="geo-note">Basemap: OpenStreetMap. Click a neighborhood bubble to filter. Bubble size = sales count. Bubble color = median Sale/Assessed ratio.</div>
+            <div class="geo-note">Basemap: OpenStreetMap. Zoom in to see individual address markers. Zoomed out shows neighborhood bubbles (size = sales count, color = median Sale/Assessed ratio).</div>
           </section>
           <section class="panel">
             <h3>Neighborhood Geo Insights</h3>
@@ -1208,6 +1208,7 @@
       const PRICE_SLIDER_MIN = 0;
       const PRICE_SLIDER_CAP = 3000000;
       const PRICE_SLIDER_STEP = 10000;
+      const GEO_DETAIL_ZOOM = 13;
 
       const TYPE_LABELS = {
         "11": "Single Family",
@@ -1296,6 +1297,8 @@
         geo: {
           map: null,
           layer: null,
+          rows: [],
+          neighborhoodRows: [],
         },
         recordSort: {
           key: "saleDate",
@@ -2045,6 +2048,112 @@
         return `hsl(${hue} 74% 56%)`;
       }
 
+      function hash32(text) {
+        let h = 2166136261;
+        const s = String(text || "");
+        for (let i = 0; i < s.length; i += 1) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return h >>> 0;
+      }
+
+      function buildGeoDetailPoints(rows, neighborhoodRows, zoom, bounds) {
+        const byNeighborhood = Object.fromEntries(neighborhoodRows.map((p) => [p.name, p]));
+        const groups = {};
+
+        rows.forEach((r, idx) => {
+          const z = zip5(r.zip);
+          const zipCoord = ZIP_COORDS[z];
+          const nCoord = byNeighborhood[r.neighborhoodLabel];
+          const base = zipCoord || (nCoord ? { lat: nCoord.lat, lon: nCoord.lon } : null);
+          if (!base || !Number.isFinite(base.lat) || !Number.isFinite(base.lon)) return;
+
+          const scopeKey = zipCoord ? `zip:${z}` : `n:${r.neighborhoodLabel || "other"}`;
+          if (!groups[scopeKey]) groups[scopeKey] = { base, points: [] };
+          groups[scopeKey].points.push({
+            row: r,
+            key: r.parcelNbr || r.id || `${r.address || "row"}|${r.saleDate || ""}|${idx}`,
+          });
+        });
+
+        const spiralStep = zoom >= 15 ? 0.00035 : (zoom >= 14 ? 0.0005 : 0.00075);
+        const out = [];
+        Object.entries(groups).forEach(([scopeKey, g]) => {
+          g.points.sort((a, b) => hash32(a.key) - hash32(b.key));
+          const baseAngle = ((hash32(scopeKey) % 360) / 180) * Math.PI;
+          const lonAdj = Math.max(Math.cos((g.base.lat * Math.PI) / 180), 0.35);
+
+          g.points.forEach((entry, i) => {
+            const ring = i + 1;
+            const radius = spiralStep * Math.sqrt(ring);
+            const angle = baseAngle + (ring * 2.399963229728653);
+            const lat = g.base.lat + (Math.cos(angle) * radius);
+            const lon = g.base.lon + ((Math.sin(angle) * radius) / lonAdj);
+            if (!bounds || bounds.contains([lat, lon])) out.push({ row: entry.row, lat, lon });
+          });
+        });
+
+        return out;
+      }
+
+      function drawGeoLayer(rows, neighborhoodRows) {
+        const map = state.geo.map;
+        const layer = state.geo.layer;
+        if (!map || !layer) return;
+        layer.clearLayers();
+
+        const mapPoints = neighborhoodRows.filter((g) => Number.isFinite(g.lat) && Number.isFinite(g.lon));
+        if (!mapPoints.length) return;
+
+        const zoom = map.getZoom();
+        const bounds = map.getBounds();
+        const detailMode = zoom >= GEO_DETAIL_ZOOM;
+
+        if (!detailMode) {
+          const maxCount = Math.max(...mapPoints.map((p) => p.count), 1);
+          const ratioScale = seqScale(mapPoints.filter((p) => p.medianRatio > 0).map((p) => p.medianRatio));
+          mapPoints.forEach((p) => {
+            const size = Math.round(24 + ((p.count / maxCount) * 34));
+            const color = geoRatioColor(p.medianRatio > 0 ? ratioScale(p.medianRatio) : 0.5);
+            const active = state.interactions.neighborhood === p.name ? "active" : "";
+            const icon = L.divIcon({
+              className: "geo-marker-wrap",
+              html: `<button class="geo-bubble ${active}" style="--b-size:${size}px;--b-color:${color}" type="button">${p.count}</button>`,
+              iconSize: [size, size],
+              iconAnchor: [size / 2, size / 2],
+            });
+            const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
+            marker.on("click", () => setInteraction("neighborhood", p.name));
+            marker.bindTooltip(
+              `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/A`,
+              { direction: "top", className: "geo-tip" }
+            );
+            marker.addTo(layer);
+          });
+          return;
+        }
+
+        const detailPoints = buildGeoDetailPoints(rows, neighborhoodRows, zoom, bounds);
+        const rowRatioScale = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
+        detailPoints.forEach(({ row: r, lat, lon }) => {
+          const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
+          const marker = L.circleMarker([lat, lon], {
+            radius: zoom >= 15 ? 4 : 5,
+            weight: 1.5,
+            color: "rgba(241,248,255,0.9)",
+            fillColor: color,
+            fillOpacity: 0.88,
+          });
+          marker.bindTooltip(
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${esc(r.saleDate || "n/a")}<br>${esc(r.neighborhoodLabel || "Seattle")}`,
+            { direction: "top", className: "geo-tip" }
+          );
+          marker.on("click", () => setInteraction("neighborhood", r.neighborhoodLabel));
+          marker.addTo(layer);
+        });
+      }
+
       function ensureGeoMap() {
         const mapEl = document.getElementById("geoMap");
         if (!mapEl) return null;
@@ -2057,15 +2166,18 @@
         mapEl.innerHTML = `<div id="geoCanvas"></div>`;
         const map = L.map("geoCanvas", {
           zoomControl: true,
-          scrollWheelZoom: false,
+          scrollWheelZoom: true,
           minZoom: 10,
-          maxZoom: 14,
+          maxZoom: 17,
         });
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         }).addTo(map);
         map.setView([47.6062, -122.3321], 11);
         state.geo.layer = L.layerGroup().addTo(map);
+        map.on("zoomend moveend", () => {
+          if (state.geo.rows.length) drawGeoLayer(state.geo.rows, state.geo.neighborhoodRows);
+        });
         state.geo.map = map;
         return map;
       }
@@ -2088,36 +2200,14 @@
         document.getElementById("geoTopRatio").textContent = topRatio ? `${topRatio.name} (${topRatio.medianRatio.toFixed(2)}x)` : "n/a";
 
         const map = ensureGeoMap();
+        state.geo.rows = rows;
+        state.geo.neighborhoodRows = geoRows;
         if (!geoRows.length) {
           if (map && state.geo.layer) state.geo.layer.clearLayers();
           tbody.innerHTML = `<tr><td colspan="5">No rows for current filters.</td></tr>`;
           return;
         }
-        if (map && state.geo.layer) {
-          state.geo.layer.clearLayers();
-          if (mapPoints.length) {
-            const maxCount = Math.max(...mapPoints.map((p) => p.count), 1);
-            const ratioScale = seqScale(mapPoints.filter((p) => p.medianRatio > 0).map((p) => p.medianRatio));
-            mapPoints.forEach((p) => {
-              const size = Math.round(24 + ((p.count / maxCount) * 34));
-              const color = geoRatioColor(p.medianRatio > 0 ? ratioScale(p.medianRatio) : 0.5);
-              const active = state.interactions.neighborhood === p.name ? "active" : "";
-              const icon = L.divIcon({
-                className: "geo-marker-wrap",
-                html: `<button class="geo-bubble ${active}" style="--b-size:${size}px;--b-color:${color}" type="button">${p.count}</button>`,
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2],
-              });
-              const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
-              marker.on("click", () => setInteraction("neighborhood", p.name));
-              marker.bindTooltip(
-                `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/A`,
-                { direction: "top", className: "geo-tip" }
-              );
-              marker.addTo(state.geo.layer);
-            });
-          }
-        }
+        if (map && state.geo.layer) drawGeoLayer(rows, geoRows);
 
         tbody.innerHTML = geoRows.slice(0, 20).map((g) => {
           const active = state.interactions.neighborhood === g.name;
