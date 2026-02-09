@@ -2097,6 +2097,29 @@
         return out;
       }
 
+      function drawGeoNeighborhoodBubbles(mapPoints, layer) {
+        const maxCount = Math.max(...mapPoints.map((p) => p.count), 1);
+        const ratioScale = seqScale(mapPoints.filter((p) => p.medianRatio > 0).map((p) => p.medianRatio));
+        mapPoints.forEach((p) => {
+          const size = Math.round(24 + ((p.count / maxCount) * 34));
+          const color = geoRatioColor(p.medianRatio > 0 ? ratioScale(p.medianRatio) : 0.5);
+          const active = state.interactions.neighborhood === p.name ? "active" : "";
+          const icon = L.divIcon({
+            className: "geo-marker-wrap",
+            html: `<button class="geo-bubble ${active}" style="--b-size:${size}px;--b-color:${color}" type="button">${p.count}</button>`,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+          });
+          const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
+          marker.on("click", () => setInteraction("neighborhood", p.name));
+          marker.bindTooltip(
+            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/A`,
+            { direction: "top", className: "geo-tip" }
+          );
+          marker.addTo(layer);
+        });
+      }
+
       function drawGeoLayer(rows, neighborhoodRows) {
         const map = state.geo.map;
         const layer = state.geo.layer;
@@ -2111,39 +2134,30 @@
         const detailMode = zoom >= GEO_DETAIL_ZOOM;
 
         if (!detailMode) {
-          const maxCount = Math.max(...mapPoints.map((p) => p.count), 1);
-          const ratioScale = seqScale(mapPoints.filter((p) => p.medianRatio > 0).map((p) => p.medianRatio));
-          mapPoints.forEach((p) => {
-            const size = Math.round(24 + ((p.count / maxCount) * 34));
-            const color = geoRatioColor(p.medianRatio > 0 ? ratioScale(p.medianRatio) : 0.5);
-            const active = state.interactions.neighborhood === p.name ? "active" : "";
-            const icon = L.divIcon({
-              className: "geo-marker-wrap",
-              html: `<button class="geo-bubble ${active}" style="--b-size:${size}px;--b-color:${color}" type="button">${p.count}</button>`,
-              iconSize: [size, size],
-              iconAnchor: [size / 2, size / 2],
-            });
-            const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
-            marker.on("click", () => setInteraction("neighborhood", p.name));
-            marker.bindTooltip(
-              `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/A`,
-              { direction: "top", className: "geo-tip" }
-            );
-            marker.addTo(layer);
-          });
+          drawGeoNeighborhoodBubbles(mapPoints, layer);
           return;
         }
 
-        const detailPoints = buildGeoDetailPoints(rows, neighborhoodRows, zoom, bounds);
+        const paddedBounds = bounds.pad(0.35);
+        const detailPoints = buildGeoDetailPoints(rows, neighborhoodRows, zoom, paddedBounds);
+        if (!detailPoints.length) {
+          drawGeoNeighborhoodBubbles(mapPoints, layer);
+          return;
+        }
+        if (!map.getPane("geoDetailPoints")) {
+          map.createPane("geoDetailPoints");
+          map.getPane("geoDetailPoints").style.zIndex = "650";
+        }
         const rowRatioScale = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
         detailPoints.forEach(({ row: r, lat, lon }) => {
           const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
           const marker = L.circleMarker([lat, lon], {
-            radius: zoom >= 15 ? 4 : 5,
-            weight: 1.5,
-            color: "rgba(241,248,255,0.9)",
+            pane: "geoDetailPoints",
+            radius: zoom >= 15 ? 7 : 8,
+            weight: 2,
+            color: "rgba(12,34,66,0.95)",
             fillColor: color,
-            fillOpacity: 0.88,
+            fillOpacity: 0.96,
           });
           marker.bindTooltip(
             `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${esc(r.saleDate || "n/a")}<br>${esc(r.neighborhoodLabel || "Seattle")}`,
