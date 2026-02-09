@@ -1441,6 +1441,10 @@
         return lines.slice(1).filter((line) => line.trim()).map((line) => {
           const cols = parseCsvLine(line);
           const pick = (name) => (idx[name] !== undefined ? (cols[idx[name]] || "").trim() : "");
+          const latVal = num(pick("lat"));
+          const lonVal = num(pick("lon"));
+          const lat = Math.abs(latVal) > 1 ? latVal : null;
+          const lon = Math.abs(lonVal) > 1 ? lonVal : null;
           return {
             dataMode: pick("dataMode"),
             id: pick("id"),
@@ -1463,6 +1467,8 @@
             sqft: num(pick("sqft")),
             yearBuilt: num(pick("yearBuilt")),
             zip: pick("zip"),
+            lat,
+            lon,
             mlsListDate: pick("mlsListDate"),
             mlsPendingDate: pick("mlsPendingDate"),
             mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
@@ -2020,7 +2026,9 @@
             if (r.saleToAssessed > 1) g.ratioAbove += 1;
           }
 
-          const coord = ZIP_COORDS[zip5(r.zip)];
+          const coord = (Number.isFinite(r.lat) && Number.isFinite(r.lon))
+            ? { lat: r.lat, lon: r.lon }
+            : ZIP_COORDS[zip5(r.zip)];
           if (coord) {
             g.latSum += coord.lat;
             g.lonSum += coord.lon;
@@ -2063,13 +2071,19 @@
         const groups = {};
 
         rows.forEach((r, idx) => {
+          const exactCoord = (Number.isFinite(r.lat) && Number.isFinite(r.lon))
+            ? { lat: r.lat, lon: r.lon }
+            : null;
           const z = zip5(r.zip);
           const zipCoord = ZIP_COORDS[z];
           const nCoord = byNeighborhood[r.neighborhoodLabel];
-          const base = zipCoord || (nCoord ? { lat: nCoord.lat, lon: nCoord.lon } : null);
+          const neighborhoodCoord = (nCoord && Number.isFinite(nCoord.lat) && Number.isFinite(nCoord.lon))
+            ? { lat: nCoord.lat, lon: nCoord.lon }
+            : null;
+          const base = exactCoord || neighborhoodCoord || zipCoord || null;
           if (!base || !Number.isFinite(base.lat) || !Number.isFinite(base.lon)) return;
 
-          const scopeKey = zipCoord ? `zip:${z}` : `n:${r.neighborhoodLabel || "other"}`;
+          const scopeKey = exactCoord ? `exact:${r.parcelNbr || r.id || idx}` : `n:${r.neighborhoodLabel || "other"}`;
           if (!groups[scopeKey]) groups[scopeKey] = { base, points: [] };
           groups[scopeKey].points.push({
             row: r,
