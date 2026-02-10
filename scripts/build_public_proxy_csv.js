@@ -16,7 +16,7 @@ const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_all_prices_last6m
 const RANGE_END = new Date();
 RANGE_END.setHours(23, 59, 59, 999);
 const RANGE_START = new Date(RANGE_END);
-RANGE_START.setMonth(RANGE_START.getMonth() - 6);
+RANGE_START.setFullYear(RANGE_START.getFullYear() - 1);
 RANGE_START.setHours(0, 0, 0, 0);
 
 const ZIP_NEIGHBORHOOD = {
