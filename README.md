@@ -6,7 +6,7 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 
 ## What This App Does
 
-- Loads a Seattle sales proxy dataset by default (`public_sales_proxy_all_prices_last6mo.csv`).
+- Loads a Seattle sales proxy dataset by default (`public_sales_proxy_all_prices_last12mo.csv`).
 - Starts with default filters:
   - `Property Type`: Single Family
   - `Close Price`: $1.1M to $1.4M
@@ -84,5 +84,5 @@ git push -u origin main
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/index.html` - App UI + logic
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_public_proxy_csv.js` - Public dataset builder
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_parcel_coord_lookup.js` - Normalize GIS export to `major,minor,lat,lon` join file
-- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_all_prices_last6mo.csv` - Default loaded dataset
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_all_prices_last12mo.csv` - Default loaded dataset
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/DATA_SCHEMA.md` - Field notes and normalization behavior

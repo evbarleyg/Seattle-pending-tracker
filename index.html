@@ -492,14 +492,10 @@
         background: #5fd89c;
         border: 1px solid #103520;
       }
-      .geo-dot.approx {
-        background: #59b8f3;
-        border: 1px solid #0f3658;
-      }
-      .geo-dot.cluster {
-        background: #f0c96a;
-        border: 1px solid #5b430f;
-      }
+      .geo-dot.sa-low { background: hsl(220 74% 56%); border: 1px solid #123b62; }
+      .geo-dot.sa-mid { background: hsl(168 74% 56%); border: 1px solid #0f4a44; }
+      .geo-dot.sa-high { background: hsl(95 74% 56%); border: 1px solid #2b4d11; }
+      .geo-dot.selected { background: transparent; border: 2px solid #f9d26b; }
       .geo-selected-wrap {
         margin-top: 10px;
         border: 1px solid var(--line);
@@ -990,12 +986,10 @@
       body.light .geo-dot.exact {
         border-color: #2f7e59;
       }
-      body.light .geo-dot.approx {
-        border-color: #26658f;
-      }
-      body.light .geo-dot.cluster {
-        border-color: #8a6a1b;
-      }
+      body.light .geo-dot.sa-low { border-color: #155280; }
+      body.light .geo-dot.sa-mid { border-color: #13645d; }
+      body.light .geo-dot.sa-high { border-color: #3f5f16; }
+      body.light .geo-dot.selected { border-color: #956f0b; }
       body.light .geo-mobile-card {
         border-color: #c8d7eb;
         background: rgba(247, 251, 255, 0.88);
@@ -1328,11 +1322,13 @@
           <section class="panel geo-main-panel">
             <h3>Seattle Neighborhood Map</h3>
             <div class="geo-map-wrap" id="geoMap"></div>
-            <div class="geo-note">Basemap: OpenStreetMap. Zoom in to see individual address markers. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
+            <div class="geo-note">Basemap: OpenStreetMap. Zoom in for exact parcel-coordinate property pins only. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
             <div class="geo-legend">
               <span class="geo-legend-item"><span class="geo-dot exact"></span>Exact parcel coordinate</span>
-              <span class="geo-legend-item"><span class="geo-dot approx"></span>Approximate inferred location</span>
-              <span class="geo-legend-item"><span class="geo-dot cluster"></span>Approximate cluster</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-low"></span>Lower S/A</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-mid"></span>Mid S/A</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-high"></span>Higher S/A</span>
+              <span class="geo-legend-item"><span class="geo-dot selected"></span>Selected property</span>
             </div>
           </section>
           <section class="panel geo-side-panel">
@@ -1343,7 +1339,7 @@
                 <div class="value" id="geoCount">0</div>
               </div>
               <div class="geo-kpi">
-                <div class="label">Mapped Sales Coverage</div>
+                <div class="label">Exact Pin Coverage</div>
                 <div class="value" id="geoCoverage">0%</div>
               </div>
               <div class="geo-kpi">
@@ -1393,7 +1389,7 @@
           <div class="note" id="uploadStatus">Auto-load enabled for the default dataset.</div>
 
           <p class="note">Auto-load filename:</p>
-          <div class="mono">public_sales_proxy_all_prices_last6mo.csv</div>
+          <div class="mono">public_sales_proxy_all_prices_last12mo.csv</div>
 
           <p class="note">Minimum columns:</p>
           <div class="mono">id,address,type,closePrice</div>
@@ -1413,7 +1409,7 @@
       crossorigin=""
     ></script>
     <script>
-      const DEFAULT_DATASET = "public_sales_proxy_all_prices_last6mo.csv";
+      const DEFAULT_DATASET = "public_sales_proxy_all_prices_last12mo.csv";
       const DEFAULT_MIN_CLOSE = 1100000;
       const DEFAULT_MAX_CLOSE = 1400000;
       const PRICE_SLIDER_MIN = 0;
@@ -2253,7 +2249,7 @@
 
       function buildGeoNeighborhoodRows(rows) {
         const grouped = {};
-        let mappedRows = 0;
+        let exactRows = 0;
 
         rows.forEach((r) => {
           const name = r.neighborhoodLabel || "Seattle (Other)";
@@ -2277,14 +2273,15 @@
             if (r.saleToAssessed > 1) g.ratioAbove += 1;
           }
 
-          const coord = (Number.isFinite(r.lat) && Number.isFinite(r.lon))
+          const hasExactCoord = Number.isFinite(r.lat) && Number.isFinite(r.lon);
+          if (hasExactCoord) exactRows += 1;
+          const coord = hasExactCoord
             ? { lat: r.lat, lon: r.lon }
             : ZIP_COORDS[zip5(r.zip)];
           if (coord) {
             g.latSum += coord.lat;
             g.lonSum += coord.lon;
             g.coordCount += 1;
-            mappedRows += 1;
           }
         });
 
@@ -2298,7 +2295,7 @@
           lon: g.coordCount ? (g.lonSum / g.coordCount) : null,
         })).sort((a, b) => (b.count - a.count) || (b.medianClose - a.medianClose));
 
-        return { geoRows, mappedRows, totalRows: rows.length };
+        return { geoRows, exactRows, totalRows: rows.length };
       }
 
       function geoRatioColor(norm) {
@@ -2317,27 +2314,16 @@
         return h >>> 0;
       }
 
-      function buildGeoDetailPoints(rows, neighborhoodRows, zoom, bounds) {
-        const byNeighborhood = Object.fromEntries(neighborhoodRows.map((p) => [p.name, p]));
+      function buildGeoDetailPoints(rows, zoom, bounds) {
         const groups = {};
 
         rows.forEach((r, idx) => {
           const exactCoord = (Number.isFinite(r.lat) && Number.isFinite(r.lon))
             ? { lat: r.lat, lon: r.lon }
             : null;
-          const z = zip5(r.zip);
-          const zipCoord = ZIP_COORDS[z];
-          const nCoord = byNeighborhood[r.neighborhoodLabel];
-          const neighborhoodCoord = (nCoord && Number.isFinite(nCoord.lat) && Number.isFinite(nCoord.lon))
-            ? { lat: nCoord.lat, lon: nCoord.lon }
-            : null;
-          const base = exactCoord || neighborhoodCoord || zipCoord || null;
-          if (!base || !Number.isFinite(base.lat) || !Number.isFinite(base.lon)) return;
-
-          const scopeKey = exactCoord
-            ? `exact:${base.lat.toFixed(6)}:${base.lon.toFixed(6)}`
-            : `n:${r.neighborhoodLabel || "other"}`;
-          if (!groups[scopeKey]) groups[scopeKey] = { base, points: [], exact: !!exactCoord };
+          if (!exactCoord) return;
+          const scopeKey = `exact:${exactCoord.lat.toFixed(6)}:${exactCoord.lon.toFixed(6)}`;
+          if (!groups[scopeKey]) groups[scopeKey] = { base: exactCoord, points: [] };
           groups[scopeKey].points.push({
             row: r,
             key: r.parcelNbr || r.id || `${r.address || "row"}|${r.saleDate || ""}|${idx}`,
@@ -2349,12 +2335,10 @@
           g.points.sort((a, b) => hash32(a.key) - hash32(b.key));
           const baseAngle = ((hash32(scopeKey) % 360) / 180) * Math.PI;
           const lonAdj = Math.max(Math.cos((g.base.lat * Math.PI) / 180), 0.35);
-          const spiralStep = g.exact
-            ? (zoom >= 15 ? 0.00005 : 0.00008)
-            : (zoom >= 15 ? 0.00035 : (zoom >= 14 ? 0.0005 : 0.00075));
+          const spiralStep = zoom >= 15 ? 0.00005 : 0.00008;
 
           g.points.forEach((entry, i) => {
-            if (g.exact && g.points.length === 1) {
+            if (g.points.length === 1) {
               if (!bounds || bounds.contains([g.base.lat, g.base.lon])) {
                 out.push({ row: entry.row, lat: g.base.lat, lon: g.base.lon, exact: true });
               }
@@ -2365,7 +2349,7 @@
             const angle = baseAngle + (ring * 2.399963229728653);
             const lat = g.base.lat + (Math.cos(angle) * radius);
             const lon = g.base.lon + ((Math.sin(angle) * radius) / lonAdj);
-            if (!bounds || bounds.contains([lat, lon])) out.push({ row: entry.row, lat, lon, exact: g.exact });
+            if (!bounds || bounds.contains([lat, lon])) out.push({ row: entry.row, lat, lon, exact: true });
           });
         });
 
@@ -2416,38 +2400,6 @@
         }
         state.geo.selectedPropertyKeys = [...set];
         renderAll();
-      }
-
-      function clusterApproxPoints(map, points, zoom) {
-        const gridPx = zoom >= 16 ? 20 : (zoom >= 15 ? 28 : 36);
-        const buckets = new Map();
-        points.forEach((p) => {
-          const projected = map.project([p.lat, p.lon], zoom);
-          const gx = Math.floor(projected.x / gridPx);
-          const gy = Math.floor(projected.y / gridPx);
-          const key = `${gx}:${gy}`;
-          if (!buckets.has(key)) {
-            buckets.set(key, {
-              points: [],
-              latSum: 0,
-              lonSum: 0,
-              mapKeys: [],
-            });
-          }
-          const b = buckets.get(key);
-          b.points.push(p);
-          b.latSum += p.lat;
-          b.lonSum += p.lon;
-          b.mapKeys.push(p.row.mapPropertyKey);
-        });
-
-        return [...buckets.values()].map((b) => ({
-          points: b.points,
-          mapKeys: [...new Set(b.mapKeys)],
-          count: b.points.length,
-          lat: b.latSum / Math.max(b.points.length, 1),
-          lon: b.lonSum / Math.max(b.points.length, 1),
-        }));
       }
 
       function renderGeoSelectedRows(rows) {
@@ -2512,7 +2464,7 @@
         }
 
         const paddedBounds = bounds.pad(0.35);
-        const detailPoints = buildGeoDetailPoints(rows, neighborhoodRows, zoom, paddedBounds);
+        const detailPoints = buildGeoDetailPoints(rows, zoom, paddedBounds);
         if (!detailPoints.length) {
           drawGeoNeighborhoodBubbles(mapPoints, layer);
           return;
@@ -2521,11 +2473,11 @@
           map.createPane("geoDetailPoints");
           map.getPane("geoDetailPoints").style.zIndex = "650";
         }
-        const rowRatioScale = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
-        const exactPoints = detailPoints.filter((p) => p.exact);
-        const approxPoints = detailPoints.filter((p) => !p.exact);
+        const rowRatioScale = seqScale(detailPoints
+          .map((p) => p.row.saleToAssessed)
+          .filter((v) => v > 0));
 
-        exactPoints.forEach(({ row: r, lat, lon }) => {
+        detailPoints.forEach(({ row: r, lat, lon }) => {
           const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
           const zUrl = zillowUrl(r);
           const countyUrl = countyRecordUrl(r);
@@ -2547,62 +2499,6 @@
             { maxWidth: 360 }
           );
           marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
-          marker.addTo(layer);
-        });
-
-        const approxClusters = clusterApproxPoints(map, approxPoints, zoom);
-        approxClusters.forEach((cluster) => {
-          const allSelected = cluster.mapKeys.length > 0
-            && cluster.mapKeys.every((k) => state.geo.selectedPropertyKeys.includes(k));
-          if (cluster.count === 1) {
-            const item = cluster.points[0];
-            const r = item.row;
-            const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
-            const zUrl = zillowUrl(r);
-            const countyUrl = countyRecordUrl(r);
-            const marker = L.circleMarker([item.lat, item.lon], {
-              pane: "geoDetailPoints",
-              radius: (zoom >= 15 ? 7 : 9) + (allSelected ? 2 : 0),
-              weight: allSelected ? 3 : 2,
-              color: allSelected ? "#f9d26b" : "#123b62",
-              fillColor: color,
-              fillOpacity: 0.9,
-            });
-            marker.bindTooltip(
-              `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${esc(r.saleDate || "n/a")}<br><span style="font-size:11px;color:#40698f;">Approximate pin</span>`,
-              { direction: "top", className: "geo-tip" }
-            );
-            marker.bindPopup(
-              `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#40698f;">Approximate location • click dot to ${allSelected ? "remove" : "add"} property filter</span>`,
-              { maxWidth: 360 }
-            );
-            marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
-            marker.addTo(layer);
-            return;
-          }
-
-          const clusterSize = Math.max(11, Math.min(24, 10 + (Math.sqrt(cluster.count) * 2.2)));
-          const marker = L.circleMarker([cluster.lat, cluster.lon], {
-            pane: "geoDetailPoints",
-            radius: clusterSize,
-            weight: allSelected ? 3 : 2,
-            color: allSelected ? "#f9d26b" : "#6d530f",
-            fillColor: "rgba(240, 201, 106, 0.92)",
-            fillOpacity: 0.95,
-          });
-          marker.bindTooltip(
-            `<b>${cluster.count} approximate properties</b><br>Click to ${allSelected ? "remove" : "add"} cluster property filter`,
-            { direction: "top", className: "geo-tip" }
-          );
-          const preview = cluster.points
-            .slice(0, 6)
-            .map((p) => `• ${esc(p.row.address || "Address unavailable")}`)
-            .join("<br>");
-          marker.bindPopup(
-            `<b>${cluster.count} approximate properties</b><br><span style="font-size:11px;color:#40698f;">Grouped to reduce noise for inferred locations.</span><br>${preview}${cluster.count > 6 ? "<br>..." : ""}`,
-            { maxWidth: 360 }
-          );
-          marker.on("click", () => toggleMapPropertySelections(cluster.mapKeys));
           marker.addTo(layer);
         });
       }
@@ -2667,7 +2563,7 @@
         const geoRows = built.geoRows;
         const mapPoints = geoRows.filter((g) => Number.isFinite(g.lat) && Number.isFinite(g.lon));
 
-        const coverage = built.totalRows ? (built.mappedRows / built.totalRows) : 0;
+        const coverage = built.totalRows ? (built.exactRows / built.totalRows) : 0;
         document.getElementById("geoCount").textContent = String(geoRows.length);
         document.getElementById("geoCoverage").textContent = `${(coverage * 100).toFixed(1)}%`;
         const topPrice = geoRows.length ? geoRows.slice().sort((a, b) => b.medianClose - a.medianClose)[0] : null;
@@ -2767,6 +2663,14 @@
         return `https://info.kingcounty.gov/Assessor/eRealProperty/Detail.aspx?ParcelNbr=${p}`;
       }
 
+      function addressSourceBadgeHtml(addressSource) {
+        const src = String(addressSource || "");
+        if (src === "SITUS_PROXY") return "";
+        if (src === "PARCEL_FALLBACK") return `<span class="addr-badge">Parcel</span>`;
+        if (src.startsWith("MAILING")) return `<span class="addr-badge">Mailing</span>`;
+        return `<span class="addr-badge">${esc(src || "Other")}</span>`;
+      }
+
       function getRecordSortValue(row, key) {
         if (key === "address") return String(row.address || "");
         if (key === "neighborhood") return String(row.neighborhoodLabel || "");
@@ -2838,7 +2742,7 @@
             const nActive = state.interactions.neighborhood === r.neighborhoodLabel;
             const tActive = state.interactions.type === r.typeLabel;
             const countyUrl = countyRecordUrl(r);
-            const addrBadge = r.addressSource === "SITUS_PROXY" ? "" : `<span class="addr-badge">Mailing</span>`;
+            const addrBadge = addressSourceBadgeHtml(r.addressSource);
             return `
               <tr>
                 <td>
@@ -2868,7 +2772,7 @@
             const nActive = state.interactions.neighborhood === r.neighborhoodLabel;
             const tActive = state.interactions.type === r.typeLabel;
             const countyUrl = countyRecordUrl(r);
-            const addrBadge = r.addressSource === "SITUS_PROXY" ? "" : `<span class="addr-badge">Mailing</span>`;
+            const addrBadge = addressSourceBadgeHtml(r.addressSource);
             return `
               <article class="mrow ${expanded ? "expanded" : ""}">
                 <button class="mrow-head" type="button" data-mobile-expand="${esc(key)}">

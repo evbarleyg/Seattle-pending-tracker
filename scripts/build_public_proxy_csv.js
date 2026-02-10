@@ -12,7 +12,7 @@ const PARCEL_FILE = path.join(PROJECT_DIR, "EXTR_Parcel.csv");
 const RESBLDG_FILE = path.join(PROJECT_DIR, "EXTR_ResBldg.csv");
 const LOOKUP_FILE = path.join(PROJECT_DIR, "EXTR_LookUp.csv");
 const PARCEL_COORDS_FILE = path.join(PROJECT_DIR, "parcel_coords_major_minor.csv");
-const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_all_prices_last6mo.csv");
+const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_all_prices_last12mo.csv");
 const RANGE_END = new Date();
 RANGE_END.setHours(23, 59, 59, 999);
 const RANGE_START = new Date(RANGE_END);
@@ -186,6 +186,12 @@ function chooseAddress(account, bldg) {
     addressSource: "MAILING_FALLBACK",
     zip: accountZip || situsZip,
   };
+}
+
+function isLikelySeattleAddress(address, zip) {
+  const z = zip5(zip);
+  if (z.startsWith("981")) return true;
+  return /\bSEATTLE\b/i.test(String(address || ""));
 }
 
 function safeCsv(v) {
@@ -534,11 +540,14 @@ async function buildOutput(accountMap, resBldgMap, typeMap, coordsMap) {
     const listPriceAtPending = account.assessedValue;
     const bldg = resBldgMap.get(key) || { bedrooms: 0, baths: 0, sqft: 0, yearBuilt: 0, situsAddress: "", situsZip: "" };
     const chosen = chooseAddress(account, bldg);
-    const displayZip = chosen.zip || account.zip;
-    const addressSource = chosen.addressSource;
-    const displayAddress = (addressSource === "MAILING_FALLBACK" && isPoBox(chosen.address))
-      ? `Parcel ${major}-${minor} (address unavailable)`
-      : chosen.address;
+    const candidateZip = chosen.zip || account.zip;
+    const addressTrusted = chosen.addressSource === "SITUS_PROXY"
+      || (chosen.addressSource === "MAILING_STREET" && isLikelySeattleAddress(chosen.address, candidateZip) && !isPoBox(chosen.address));
+    const addressSource = addressTrusted ? chosen.addressSource : "PARCEL_FALLBACK";
+    const displayAddress = addressTrusted
+      ? chosen.address
+      : `Parcel ${major}-${minor} (Seattle property address unavailable)`;
+    const displayZip = (addressTrusted && zip5(candidateZip).startsWith("981")) ? candidateZip : "";
     const parcelNbr = `${major}${minor}`;
     const coord = coordsMap.get(key) || null;
     if (coord) withCoords += 1;
@@ -564,7 +573,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap, coordsMap) {
       String(Number.isFinite(bldg.baths) ? bldg.baths.toFixed(2) : "0"),
       String(Math.round(bldg.sqft)),
       String(Math.round(bldg.yearBuilt)),
-      displayZip || account.zip,
+      displayZip,
       account.districtName,
       account.area,
       account.subArea,
