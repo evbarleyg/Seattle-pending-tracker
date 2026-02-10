@@ -264,9 +264,16 @@ async function readParcelCoordsMap() {
       header = parseCsvLine(line).map((h) => clean(h));
       idxMajor = pickHeaderIndex(header, ["major"]);
       idxMinor = pickHeaderIndex(header, ["minor"]);
-      idxParcel = pickHeaderIndex(header, ["parcelnbr", "parcelnumber", "parcel_num", "parcelid", "pin"]);
-      idxLat = pickHeaderIndex(header, ["lat", "latitude", "y", "ycoord"]);
-      idxLon = pickHeaderIndex(header, ["lon", "lng", "long", "longitude", "x", "xcoord"]);
+      idxParcel = pickHeaderIndex(header, [
+        "parcelnbr", "parcelnumber", "parcel_num", "parcelid", "pin",
+        "kcaparcelid", "kcaparcelnumber", "parcelnumber10digit"
+      ]);
+      idxLat = pickHeaderIndex(header, [
+        "lat", "latitude", "latitudecentroid", "centroidlat", "latcentroid"
+      ]);
+      idxLon = pickHeaderIndex(header, [
+        "lon", "lng", "long", "longitude", "longitudecentroid", "centroidlon", "loncentroid"
+      ]);
       continue;
     }
 
@@ -498,6 +505,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap, coordsMap) {
 
   let idx = null;
   let written = 0;
+  let withCoords = 0;
   for await (const line of rl) {
     if (!line) continue;
     if (!idx) {
@@ -533,6 +541,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap, coordsMap) {
       : chosen.address;
     const parcelNbr = `${major}${minor}`;
     const coord = coordsMap.get(key) || null;
+    if (coord) withCoords += 1;
 
     const row = [
       "PUBLIC_PROXY",
@@ -570,7 +579,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap, coordsMap) {
   }
 
   out.end();
-  return written;
+  return { written, withCoords };
 }
 
 async function main() {
@@ -582,9 +591,9 @@ async function main() {
   const typeMap = await readPropertyTypeMap();
   const coordsMap = await readParcelCoordsMap();
   const accountMap = await buildSeattleAccountMap(parcelMap);
-  const written = await buildOutput(accountMap, resBldgMap, typeMap, coordsMap);
+  const result = await buildOutput(accountMap, resBldgMap, typeMap, coordsMap);
   // eslint-disable-next-line no-console
-  console.log(`Wrote ${written} rows to ${OUTPUT_FILE} (coords matched: ${coordsMap.size})`);
+  console.log(`Wrote ${result.written} rows to ${OUTPUT_FILE} (rows with coords: ${result.withCoords})`);
 }
 
 main().catch((err) => {

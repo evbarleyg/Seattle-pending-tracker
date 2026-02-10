@@ -130,9 +130,16 @@ async function main() {
       header = parseCsvLine(line).map((h) => clean(h));
       idxMajor = pickHeaderIndex(header, ["major"]);
       idxMinor = pickHeaderIndex(header, ["minor"]);
-      idxParcel = pickHeaderIndex(header, ["parcelnbr", "parcelnumber", "parcel_num", "parcelid", "pin", "apn"]);
-      idxLat = pickHeaderIndex(header, ["lat", "latitude", "y", "ycoord", "centroidlat"]);
-      idxLon = pickHeaderIndex(header, ["lon", "lng", "long", "longitude", "x", "xcoord", "centroidlon"]);
+      idxParcel = pickHeaderIndex(header, [
+        "parcelnbr", "parcelnumber", "parcel_num", "parcelid", "pin", "apn",
+        "kcaparcelid", "kcaparcelnumber", "parcelnumber10digit"
+      ]);
+      idxLat = pickHeaderIndex(header, [
+        "lat", "latitude", "latitudecentroid", "centroidlat", "latcentroid"
+      ]);
+      idxLon = pickHeaderIndex(header, [
+        "lon", "lng", "long", "longitude", "longitudecentroid", "centroidlon", "loncentroid"
+      ]);
       if (idxLat < 0 || idxLon < 0) {
         throw new Error("Could not find latitude/longitude columns in GIS CSV.");
       }
@@ -174,4 +181,3 @@ main().catch((err) => {
   console.error(err.message);
   process.exit(1);
 });
-
