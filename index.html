@@ -469,6 +469,37 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .geo-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .geo-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .geo-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .geo-dot.exact {
+        background: #5fd89c;
+        border: 1px solid #103520;
+      }
+      .geo-dot.approx {
+        background: #59b8f3;
+        border: 1px solid #0f3658;
+      }
+      .geo-dot.cluster {
+        background: #f0c96a;
+        border: 1px solid #5b430f;
+      }
       .geo-selected-wrap {
         margin-top: 10px;
         border: 1px solid var(--line);
@@ -497,6 +528,15 @@
         gap: 8px;
         color: var(--muted);
         font-size: 12px;
+      }
+      .geo-vp-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+      .geo-vp-toggle input {
+        accent-color: #3d93ed;
       }
       .geo-selected-table-wrap {
         flex: 1;
@@ -916,6 +956,15 @@
       body.light .geo-selected-controls {
         color: #4a6586;
       }
+      body.light .geo-dot.exact {
+        border-color: #2f7e59;
+      }
+      body.light .geo-dot.approx {
+        border-color: #26658f;
+      }
+      body.light .geo-dot.cluster {
+        border-color: #8a6a1b;
+      }
 
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -1206,10 +1255,16 @@
             <h3>Seattle Neighborhood Map</h3>
             <div class="geo-map-wrap" id="geoMap"></div>
             <div class="geo-note">Basemap: OpenStreetMap. Zoom in to see individual address markers. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
+            <div class="geo-legend">
+              <span class="geo-legend-item"><span class="geo-dot exact"></span>Exact parcel coordinate</span>
+              <span class="geo-legend-item"><span class="geo-dot approx"></span>Approximate inferred location</span>
+              <span class="geo-legend-item"><span class="geo-dot cluster"></span>Approximate cluster</span>
+            </div>
             <div class="geo-selected-wrap">
               <div class="geo-selected-head">
                 <div class="geo-selected-title">Property Selection From Map Dots</div>
                 <div class="geo-selected-controls">
+                  <label class="geo-vp-toggle"><input type="checkbox" id="geoViewportFilter" /> Filter to map viewport</label>
                   <span id="geoSelectedCount">0 selected</span>
                   <button type="button" class="mini-btn" id="geoClearSelection">Clear</button>
                 </div>
@@ -1380,6 +1435,8 @@
           rows: [],
           neighborhoodRows: [],
           selectedPropertyKeys: [],
+          viewportFilter: false,
+          mapBounds: null,
         },
         recordSort: {
           key: "saleDate",
@@ -1654,6 +1711,9 @@
         const deltaPct = listPriceAtPending > 0 ? delta / listPriceAtPending : 0;
         const sqft = num(source.sqft);
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
+        const zipCoord = ZIP_COORDS[zip5(source.zip)];
+        const mapLat = Number.isFinite(source.lat) ? source.lat : (zipCoord ? zipCoord.lat : null);
+        const mapLon = Number.isFinite(source.lon) ? source.lon : (zipCoord ? zipCoord.lon : null);
 
         return {
           ...source,
@@ -1676,6 +1736,8 @@
           delta,
           deltaPct,
           pricePerSqft,
+          mapLat,
+          mapLon,
         };
       }
 
@@ -1823,11 +1885,21 @@
         return true;
       }
 
+      function rowInViewport(row, bounds) {
+        if (!bounds) return true;
+        if (!Number.isFinite(row.mapLat) || !Number.isFinite(row.mapLon)) return false;
+        const inLat = row.mapLat >= bounds.south && row.mapLat <= bounds.north;
+        const inLon = row.mapLon >= bounds.west && row.mapLon <= bounds.east;
+        return inLat && inLon;
+      }
+
       function applyInteractions(baseRows, stats) {
         const i = state.interactions;
         const selectedMapKeys = state.geo.selectedPropertyKeys;
+        const viewportFilterActive = state.geo.viewportFilter && !!state.geo.mapBounds;
         return baseRows.filter((r) => {
           if (selectedMapKeys.length && !selectedMapKeys.includes(r.mapPropertyKey)) return false;
+          if (viewportFilterActive && !rowInViewport(r, state.geo.mapBounds)) return false;
           if (i.month && monthKey(r.saleDate) !== i.month) return false;
           if (i.neighborhood && r.neighborhoodLabel !== i.neighborhood) return false;
           if (i.type && r.typeLabel !== i.type) return false;
@@ -1866,7 +1938,8 @@
         const entries = Object.entries(state.interactions).filter(([, v]) => v);
         const el = document.getElementById("activeChips");
         const mapSelected = state.geo.selectedPropertyKeys.length;
-        if (!entries.length && !mapSelected) {
+        const viewportChip = state.geo.viewportFilter && state.geo.mapBounds;
+        if (!entries.length && !mapSelected && !viewportChip) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -1875,6 +1948,9 @@
         });
         if (mapSelected) {
           chips.push(`<span class="chip">Map Properties: ${mapSelected}<button type="button" data-clear-map-selection="1">x</button></span>`);
+        }
+        if (viewportChip) {
+          chips.push(`<span class="chip">Map Viewport<button type="button" data-clear-viewport-filter="1">x</button></span>`);
         }
         el.innerHTML = chips.join("");
       }
@@ -2204,7 +2280,7 @@
           g.points.forEach((entry, i) => {
             if (g.exact && g.points.length === 1) {
               if (!bounds || bounds.contains([g.base.lat, g.base.lon])) {
-                out.push({ row: entry.row, lat: g.base.lat, lon: g.base.lon });
+                out.push({ row: entry.row, lat: g.base.lat, lon: g.base.lon, exact: true });
               }
               return;
             }
@@ -2213,7 +2289,7 @@
             const angle = baseAngle + (ring * 2.399963229728653);
             const lat = g.base.lat + (Math.cos(angle) * radius);
             const lon = g.base.lon + ((Math.sin(angle) * radius) / lonAdj);
-            if (!bounds || bounds.contains([lat, lon])) out.push({ row: entry.row, lat, lon });
+            if (!bounds || bounds.contains([lat, lon])) out.push({ row: entry.row, lat, lon, exact: g.exact });
           });
         });
 
@@ -2249,15 +2325,53 @@
       }
 
       function toggleMapPropertySelection(mapKey) {
-        if (!mapKey) return;
+        toggleMapPropertySelections([mapKey]);
+      }
+
+      function toggleMapPropertySelections(mapKeys) {
+        const cleaned = [...new Set((mapKeys || []).filter(Boolean))];
+        if (!cleaned.length) return;
         const set = new Set(state.geo.selectedPropertyKeys);
-        if (set.has(mapKey)) {
-          set.delete(mapKey);
+        const allSelected = cleaned.every((k) => set.has(k));
+        if (allSelected) {
+          cleaned.forEach((k) => set.delete(k));
         } else {
-          set.add(mapKey);
+          cleaned.forEach((k) => set.add(k));
         }
         state.geo.selectedPropertyKeys = [...set];
         renderAll();
+      }
+
+      function clusterApproxPoints(map, points, zoom) {
+        const gridPx = zoom >= 16 ? 20 : (zoom >= 15 ? 28 : 36);
+        const buckets = new Map();
+        points.forEach((p) => {
+          const projected = map.project([p.lat, p.lon], zoom);
+          const gx = Math.floor(projected.x / gridPx);
+          const gy = Math.floor(projected.y / gridPx);
+          const key = `${gx}:${gy}`;
+          if (!buckets.has(key)) {
+            buckets.set(key, {
+              points: [],
+              latSum: 0,
+              lonSum: 0,
+              mapKeys: [],
+            });
+          }
+          const b = buckets.get(key);
+          b.points.push(p);
+          b.latSum += p.lat;
+          b.lonSum += p.lon;
+          b.mapKeys.push(p.row.mapPropertyKey);
+        });
+
+        return [...buckets.values()].map((b) => ({
+          points: b.points,
+          mapKeys: [...new Set(b.mapKeys)],
+          count: b.points.length,
+          lat: b.latSum / Math.max(b.points.length, 1),
+          lon: b.lonSum / Math.max(b.points.length, 1),
+        }));
       }
 
       function renderGeoSelectedRows(rows) {
@@ -2322,28 +2436,87 @@
           map.getPane("geoDetailPoints").style.zIndex = "650";
         }
         const rowRatioScale = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
-        detailPoints.forEach(({ row: r, lat, lon }) => {
+        const exactPoints = detailPoints.filter((p) => p.exact);
+        const approxPoints = detailPoints.filter((p) => !p.exact);
+
+        exactPoints.forEach(({ row: r, lat, lon }) => {
           const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
           const zUrl = zillowUrl(r);
           const countyUrl = countyRecordUrl(r);
           const isSelected = state.geo.selectedPropertyKeys.includes(r.mapPropertyKey);
           const marker = L.circleMarker([lat, lon], {
             pane: "geoDetailPoints",
-            radius: (zoom >= 15 ? 8 : 10) + (isSelected ? 3 : 0),
+            radius: (zoom >= 15 ? 8 : 10) + (isSelected ? 2 : 0),
             weight: isSelected ? 3 : 2,
-            color: isSelected ? "#f9d26b" : "rgba(12,34,66,0.95)",
+            color: isSelected ? "#f9d26b" : "#0e2f1c",
             fillColor: color,
-            fillOpacity: 0.96,
+            fillOpacity: 0.97,
           });
           marker.bindTooltip(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.saleDate || "n/a")}`,
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.saleDate || "n/a")}<br><span style="font-size:11px;color:#1f6040;">Exact pin</span>`,
             { direction: "top", className: "geo-tip" }
           );
           marker.bindPopup(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#4a6787;">Click dot to ${isSelected ? "remove" : "add"} property filter</span>`,
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#1f6040;">Exact coordinate • click dot to ${isSelected ? "remove" : "add"} property filter</span>`,
             { maxWidth: 360 }
           );
           marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
+          marker.addTo(layer);
+        });
+
+        const approxClusters = clusterApproxPoints(map, approxPoints, zoom);
+        approxClusters.forEach((cluster) => {
+          const allSelected = cluster.mapKeys.length > 0
+            && cluster.mapKeys.every((k) => state.geo.selectedPropertyKeys.includes(k));
+          if (cluster.count === 1) {
+            const item = cluster.points[0];
+            const r = item.row;
+            const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
+            const zUrl = zillowUrl(r);
+            const countyUrl = countyRecordUrl(r);
+            const marker = L.circleMarker([item.lat, item.lon], {
+              pane: "geoDetailPoints",
+              radius: (zoom >= 15 ? 7 : 9) + (allSelected ? 2 : 0),
+              weight: allSelected ? 3 : 2,
+              color: allSelected ? "#f9d26b" : "#123b62",
+              fillColor: color,
+              fillOpacity: 0.9,
+            });
+            marker.bindTooltip(
+              `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${esc(r.saleDate || "n/a")}<br><span style="font-size:11px;color:#40698f;">Approximate pin</span>`,
+              { direction: "top", className: "geo-tip" }
+            );
+            marker.bindPopup(
+              `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#40698f;">Approximate location • click dot to ${allSelected ? "remove" : "add"} property filter</span>`,
+              { maxWidth: 360 }
+            );
+            marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
+            marker.addTo(layer);
+            return;
+          }
+
+          const clusterSize = Math.max(11, Math.min(24, 10 + (Math.sqrt(cluster.count) * 2.2)));
+          const marker = L.circleMarker([cluster.lat, cluster.lon], {
+            pane: "geoDetailPoints",
+            radius: clusterSize,
+            weight: allSelected ? 3 : 2,
+            color: allSelected ? "#f9d26b" : "#6d530f",
+            fillColor: "rgba(240, 201, 106, 0.92)",
+            fillOpacity: 0.95,
+          });
+          marker.bindTooltip(
+            `<b>${cluster.count} approximate properties</b><br>Click to ${allSelected ? "remove" : "add"} cluster property filter`,
+            { direction: "top", className: "geo-tip" }
+          );
+          const preview = cluster.points
+            .slice(0, 6)
+            .map((p) => `• ${esc(p.row.address || "Address unavailable")}`)
+            .join("<br>");
+          marker.bindPopup(
+            `<b>${cluster.count} approximate properties</b><br><span style="font-size:11px;color:#40698f;">Grouped to reduce noise for inferred locations.</span><br>${preview}${cluster.count > 6 ? "<br>..." : ""}`,
+            { maxWidth: 360 }
+          );
+          marker.on("click", () => toggleMapPropertySelections(cluster.mapKeys));
           marker.addTo(layer);
         });
       }
@@ -2369,8 +2542,26 @@
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         }).addTo(map);
         map.setView([47.6062, -122.3321], 11);
+        const initBounds = map.getBounds();
+        state.geo.mapBounds = {
+          north: initBounds.getNorth(),
+          south: initBounds.getSouth(),
+          east: initBounds.getEast(),
+          west: initBounds.getWest(),
+        };
         state.geo.layer = L.layerGroup().addTo(map);
         map.on("zoomend moveend", () => {
+          const b = map.getBounds();
+          state.geo.mapBounds = {
+            north: b.getNorth(),
+            south: b.getSouth(),
+            east: b.getEast(),
+            west: b.getWest(),
+          };
+          if (state.geo.viewportFilter) {
+            renderAll();
+            return;
+          }
           if (state.geo.rows.length) drawGeoLayer(state.geo.rows, state.geo.neighborhoodRows);
         });
         state.geo.map = map;
@@ -2381,6 +2572,8 @@
         const mapEl = document.getElementById("geoMap");
         const tbody = document.getElementById("geoRows");
         if (!mapEl || !tbody) return;
+        const vpToggle = document.getElementById("geoViewportFilter");
+        if (vpToggle) vpToggle.checked = !!state.geo.viewportFilter;
         renderGeoSelectedRows(rows);
 
         const built = buildGeoNeighborhoodRows(rows);
@@ -2396,6 +2589,15 @@
         document.getElementById("geoTopRatio").textContent = topRatio ? `${topRatio.name} (${topRatio.medianRatio.toFixed(2)}x)` : "n/a";
 
         const map = ensureGeoMap();
+        if (map && state.geo.viewportFilter) {
+          const b = map.getBounds();
+          state.geo.mapBounds = {
+            north: b.getNorth(),
+            south: b.getSouth(),
+            east: b.getEast(),
+            west: b.getWest(),
+          };
+        }
         state.geo.rows = rows;
         state.geo.neighborhoodRows = geoRows;
         if (!geoRows.length) {
@@ -2626,6 +2828,7 @@
       function clearCrossFilters() {
         Object.keys(state.interactions).forEach((k) => { state.interactions[k] = null; });
         state.geo.selectedPropertyKeys = [];
+        state.geo.viewportFilter = false;
         renderAll();
       }
 
@@ -2749,6 +2952,20 @@
         });
         document.getElementById("clearCrossBtn").addEventListener("click", clearCrossFilters);
         document.getElementById("geoClearSelection").addEventListener("click", () => clearMapPropertySelection());
+        document.getElementById("geoViewportFilter").addEventListener("change", (evt) => {
+          state.geo.viewportFilter = !!evt.target.checked;
+          const map = state.geo.map;
+          if (state.geo.viewportFilter && map) {
+            const b = map.getBounds();
+            state.geo.mapBounds = {
+              north: b.getNorth(),
+              south: b.getSouth(),
+              east: b.getEast(),
+              west: b.getWest(),
+            };
+          }
+          renderAll();
+        });
         document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
         document.getElementById("themeToggle").addEventListener("click", () => {
           const next = document.body.classList.contains("light") ? "dark" : "light";
@@ -2803,6 +3020,15 @@
           const clearMap = evt.target.closest("[data-clear-map-selection]");
           if (clearMap) {
             clearMapPropertySelection();
+            return;
+          }
+
+          const clearViewport = evt.target.closest("[data-clear-viewport-filter]");
+          if (clearViewport) {
+            state.geo.viewportFilter = false;
+            const toggle = document.getElementById("geoViewportFilter");
+            if (toggle) toggle.checked = false;
+            renderAll();
             return;
           }
 
