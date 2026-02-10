@@ -3008,12 +3008,49 @@
         applyTheme(saved === "dark" ? "dark" : "light");
       }
 
+      function lockDateInputsToPicker() {
+        ["fDateFrom", "fDateTo"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.setAttribute("inputmode", "none");
+          el.setAttribute("autocomplete", "off");
+
+          const openPicker = () => {
+            if (typeof el.showPicker === "function") {
+              try {
+                el.showPicker();
+              } catch (err) {
+                // ignore picker invocation errors
+              }
+            }
+          };
+
+          el.addEventListener("focus", openPicker);
+          el.addEventListener("click", openPicker);
+          el.addEventListener("keydown", (evt) => {
+            if (evt.key === "Backspace" || evt.key === "Delete") {
+              if (el.value) {
+                el.value = "";
+                renderAll();
+              }
+              evt.preventDefault();
+              return;
+            }
+            if (evt.key === "Tab" || evt.key === "Escape" || evt.key === "Enter") return;
+            evt.preventDefault();
+          });
+          el.addEventListener("paste", (evt) => evt.preventDefault());
+          el.addEventListener("drop", (evt) => evt.preventDefault());
+        });
+      }
+
       function bindEvents() {
         ["fType", "fMode", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);
         });
+        lockDateInputsToPicker();
         ["fMinClose", "fMaxClose"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("input", () => {
