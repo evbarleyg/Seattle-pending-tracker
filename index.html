@@ -405,6 +405,13 @@
         display: grid;
         grid-template-columns: 1.35fr 1fr;
         gap: 14px;
+        align-items: stretch;
+      }
+      .geo-main-panel,
+      .geo-side-panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 920px;
       }
       .geo-map-wrap {
         border: 1px solid var(--line);
@@ -462,6 +469,40 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .geo-selected-wrap {
+        margin-top: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(20, 35, 58, 0.5);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 250px;
+        flex: 1;
+      }
+      .geo-selected-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .geo-selected-title {
+        font-weight: 700;
+        color: #eaf2ff;
+      }
+      .geo-selected-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .geo-selected-table-wrap {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+      }
       .geo-kpis {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -481,6 +522,11 @@
       .geo-kpi .value {
         font-size: 18px;
         margin-top: 2px;
+      }
+      .geo-side-panel .table-wrap {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
       }
       .chart {
         display: grid;
@@ -859,12 +905,27 @@
         border-color: #c7d5e8;
         background: #ffffff;
       }
+      body.light .geo-selected-wrap,
+      body.light .geo-kpi {
+        border-color: #c8d7eb;
+        background: rgba(237, 245, 255, 0.75);
+      }
+      body.light .geo-selected-title {
+        color: #1f3d60;
+      }
+      body.light .geo-selected-controls {
+        color: #4a6586;
+      }
 
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
         .geo-layout { grid-template-columns: 1fr; }
+        .geo-main-panel,
+        .geo-side-panel {
+          min-height: 0;
+        }
       }
       @media (max-width: 680px) {
         .filters { grid-template-columns: 1fr 1fr; }
@@ -913,6 +974,13 @@
         }
         #geoCanvas {
           height: 390px;
+        }
+        .geo-selected-wrap {
+          min-height: 210px;
+        }
+        .geo-selected-head {
+          flex-direction: column;
+          align-items: flex-start;
         }
         #view-records .table-wrap {
           display: none;
@@ -1134,12 +1202,29 @@
 
       <section id="view-geo" class="view">
         <div class="geo-layout">
-          <section class="panel">
+          <section class="panel geo-main-panel">
             <h3>Seattle Neighborhood Map</h3>
             <div class="geo-map-wrap" id="geoMap"></div>
-            <div class="geo-note">Basemap: OpenStreetMap. Zoom in to see individual address markers. Zoomed out shows neighborhood bubbles (size = sales count, color = median Sale/Assessed ratio).</div>
+            <div class="geo-note">Basemap: OpenStreetMap. Zoom in to see individual address markers. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
+            <div class="geo-selected-wrap">
+              <div class="geo-selected-head">
+                <div class="geo-selected-title">Property Selection From Map Dots</div>
+                <div class="geo-selected-controls">
+                  <span id="geoSelectedCount">0 selected</span>
+                  <button type="button" class="mini-btn" id="geoClearSelection">Clear</button>
+                </div>
+              </div>
+              <div class="table-wrap geo-selected-table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Address</th><th>Neighborhood</th><th>Close</th><th>Sale Date</th></tr>
+                  </thead>
+                  <tbody id="geoSelectedRows"></tbody>
+                </table>
+              </div>
+            </div>
           </section>
-          <section class="panel">
+          <section class="panel geo-side-panel">
             <h3>Neighborhood Geo Insights</h3>
             <div class="geo-kpis">
               <div class="geo-kpi">
@@ -1294,6 +1379,7 @@
           layer: null,
           rows: [],
           neighborhoodRows: [],
+          selectedPropertyKeys: [],
         },
         recordSort: {
           key: "saleDate",
@@ -1433,7 +1519,7 @@
         const missing = required.filter((k) => idx[k] === undefined);
         if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}`);
 
-        return lines.slice(1).filter((line) => line.trim()).map((line) => {
+        return lines.slice(1).filter((line) => line.trim()).map((line, rowIndex) => {
           const cols = parseCsvLine(line);
           const pick = (name) => (idx[name] !== undefined ? (cols[idx[name]] || "").trim() : "");
           const latVal = num(pick("lat"));
@@ -1464,6 +1550,7 @@
             zip: pick("zip"),
             lat,
             lon,
+            sourceRowIndex: rowIndex + 1,
             mlsListDate: pick("mlsListDate"),
             mlsPendingDate: pick("mlsPendingDate"),
             mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
@@ -1505,6 +1592,15 @@
         }
         const code = String(num(typeCode || raw) || "");
         return TYPE_LABELS[code] || (code ? `Type ${code}` : "Unknown");
+      }
+
+      function mapPropertyKey(rowLike) {
+        const id = String(rowLike.id || "").trim();
+        const parcel = String(rowLike.parcelNbr || `${rowLike.major || ""}${rowLike.minor || ""}`).replace(/[^0-9]/g, "");
+        const saleDate = String(rowLike.saleDate || rowLike.pendingDate || rowLike.listDate || "").trim();
+        const addr = String(rowLike.address || "").trim().toUpperCase();
+        const idx = String(rowLike.sourceRowIndex || "").trim();
+        return [id, parcel, saleDate, addr, idx].join("|");
       }
 
       function normalizeForMatch(v) {
@@ -1561,6 +1657,7 @@
 
         return {
           ...source,
+          mapPropertyKey: mapPropertyKey(source),
           dataMode,
           typeLabel: labelType(source.type, source.typeCode),
           neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
@@ -1728,7 +1825,9 @@
 
       function applyInteractions(baseRows, stats) {
         const i = state.interactions;
+        const selectedMapKeys = state.geo.selectedPropertyKeys;
         return baseRows.filter((r) => {
+          if (selectedMapKeys.length && !selectedMapKeys.includes(r.mapPropertyKey)) return false;
           if (i.month && monthKey(r.saleDate) !== i.month) return false;
           if (i.neighborhood && r.neighborhoodLabel !== i.neighborhood) return false;
           if (i.type && r.typeLabel !== i.type) return false;
@@ -1766,13 +1865,18 @@
       function renderChips() {
         const entries = Object.entries(state.interactions).filter(([, v]) => v);
         const el = document.getElementById("activeChips");
-        if (!entries.length) {
+        const mapSelected = state.geo.selectedPropertyKeys.length;
+        if (!entries.length && !mapSelected) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
-        el.innerHTML = entries.map(([k, v]) => {
+        const chips = entries.map(([k, v]) => {
           return `<span class="chip">${esc(interactionLabel(k, v))}<button type="button" data-clear-interaction="${esc(k)}">x</button></span>`;
-        }).join("");
+        });
+        if (mapSelected) {
+          chips.push(`<span class="chip">Map Properties: ${mapSelected}<button type="button" data-clear-map-selection="1">x</button></span>`);
+        }
+        el.innerHTML = chips.join("");
       }
 
       function renderSummary(filtered, baseRows) {
@@ -2139,6 +2243,56 @@
         });
       }
 
+      function clearMapPropertySelection(skipRender = false) {
+        state.geo.selectedPropertyKeys = [];
+        if (!skipRender) renderAll();
+      }
+
+      function toggleMapPropertySelection(mapKey) {
+        if (!mapKey) return;
+        const set = new Set(state.geo.selectedPropertyKeys);
+        if (set.has(mapKey)) {
+          set.delete(mapKey);
+        } else {
+          set.add(mapKey);
+        }
+        state.geo.selectedPropertyKeys = [...set];
+        renderAll();
+      }
+
+      function renderGeoSelectedRows(rows) {
+        const countEl = document.getElementById("geoSelectedCount");
+        const tbody = document.getElementById("geoSelectedRows");
+        if (!countEl || !tbody) return;
+
+        if (!state.geo.selectedPropertyKeys.length) {
+          countEl.textContent = "0 selected";
+          tbody.innerHTML = `<tr><td colspan="4">Click map dots to filter to specific properties.</td></tr>`;
+          return;
+        }
+
+        const selectedSet = new Set(state.geo.selectedPropertyKeys);
+        const selectedRows = rows.filter((r) => selectedSet.has(r.mapPropertyKey));
+        countEl.textContent = `${selectedRows.length} selected`;
+        if (!selectedRows.length) {
+          tbody.innerHTML = `<tr><td colspan="4">No selected properties in current filter scope.</td></tr>`;
+          return;
+        }
+
+        const sorted = selectedRows
+          .slice()
+          .sort((a, b) => (b.closePrice - a.closePrice) || String(a.address).localeCompare(String(b.address)))
+          .slice(0, 40);
+        tbody.innerHTML = sorted.map((r) => `
+          <tr>
+            <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
+            <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
+            <td>${formatMoney(r.closePrice)}</td>
+            <td>${esc(r.saleDate || "n/a")}</td>
+          </tr>
+        `).join("");
+      }
+
       function drawGeoLayer(rows, neighborhoodRows) {
         const map = state.geo.map;
         const layer = state.geo.layer;
@@ -2172,11 +2326,12 @@
           const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
           const zUrl = zillowUrl(r);
           const countyUrl = countyRecordUrl(r);
+          const isSelected = state.geo.selectedPropertyKeys.includes(r.mapPropertyKey);
           const marker = L.circleMarker([lat, lon], {
             pane: "geoDetailPoints",
-            radius: zoom >= 15 ? 8 : 10,
-            weight: 2,
-            color: "rgba(12,34,66,0.95)",
+            radius: (zoom >= 15 ? 8 : 10) + (isSelected ? 3 : 0),
+            weight: isSelected ? 3 : 2,
+            color: isSelected ? "#f9d26b" : "rgba(12,34,66,0.95)",
             fillColor: color,
             fillOpacity: 0.96,
           });
@@ -2185,10 +2340,10 @@
             { direction: "top", className: "geo-tip" }
           );
           marker.bindPopup(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}`,
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#4a6787;">Click dot to ${isSelected ? "remove" : "add"} property filter</span>`,
             { maxWidth: 360 }
           );
-          marker.on("click", () => setInteraction("neighborhood", r.neighborhoodLabel));
+          marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
           marker.addTo(layer);
         });
       }
@@ -2226,6 +2381,7 @@
         const mapEl = document.getElementById("geoMap");
         const tbody = document.getElementById("geoRows");
         if (!mapEl || !tbody) return;
+        renderGeoSelectedRows(rows);
 
         const built = buildGeoNeighborhoodRows(rows);
         const geoRows = built.geoRows;
@@ -2443,6 +2599,10 @@
       function renderAll() {
         const baseRows = computeBaseRows();
         state.baseRows = baseRows;
+        if (state.geo.selectedPropertyKeys.length) {
+          const validMapKeys = new Set(baseRows.map((r) => r.mapPropertyKey));
+          state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
+        }
         const stats = computeBaseStats(baseRows);
         const filtered = applyInteractions(baseRows, stats);
         state.filteredRows = filtered;
@@ -2465,6 +2625,7 @@
 
       function clearCrossFilters() {
         Object.keys(state.interactions).forEach((k) => { state.interactions[k] = null; });
+        state.geo.selectedPropertyKeys = [];
         renderAll();
       }
 
@@ -2587,6 +2748,7 @@
           clearCrossFilters();
         });
         document.getElementById("clearCrossBtn").addEventListener("click", clearCrossFilters);
+        document.getElementById("geoClearSelection").addEventListener("click", () => clearMapPropertySelection());
         document.getElementById("exportCsvBtn").addEventListener("click", exportFilteredCsv);
         document.getElementById("themeToggle").addEventListener("click", () => {
           const next = document.body.classList.contains("light") ? "dark" : "light";
@@ -2635,6 +2797,12 @@
             const key = clear.getAttribute("data-clear-interaction");
             state.interactions[key] = null;
             renderAll();
+            return;
+          }
+
+          const clearMap = evt.target.closest("[data-clear-map-selection]");
+          if (clearMap) {
+            clearMapPropertySelection();
             return;
           }
 
