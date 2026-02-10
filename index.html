@@ -591,10 +591,13 @@
         font-size: 18px;
         margin-top: 2px;
       }
-      .geo-side-panel .table-wrap {
+      .geo-insights-table-wrap {
+        max-height: 310px;
+        overflow-y: auto;
+      }
+      .geo-selected-wrap-right {
         flex: 1;
         min-height: 0;
-        overflow-y: auto;
       }
       .chart {
         display: grid;
@@ -1096,7 +1099,7 @@
           flex-wrap: wrap;
         }
         .geo-selected-table-wrap,
-        .geo-side-panel .table-wrap {
+        .geo-insights-table-wrap {
           display: none;
         }
         .geo-mobile-list {
@@ -1331,25 +1334,6 @@
               <span class="geo-legend-item"><span class="geo-dot approx"></span>Approximate inferred location</span>
               <span class="geo-legend-item"><span class="geo-dot cluster"></span>Approximate cluster</span>
             </div>
-            <div class="geo-selected-wrap">
-              <div class="geo-selected-head">
-                <div class="geo-selected-title">Property Selection From Map Dots</div>
-                <div class="geo-selected-controls">
-                  <label class="geo-vp-toggle"><input type="checkbox" id="geoViewportFilter" /> Filter to map viewport</label>
-                  <span id="geoSelectedCount">0 selected</span>
-                  <button type="button" class="mini-btn" id="geoClearSelection">Clear</button>
-                </div>
-              </div>
-              <div class="table-wrap geo-selected-table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Address</th><th>Neighborhood</th><th>Close</th><th>Sale Date</th></tr>
-                  </thead>
-                  <tbody id="geoSelectedRows"></tbody>
-                </table>
-              </div>
-              <div class="geo-mobile-list" id="geoSelectedMobile"></div>
-            </div>
           </section>
           <section class="panel geo-side-panel">
             <h3>Neighborhood Geo Insights</h3>
@@ -1371,13 +1355,32 @@
                 <div class="value" id="geoTopRatio">n/a</div>
               </div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap geo-insights-table-wrap">
               <table>
                 <thead>
                   <tr><th>Neighborhood</th><th>Sales</th><th>Median Close</th><th>Median S/A</th><th>Above 1.0x</th></tr>
                 </thead>
                 <tbody id="geoRows"></tbody>
               </table>
+            </div>
+            <div class="geo-selected-wrap geo-selected-wrap-right">
+              <div class="geo-selected-head">
+                <div class="geo-selected-title">Property Selection From Map Dots</div>
+                <div class="geo-selected-controls">
+                  <label class="geo-vp-toggle"><input type="checkbox" id="geoViewportFilter" /> Filter to map viewport</label>
+                  <span id="geoSelectedCount">0 selected</span>
+                  <button type="button" class="mini-btn" id="geoClearSelection">Clear</button>
+                </div>
+              </div>
+              <div class="table-wrap geo-selected-table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Address</th><th>Neighborhood</th><th>Close</th><th>Sale Date</th></tr>
+                  </thead>
+                  <tbody id="geoSelectedRows"></tbody>
+                </table>
+              </div>
+              <div class="geo-mobile-list" id="geoSelectedMobile"></div>
             </div>
             <div class="geo-mobile-list" id="geoInsightsMobile"></div>
           </section>
