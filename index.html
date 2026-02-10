@@ -457,11 +457,6 @@
       .geo-tip b {
         font-size: 12px;
       }
-      .geo-map-wrap svg {
-        width: 100%;
-        height: auto;
-        display: block;
-      }
       .geo-note {
         margin-top: 8px;
         color: var(--muted);
@@ -2165,17 +2160,23 @@
         const rowRatioScale = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
         detailPoints.forEach(({ row: r, lat, lon }) => {
           const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
+          const zUrl = zillowUrl(r);
+          const countyUrl = countyRecordUrl(r);
           const marker = L.circleMarker([lat, lon], {
             pane: "geoDetailPoints",
-            radius: zoom >= 15 ? 7 : 8,
+            radius: zoom >= 15 ? 8 : 10,
             weight: 2,
             color: "rgba(12,34,66,0.95)",
             fillColor: color,
             fillOpacity: 0.96,
           });
           marker.bindTooltip(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${esc(r.saleDate || "n/a")}<br>${esc(r.neighborhoodLabel || "Seattle")}`,
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.saleDate || "n/a")}`,
             { direction: "top", className: "geo-tip" }
+          );
+          marker.bindPopup(
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}`,
+            { maxWidth: 360 }
           );
           marker.on("click", () => setInteraction("neighborhood", r.neighborhoodLabel));
           marker.addTo(layer);
@@ -2195,6 +2196,7 @@
         const map = L.map("geoCanvas", {
           zoomControl: true,
           scrollWheelZoom: true,
+          preferCanvas: true,
           minZoom: 10,
           maxZoom: 17,
         });
