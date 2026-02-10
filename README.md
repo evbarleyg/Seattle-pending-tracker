@@ -26,19 +26,27 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 
 ## Local Run
 
-1. Rebuild the default proxy dataset:
+1. Optional but recommended for exact map pins: normalize a King County GIS parcel-point export to `major+minor+lat+lon`:
+
+```bash
+node scripts/build_parcel_coord_lookup.js /path/to/king_county_parcel_points.csv
+```
+
+This writes `/Users/evanbarley-greenfield/Documents/Evan Tester Project/parcel_coords_major_minor.csv`.
+
+2. Rebuild the default proxy dataset:
 
 ```bash
 node scripts/build_public_proxy_csv.js
 ```
 
-2. Start the local server:
+3. Start the local server:
 
 ```bash
 node scripts/serve.js
 ```
 
-3. Open:
+4. Open:
 
 `http://localhost:4173`
 
@@ -55,11 +63,13 @@ git push -u origin main
 
 - Public data does **not** provide true original MLS listing timeline fields.
 - Some rows use mailing-style address fallbacks if a clean situs proxy is unavailable.
+- Rooftop-accurate geo pins require `lat/lon` by parcel. Without `parcel_coords_major_minor.csv`, map pins are approximate.
 - Use the `KC Record` link in the app for source-of-truth parcel/sale verification.
 
 ## Key Files
 
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/index.html` - App UI + logic
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_public_proxy_csv.js` - Public dataset builder
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_parcel_coord_lookup.js` - Normalize GIS export to `major,minor,lat,lon` join file
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_all_prices_last6mo.csv` - Default loaded dataset
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/DATA_SCHEMA.md` - Field notes and normalization behavior

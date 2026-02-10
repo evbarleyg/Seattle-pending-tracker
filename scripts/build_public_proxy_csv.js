@@ -11,6 +11,7 @@ const SALES_FILE = path.join(PROJECT_DIR, "EXTR_RPSale.csv");
 const PARCEL_FILE = path.join(PROJECT_DIR, "EXTR_Parcel.csv");
 const RESBLDG_FILE = path.join(PROJECT_DIR, "EXTR_ResBldg.csv");
 const LOOKUP_FILE = path.join(PROJECT_DIR, "EXTR_LookUp.csv");
+const PARCEL_COORDS_FILE = path.join(PROJECT_DIR, "parcel_coords_major_minor.csv");
 const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_all_prices_last6mo.csv");
 const RANGE_END = new Date();
 RANGE_END.setHours(23, 59, 59, 999);
@@ -212,6 +213,78 @@ function areaSubKey(area, subArea) {
   return `${String(area || "").trim()}::${String(subArea || "").trim()}`;
 }
 
+function normalizeHeader(text) {
+  return clean(text).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeMajorMinor(majorRaw, minorRaw) {
+  const major = String(majorRaw || "").replace(/\D/g, "");
+  const minor = String(minorRaw || "").replace(/\D/g, "");
+  if (!major || !minor) return null;
+  return `${major.padStart(6, "0").slice(-6)}-${minor.padStart(4, "0").slice(-4)}`;
+}
+
+function normalizeParcelNumber(parcelRaw) {
+  const parcel = String(parcelRaw || "").replace(/\D/g, "");
+  if (parcel.length < 10) return null;
+  const trimmed = parcel.slice(-10);
+  return `${trimmed.slice(0, 6)}-${trimmed.slice(6)}`;
+}
+
+function pickHeaderIndex(headers, aliases) {
+  const norm = headers.map((h) => normalizeHeader(h));
+  for (const alias of aliases) {
+    const i = norm.indexOf(normalizeHeader(alias));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+
+function validLatLon(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  return lat >= 46 && lat <= 49 && lon >= -123.5 && lon <= -121.5;
+}
+
+async function readParcelCoordsMap() {
+  if (!fs.existsSync(PARCEL_COORDS_FILE)) return new Map();
+  const stream = fs.createReadStream(PARCEL_COORDS_FILE);
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+  let header = null;
+  let idxMajor = -1;
+  let idxMinor = -1;
+  let idxParcel = -1;
+  let idxLat = -1;
+  let idxLon = -1;
+  const out = new Map();
+
+  for await (const line of rl) {
+    if (!line) continue;
+    if (!header) {
+      header = parseCsvLine(line).map((h) => clean(h));
+      idxMajor = pickHeaderIndex(header, ["major"]);
+      idxMinor = pickHeaderIndex(header, ["minor"]);
+      idxParcel = pickHeaderIndex(header, ["parcelnbr", "parcelnumber", "parcel_num", "parcelid", "pin"]);
+      idxLat = pickHeaderIndex(header, ["lat", "latitude", "y", "ycoord"]);
+      idxLon = pickHeaderIndex(header, ["lon", "lng", "long", "longitude", "x", "xcoord"]);
+      continue;
+    }
+
+    const cols = parseCsvLine(line);
+    const key = (idxMajor >= 0 && idxMinor >= 0)
+      ? normalizeMajorMinor(cols[idxMajor], cols[idxMinor])
+      : normalizeParcelNumber(idxParcel >= 0 ? cols[idxParcel] : "");
+    if (!key) continue;
+
+    const lat = num(idxLat >= 0 ? cols[idxLat] : "");
+    const lon = num(idxLon >= 0 ? cols[idxLon] : "");
+    if (!validLatLon(lat, lon)) continue;
+    out.set(key, { lat, lon });
+  }
+
+  return out;
+}
+
 async function readPropertyTypeMap() {
   if (!fs.existsSync(LOOKUP_FILE)) return new Map();
   const stream = fs.createReadStream(LOOKUP_FILE);
@@ -410,7 +483,7 @@ async function buildSeattleAccountMap(parcelMap) {
   return map;
 }
 
-async function buildOutput(accountMap, resBldgMap, typeMap) {
+async function buildOutput(accountMap, resBldgMap, typeMap, coordsMap) {
   const stream = fs.createReadStream(SALES_FILE);
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   const out = fs.createWriteStream(OUTPUT_FILE);
@@ -419,7 +492,8 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
     "dataMode","id","address","neighborhood","type","typeCode",
     "addressSource","major","minor","parcelNbr",
     "listDate","pendingDate","saleDate","listPriceAtPending","closePrice","assessedValue",
-    "beds","baths","sqft","yearBuilt","zip","districtName","area","subArea","sqFtLot","zoning"
+    "beds","baths","sqft","yearBuilt","zip","districtName","area","subArea","sqFtLot","zoning",
+    "lat","lon"
   ].join(",") + "\n");
 
   let idx = null;
@@ -458,6 +532,7 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
       ? `Parcel ${major}-${minor} (address unavailable)`
       : chosen.address;
     const parcelNbr = `${major}${minor}`;
+    const coord = coordsMap.get(key) || null;
 
     const row = [
       "PUBLIC_PROXY",
@@ -486,6 +561,8 @@ async function buildOutput(accountMap, resBldgMap, typeMap) {
       account.subArea,
       String(Math.round(account.sqFtLot || 0)),
       account.zoning,
+      coord ? String(coord.lat) : "",
+      coord ? String(coord.lon) : "",
     ].map(safeCsv).join(",");
 
     out.write(`${row}\n`);
@@ -503,10 +580,11 @@ async function main() {
   const parcelMap = await readParcelMap();
   const resBldgMap = await readResBldgMap();
   const typeMap = await readPropertyTypeMap();
+  const coordsMap = await readParcelCoordsMap();
   const accountMap = await buildSeattleAccountMap(parcelMap);
-  const written = await buildOutput(accountMap, resBldgMap, typeMap);
+  const written = await buildOutput(accountMap, resBldgMap, typeMap, coordsMap);
   // eslint-disable-next-line no-console
-  console.log(`Wrote ${written} rows to ${OUTPUT_FILE}`);
+  console.log(`Wrote ${written} rows to ${OUTPUT_FILE} (coords matched: ${coordsMap.size})`);
 }
 
 main().catch((err) => {

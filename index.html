@@ -1183,7 +1183,7 @@
           <div class="mono">id,address,type,closePrice</div>
 
           <p class="note">Recommended columns:</p>
-          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
+          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
 
           <p class="note">Intended use:</p>
           <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details when available.</div>
@@ -2078,22 +2078,32 @@
           const base = exactCoord || neighborhoodCoord || zipCoord || null;
           if (!base || !Number.isFinite(base.lat) || !Number.isFinite(base.lon)) return;
 
-          const scopeKey = exactCoord ? `exact:${r.parcelNbr || r.id || idx}` : `n:${r.neighborhoodLabel || "other"}`;
-          if (!groups[scopeKey]) groups[scopeKey] = { base, points: [] };
+          const scopeKey = exactCoord
+            ? `exact:${base.lat.toFixed(6)}:${base.lon.toFixed(6)}`
+            : `n:${r.neighborhoodLabel || "other"}`;
+          if (!groups[scopeKey]) groups[scopeKey] = { base, points: [], exact: !!exactCoord };
           groups[scopeKey].points.push({
             row: r,
             key: r.parcelNbr || r.id || `${r.address || "row"}|${r.saleDate || ""}|${idx}`,
           });
         });
 
-        const spiralStep = zoom >= 15 ? 0.00035 : (zoom >= 14 ? 0.0005 : 0.00075);
         const out = [];
         Object.entries(groups).forEach(([scopeKey, g]) => {
           g.points.sort((a, b) => hash32(a.key) - hash32(b.key));
           const baseAngle = ((hash32(scopeKey) % 360) / 180) * Math.PI;
           const lonAdj = Math.max(Math.cos((g.base.lat * Math.PI) / 180), 0.35);
+          const spiralStep = g.exact
+            ? (zoom >= 15 ? 0.00005 : 0.00008)
+            : (zoom >= 15 ? 0.00035 : (zoom >= 14 ? 0.0005 : 0.00075));
 
           g.points.forEach((entry, i) => {
+            if (g.exact && g.points.length === 1) {
+              if (!bounds || bounds.contains([g.base.lat, g.base.lon])) {
+                out.push({ row: entry.row, lat: g.base.lat, lon: g.base.lon });
+              }
+              return;
+            }
             const ring = i + 1;
             const radius = spiralStep * Math.sqrt(ring);
             const angle = baseAngle + (ring * 2.399963229728653);
