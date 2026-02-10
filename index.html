@@ -543,6 +543,34 @@
         min-height: 0;
         overflow-y: auto;
       }
+      .geo-mobile-list {
+        display: none;
+        gap: 8px;
+      }
+      .geo-mobile-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(16, 31, 52, 0.7);
+        display: grid;
+        gap: 4px;
+        width: 100%;
+        text-align: left;
+      }
+      button.geo-mobile-card {
+        cursor: pointer;
+      }
+      button.geo-mobile-card.active {
+        border-color: #4eb2ff;
+      }
+      .geo-mobile-card .k {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .geo-mobile-card .v {
+        font-size: 13px;
+        color: var(--text);
+      }
       .geo-kpis {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -670,7 +698,7 @@
         background: transparent;
         color: var(--text);
         cursor: pointer;
-        padding: 8px 10px;
+        padding: 10px 10px;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto auto;
         gap: 8px;
@@ -965,6 +993,10 @@
       body.light .geo-dot.cluster {
         border-color: #8a6a1b;
       }
+      body.light .geo-mobile-card {
+        border-color: #c8d7eb;
+        background: rgba(247, 251, 255, 0.88);
+      }
 
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -977,11 +1009,24 @@
         }
       }
       @media (max-width: 680px) {
-        .filters { grid-template-columns: 1fr 1fr; }
+        .filters { grid-template-columns: 1fr; }
         .kpi-grid { grid-template-columns: 1fr 1fr; }
         .header-controls {
           flex-direction: column;
           align-items: flex-start;
+        }
+        .tabs {
+          width: 100%;
+          overflow-x: auto;
+          flex-wrap: nowrap;
+          white-space: nowrap;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 2px;
+        }
+        .tab {
+          flex: 0 0 auto;
+          padding: 8px 11px;
+          font-size: 12px;
         }
         header {
           padding: 20px 14px 8px;
@@ -1021,8 +1066,22 @@
           inset: auto 14px 14px;
           max-height: 50vh;
         }
+        .panel {
+          padding: 10px;
+        }
+        .actions {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 3px;
+        }
+        .btn {
+          flex: 0 0 auto;
+          padding: 5px 9px;
+          font-size: 11px;
+        }
         #geoCanvas {
-          height: 390px;
+          height: min(50vh, 430px);
         }
         .geo-selected-wrap {
           min-height: 210px;
@@ -1030,6 +1089,18 @@
         .geo-selected-head {
           flex-direction: column;
           align-items: flex-start;
+        }
+        .geo-selected-controls {
+          width: 100%;
+          justify-content: space-between;
+          flex-wrap: wrap;
+        }
+        .geo-selected-table-wrap,
+        .geo-side-panel .table-wrap {
+          display: none;
+        }
+        .geo-mobile-list {
+          display: grid;
         }
         #view-records .table-wrap {
           display: none;
@@ -1277,6 +1348,7 @@
                   <tbody id="geoSelectedRows"></tbody>
                 </table>
               </div>
+              <div class="geo-mobile-list" id="geoSelectedMobile"></div>
             </div>
           </section>
           <section class="panel geo-side-panel">
@@ -1307,6 +1379,7 @@
                 <tbody id="geoRows"></tbody>
               </table>
             </div>
+            <div class="geo-mobile-list" id="geoInsightsMobile"></div>
           </section>
         </div>
       </section>
@@ -2377,11 +2450,13 @@
       function renderGeoSelectedRows(rows) {
         const countEl = document.getElementById("geoSelectedCount");
         const tbody = document.getElementById("geoSelectedRows");
-        if (!countEl || !tbody) return;
+        const mobile = document.getElementById("geoSelectedMobile");
+        if (!countEl || !tbody || !mobile) return;
 
         if (!state.geo.selectedPropertyKeys.length) {
           countEl.textContent = "0 selected";
           tbody.innerHTML = `<tr><td colspan="4">Click map dots to filter to specific properties.</td></tr>`;
+          mobile.innerHTML = `<div class="note">Click map dots to filter to specific properties.</div>`;
           return;
         }
 
@@ -2390,6 +2465,7 @@
         countEl.textContent = `${selectedRows.length} selected`;
         if (!selectedRows.length) {
           tbody.innerHTML = `<tr><td colspan="4">No selected properties in current filter scope.</td></tr>`;
+          mobile.innerHTML = `<div class="note">No selected properties in current filter scope.</div>`;
           return;
         }
 
@@ -2404,6 +2480,13 @@
             <td>${formatMoney(r.closePrice)}</td>
             <td>${esc(r.saleDate || "n/a")}</td>
           </tr>
+        `).join("");
+        mobile.innerHTML = sorted.slice(0, 24).map((r) => `
+          <article class="geo-mobile-card">
+            <div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></div>
+            <div class="k">${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}</div>
+            <div class="v">${formatMoney(r.closePrice)}</div>
+          </article>
         `).join("");
       }
 
@@ -2571,7 +2654,8 @@
       function renderGeo(rows) {
         const mapEl = document.getElementById("geoMap");
         const tbody = document.getElementById("geoRows");
-        if (!mapEl || !tbody) return;
+        const mobileInsights = document.getElementById("geoInsightsMobile");
+        if (!mapEl || !tbody || !mobileInsights) return;
         const vpToggle = document.getElementById("geoViewportFilter");
         if (vpToggle) vpToggle.checked = !!state.geo.viewportFilter;
         renderGeoSelectedRows(rows);
@@ -2603,6 +2687,7 @@
         if (!geoRows.length) {
           if (map && state.geo.layer) state.geo.layer.clearLayers();
           tbody.innerHTML = `<tr><td colspan="5">No rows for current filters.</td></tr>`;
+          mobileInsights.innerHTML = `<div class="note">No neighborhoods for current filters.</div>`;
           return;
         }
         if (map && state.geo.layer) drawGeoLayer(rows, geoRows);
@@ -2617,6 +2702,16 @@
               <td>${g.medianRatio > 0 ? `${g.medianRatio.toFixed(2)}x` : "n/a"}</td>
               <td>${(g.aboveRatioShare * 100).toFixed(1)}%</td>
             </tr>
+          `;
+        }).join("");
+        mobileInsights.innerHTML = geoRows.slice(0, 20).map((g) => {
+          const active = state.interactions.neighborhood === g.name;
+          return `
+            <button class="geo-mobile-card ${active ? "active" : ""}" type="button" data-set-interaction="neighborhood" data-set-value="${esc(g.name)}">
+              <div class="v">${esc(g.name)}</div>
+              <div class="k">${g.count} sales | ${(g.aboveRatioShare * 100).toFixed(1)}% above 1.0x</div>
+              <div class="v">${formatMoney(g.medianClose)} | ${g.medianRatio > 0 ? `${g.medianRatio.toFixed(2)}x` : "n/a"}</div>
+            </button>
           `;
         }).join("");
       }
