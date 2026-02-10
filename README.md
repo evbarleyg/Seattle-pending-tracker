@@ -59,6 +59,19 @@ node scripts/serve.js
 git push -u origin main
 ```
 
+## Favicon
+
+- Favicon files live in the repo root:
+  - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/favicon.ico`
+  - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/favicon.svg`
+- Head tags used in `/Users/evanbarley-greenfield/Documents/Evan Tester Project/index.html`:
+
+```html
+<link rel="icon" type="image/x-icon" href="./favicon.ico" />
+<link rel="icon" type="image/svg+xml" sizes="any" href="./favicon.svg" />
+<link rel="shortcut icon" href="./favicon.ico" />
+```
+
 ## Important Data Caveats
 
 - Public data does **not** provide true original MLS listing timeline fields.
