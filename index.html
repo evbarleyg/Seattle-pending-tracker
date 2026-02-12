@@ -300,6 +300,33 @@
         gap: 6px;
         flex-wrap: wrap;
       }
+      .field-wide {
+        grid-column: span 2;
+      }
+      .flag-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #0f1b2f;
+        padding: 7px 10px;
+        font-size: 12px;
+        color: #dcecff;
+      }
+      .flag-toggle input {
+        width: auto;
+        accent-color: #3d93ed;
+      }
+      .flag-badge {
+        display: inline-block;
+        margin-left: 6px;
+        border: 1px solid #3b5f8c;
+        border-radius: 999px;
+        padding: 1px 6px;
+        font-size: 10px;
+        color: #d9e9ff;
+      }
       .btn {
         border: 1px solid #2f76c4;
         border-radius: 10px;
@@ -456,13 +483,38 @@
         transform: scale(1.03);
       }
       .leaflet-tooltip.geo-tip {
-        border-radius: 8px;
-        border: 1px solid #87a9cb;
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+        border-radius: 10px;
+        border: 1px solid #7e9bc0;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
         font-size: 12px;
+        line-height: 1.35;
+        max-width: 320px;
+        z-index: 900;
       }
       .geo-tip b {
         font-size: 12px;
+      }
+      .geo-tip-card {
+        display: grid;
+        gap: 4px;
+        min-width: 220px;
+      }
+      .geo-tip-title {
+        font-weight: 700;
+        color: #142f4e;
+      }
+      .geo-tip-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .geo-tip-row .k {
+        color: #3f5e84;
+      }
+      .geo-tip-row .v {
+        color: #0f2e50;
+        font-weight: 600;
+        text-align: right;
       }
       .geo-note {
         margin-top: 8px;
@@ -805,6 +857,26 @@
         font-size: 11px;
         padding: 2px 8px;
       }
+      .hot-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        border: 1px solid #35547a;
+        color: #dcecff;
+        background: #15253d;
+        white-space: nowrap;
+      }
+      .hot-pill.ultra {
+        border-color: #5e4aa0;
+        background: rgba(119, 93, 207, 0.22);
+        color: #eaddff;
+      }
+      .hot-pill.hot {
+        border-color: #2f7f9d;
+        background: rgba(61, 164, 206, 0.2);
+        color: #ddf3ff;
+      }
       .heat {
         display: inline-block;
         min-width: 92px;
@@ -883,6 +955,15 @@
       body.light .leaflet-tooltip.geo-tip {
         border-color: #b9cde2;
       }
+      body.light .geo-tip-title {
+        color: #132d4b;
+      }
+      body.light .geo-tip-row .k {
+        color: #466485;
+      }
+      body.light .geo-tip-row .v {
+        color: #173557;
+      }
       body.light select,
       body.light input {
         color: #1a2f4a;
@@ -904,6 +985,16 @@
         border-color: #b9cce5;
         background: #eaf3ff;
         color: #214767;
+      }
+      body.light .flag-toggle {
+        color: #224463;
+        background: #ffffff;
+        border-color: #bccde2;
+      }
+      body.light .flag-badge {
+        color: #2b4f73;
+        border-color: #b4c8e2;
+        background: #edf4ff;
       }
       body.light .multi-opt { color: #234261; }
       body.light .btn.alt {
@@ -960,6 +1051,21 @@
         background: #edf4ff;
         color: #214767;
       }
+      body.light .hot-pill {
+        border-color: #b9cce5;
+        background: #edf4ff;
+        color: #214767;
+      }
+      body.light .hot-pill.ultra {
+        border-color: #bcaee6;
+        background: #f2eeff;
+        color: #463a83;
+      }
+      body.light .hot-pill.hot {
+        border-color: #a9cbe2;
+        background: #ebf7ff;
+        color: #1f5f7d;
+      }
       body.light .mono {
         background: #f7fbff;
         border-color: #c5d4e7;
@@ -997,6 +1103,7 @@
 
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .field-wide { grid-column: span 2; }
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
         .geo-layout { grid-template-columns: 1fr; }
@@ -1007,6 +1114,7 @@
       }
       @media (max-width: 680px) {
         .filters { grid-template-columns: 1fr; }
+        .field-wide { grid-column: span 1; }
         .kpi-grid { grid-template-columns: 1fr 1fr; }
         .header-controls {
           flex-direction: column;
@@ -1189,6 +1297,14 @@
                 <label for="fDateTo">Sale Date To</label>
                 <input id="fDateTo" type="date" />
               </div>
+              <div class="field field-wide">
+                <label for="ffProjection">Feature Flags</label>
+                <label class="flag-toggle">
+                  <input id="ffProjection" type="checkbox" />
+                  Pending Price Projection
+                  <span class="flag-badge">Experimental</span>
+                </label>
+              </div>
               <div class="actions">
                 <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
                 <button class="btn alt" id="resetBtn" type="button">Reset</button>
@@ -1348,6 +1464,8 @@
                   <th><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="listPriceAtPending">List@Pending <span class="sort-ind" data-sort-ind="listPriceAtPending">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="domMetric">DOM <span class="sort-ind" data-sort-ind="domMetric">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="hotCategory">Hot Category <span class="sort-ind" data-sort-ind="hotCategory">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="saleToList">S/List <span class="sort-ind" data-sort-ind="saleToList">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="delta">Delta vs List@Pending <span class="sort-ind" data-sort-ind="delta">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="dataMode">Data Mode <span class="sort-ind" data-sort-ind="dataMode">&#8597;</span></button></th>
@@ -1415,7 +1533,7 @@
               <div class="table-wrap geo-selected-table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Address</th><th>Neighborhood</th><th>Close</th><th>Sale Date</th></tr>
+                    <tr><th>Address</th><th>Neighborhood</th><th>List</th><th>Sale</th><th>DOM</th><th>Hot</th><th>Date</th></tr>
                   </thead>
                   <tbody id="geoSelectedRows"></tbody>
                 </table>
@@ -1559,6 +1677,9 @@
           dir: "desc",
         },
         recordMobileExpanded: null,
+        flags: {
+          projection: false,
+        },
         interactions: {
           month: null,
           neighborhood: null,
@@ -1607,6 +1728,45 @@
           currency: "USD",
           maximumFractionDigits: 0,
         });
+      }
+
+      function formatPct(v) {
+        return `${(Number(v || 0) * 100).toFixed(1)}%`;
+      }
+
+      function domMetric(row) {
+        if (row.mlsDOM > 0) return row.mlsDOM;
+        if (row.daysToPending !== null && Number.isFinite(row.daysToPending) && row.daysToPending >= 0) return row.daysToPending;
+        return null;
+      }
+
+      function domLabel(row) {
+        const d = domMetric(row);
+        return d === null ? "n/a" : `${d.toFixed(0)}d`;
+      }
+
+      function hotCategory(row) {
+        if (row.isUltraHot) return "Ultra Hot";
+        if (row.isHotMarket) return "Hot";
+        return "Normal";
+      }
+
+      function hotCategoryBadge(row) {
+        if (row.isUltraHot) return `<span class="hot-pill ultra">Ultra Hot</span>`;
+        if (row.isHotMarket) return `<span class="hot-pill hot">Hot</span>`;
+        return `<span class="hot-pill">Normal</span>`;
+      }
+
+      function closeDisplay(row) {
+        if (row.closePrice > 0 && !row.isProjectionRow) return formatMoney(row.closePrice);
+        if (row.projectedClosePrice > 0) return `~${formatMoney(row.projectedClosePrice)} proj`;
+        return "Pending";
+      }
+
+      function deltaDisplay(row) {
+        if (row.listPriceAtPending <= 0) return "n/a";
+        if (row.delta || row.delta === 0) return formatMoney(row.delta);
+        return "n/a";
       }
 
       function median(values) {
@@ -1817,6 +1977,9 @@
         syncPriceSliderPair();
         document.getElementById("fDateFrom").value = "";
         document.getElementById("fDateTo").value = "";
+        state.flags.projection = false;
+        const projectionToggle = document.getElementById("ffProjection");
+        if (projectionToggle) projectionToggle.checked = false;
       }
 
       function normalizeRow(source) {
@@ -1849,6 +2012,8 @@
         const zipCoord = ZIP_COORDS[zip5(source.zip)];
         const mapLat = Number.isFinite(source.lat) ? source.lat : (zipCoord ? zipCoord.lat : null);
         const mapLon = Number.isFinite(source.lon) ? source.lon : (zipCoord ? zipCoord.lon : null);
+        const hasActualClose = closePrice > 0 && !!toIso(saleDate);
+        const effectiveDate = toIso(saleDate || pendingDate || listDate);
 
         return {
           ...source,
@@ -1859,6 +2024,13 @@
           saleDate: toIso(saleDate),
           listDate: toIso(listDate),
           pendingDate: toIso(pendingDate),
+          effectiveDate,
+          hasActualClose,
+          isProjectionRow: false,
+          projectedClosePrice: 0,
+          projectedCloseLow: 0,
+          projectedCloseHigh: 0,
+          projectionBasisCount: 0,
           closePrice,
           assessedValue,
           listPriceAtPending,
@@ -2012,6 +2184,66 @@
         return rows;
       }
 
+      function computeProjectedPendingRows(referenceRows, stats) {
+        if (!state.flags.projection) return [];
+        const f = readFormFilters();
+        if (f.mode === "PUBLIC_PROXY") return [];
+
+        const compSource = referenceRows
+          .filter((r) => r.hasActualClose && r.listPriceAtPending > 0 && r.saleToList > 0);
+        if (!compSource.length) return [];
+
+        const existing = new Set(referenceRows.map((r) => r.mapPropertyKey));
+        let pendingRows = state.rows
+          .map(normalizeRow)
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.listPriceAtPending > 0)
+          .filter((r) => !existing.has(r.mapPropertyKey));
+
+        if (f.neighborhoods.length) pendingRows = pendingRows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
+        if (f.type !== "All") pendingRows = pendingRows.filter((r) => r.typeLabel === f.type);
+        if (f.mode !== "All") pendingRows = pendingRows.filter((r) => r.dataMode === f.mode);
+        if (f.minClose) pendingRows = pendingRows.filter((r) => r.listPriceAtPending >= f.minClose);
+        if (f.maxClose !== null) pendingRows = pendingRows.filter((r) => r.listPriceAtPending <= f.maxClose);
+        if (f.dateFrom) pendingRows = pendingRows.filter((r) => r.effectiveDate >= f.dateFrom);
+        if (f.dateTo) pendingRows = pendingRows.filter((r) => r.effectiveDate <= f.dateTo);
+        if (f.scope === "hot10") pendingRows = pendingRows.filter((r) => r.isHotMarket);
+        if (f.scope === "ultra5") pendingRows = pendingRows.filter((r) => r.isUltraHot);
+
+        const projected = pendingRows.map((r) => {
+          let localComps = compSource.filter((c) => c.typeLabel === r.typeLabel && c.neighborhoodLabel === r.neighborhoodLabel);
+          if (localComps.length < 6) localComps = compSource.filter((c) => c.typeLabel === r.typeLabel);
+          if (localComps.length < 6) localComps = compSource;
+
+          const ratios = localComps.map((c) => c.saleToList).filter((v) => v > 0);
+          const ratioMed = ratios.length ? median(ratios) : 1;
+          const ratioLow = ratios.length ? quantile(ratios, 0.25) : ratioMed;
+          const ratioHigh = ratios.length ? quantile(ratios, 0.75) : ratioMed;
+          const projectedClosePrice = Math.round(r.listPriceAtPending * ratioMed);
+          const projectedCloseLow = Math.round(r.listPriceAtPending * ratioLow);
+          const projectedCloseHigh = Math.round(r.listPriceAtPending * ratioHigh);
+          const projectedDelta = projectedClosePrice - r.listPriceAtPending;
+          const projectedPsf = r.sqft > 0 ? projectedClosePrice / r.sqft : 0;
+
+          return {
+            ...r,
+            isProjectionRow: true,
+            saleDate: r.pendingDate || r.listDate || r.saleDate,
+            effectiveDate: r.pendingDate || r.listDate || r.effectiveDate,
+            closePrice: projectedClosePrice,
+            projectedClosePrice,
+            projectedCloseLow,
+            projectedCloseHigh,
+            projectionBasisCount: localComps.length,
+            saleToList: ratioMed,
+            delta: projectedDelta,
+            deltaPct: r.listPriceAtPending > 0 ? (projectedDelta / r.listPriceAtPending) : 0,
+            pricePerSqft: projectedPsf,
+          };
+        });
+
+        return applyInteractions(projected, stats);
+      }
+
       function computeBaseStats(rows) {
         return {
           medianClose: median(rows.map((r) => r.closePrice)),
@@ -2087,7 +2319,8 @@
         const el = document.getElementById("activeChips");
         const mapSelected = state.geo.selectedPropertyKeys.length;
         const viewportChip = state.geo.viewportFilter && state.geo.mapBounds;
-        if (!entries.length && !mapSelected && !viewportChip) {
+        const projectionChip = state.flags.projection;
+        if (!entries.length && !mapSelected && !viewportChip && !projectionChip) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -2100,14 +2333,18 @@
         if (viewportChip) {
           chips.push(`<span class="chip">Map Viewport<button type="button" data-clear-viewport-filter="1">x</button></span>`);
         }
+        if (projectionChip) {
+          chips.push(`<span class="chip">Feature: Pending Projections<button type="button" data-clear-flag="projection">x</button></span>`);
+        }
         el.innerHTML = chips.join("");
       }
 
-      function renderSummary(filtered, baseRows) {
-        const mls = filtered.filter((r) => r.dataMode === "MLS_ENRICHED").length;
-        const pub = filtered.length - mls;
+      function renderSummary(filtered, baseRows, projectedCount = 0) {
+        const pub = filtered.filter((r) => r.dataMode === "PUBLIC_PROXY").length;
+        const mls = (filtered.length - pub) + projectedCount;
+        const projectionText = state.flags.projection ? ` | Pending Projections: ${projectedCount}` : "";
         document.getElementById("filterSummary").textContent =
-          `Base rows: ${baseRows.length} | Current slice: ${filtered.length} | Public Proxy: ${pub} | MLS Enriched: ${mls}`;
+          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}`;
       }
 
       function renderKpis(rows, stats) {
@@ -2404,8 +2641,12 @@
               name,
               count: 0,
               prices: [],
+              listPrices: [],
               ratios: [],
               ratioAbove: 0,
+              doms: [],
+              hotCount: 0,
+              ultraCount: 0,
               latSum: 0,
               lonSum: 0,
               coordCount: 0,
@@ -2414,10 +2655,15 @@
           const g = grouped[name];
           g.count += 1;
           g.prices.push(r.closePrice || 0);
+          if (r.listPriceAtPending > 0) g.listPrices.push(r.listPriceAtPending);
           if (r.saleToList > 0) {
             g.ratios.push(r.saleToList);
             if (r.saleToList > 1) g.ratioAbove += 1;
           }
+          const d = domMetric(r);
+          if (d !== null) g.doms.push(d);
+          if (r.isHotMarket) g.hotCount += 1;
+          if (r.isUltraHot) g.ultraCount += 1;
 
           const hasExactCoord = Number.isFinite(r.lat) && Number.isFinite(r.lon);
           if (hasExactCoord) exactRows += 1;
@@ -2434,9 +2680,13 @@
         const geoRows = Object.values(grouped).map((g) => ({
           name: g.name,
           count: g.count,
+          medianList: median(g.listPrices),
           medianClose: median(g.prices),
+          medianDom: median(g.doms),
           medianRatio: median(g.ratios),
           aboveRatioShare: g.ratios.length ? (g.ratioAbove / g.ratios.length) : 0,
+          hotShare: g.count ? (g.hotCount / g.count) : 0,
+          ultraShare: g.count ? (g.ultraCount / g.count) : 0,
           lat: g.coordCount ? (g.latSum / g.coordCount) : null,
           lon: g.coordCount ? (g.lonSum / g.coordCount) : null,
         })).sort((a, b) => (b.count - a.count) || (b.medianClose - a.medianClose));
@@ -2518,11 +2768,40 @@
           const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
           marker.on("click", () => setInteraction("neighborhood", p.name));
           marker.bindTooltip(
-            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List`,
-            { direction: "top", className: "geo-tip" }
+            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list<br>${formatMoney(p.medianClose)} median sale<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List`,
+            { direction: "top", className: "geo-tip", pane: "geoTooltipPane", offset: [0, -8], opacity: 0.98, sticky: true }
           );
           marker.addTo(layer);
         });
+      }
+
+      function geoTooltipHtml(row) {
+        return `
+          <div class="geo-tip-card">
+            <div class="geo-tip-title">${esc(row.address || "Address unavailable")}</div>
+            <div class="geo-tip-row"><span class="k">List@Pending</span><span class="v">${formatMoney(row.listPriceAtPending)}</span></div>
+            <div class="geo-tip-row"><span class="k">Sale Price</span><span class="v">${closeDisplay(row)}</span></div>
+            <div class="geo-tip-row"><span class="k">DOM</span><span class="v">${domLabel(row)}</span></div>
+            <div class="geo-tip-row"><span class="k">Heat</span><span class="v">${hotCategory(row)}</span></div>
+            <div class="geo-tip-row"><span class="k">Sale/List</span><span class="v">${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x` : "n/a"}</span></div>
+          </div>
+        `;
+      }
+
+      function geoPopupHtml(row, zUrl, countyUrl, isSelected) {
+        const projectionLine = row.isProjectionRow && row.projectedCloseLow > 0 && row.projectedCloseHigh > 0
+          ? `<br>Projected range: ${formatMoney(row.projectedCloseLow)} - ${formatMoney(row.projectedCloseHigh)}`
+          : "";
+        return `
+          <b>${esc(row.address || "Address unavailable")}</b><br>
+          List@Pending: ${formatMoney(row.listPriceAtPending)}<br>
+          Sale: ${closeDisplay(row)}${projectionLine}<br>
+          DOM: ${domLabel(row)} | ${hotCategory(row)}<br>
+          ${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>
+          ${esc(row.neighborhoodLabel || "Seattle")} | ${esc(row.saleDate || row.pendingDate || "n/a")}<br>
+          <a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br>
+          <span style="font-size:11px;color:#1f6040;">Exact coordinate • click dot to ${isSelected ? "remove" : "add"} property filter</span>
+        `;
       }
 
       function clearMapPropertySelection(skipRender = false) {
@@ -2556,7 +2835,7 @@
 
         if (!state.geo.selectedPropertyKeys.length) {
           countEl.textContent = "0 selected";
-          tbody.innerHTML = `<tr><td colspan="4">Click map dots to filter to specific properties.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7">Click map dots to filter to specific properties.</td></tr>`;
           mobile.innerHTML = `<div class="note">Click map dots to filter to specific properties.</div>`;
           return;
         }
@@ -2565,7 +2844,7 @@
         const selectedRows = rows.filter((r) => selectedSet.has(r.mapPropertyKey));
         countEl.textContent = `${selectedRows.length} selected`;
         if (!selectedRows.length) {
-          tbody.innerHTML = `<tr><td colspan="4">No selected properties in current filter scope.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7">No selected properties in current filter scope.</td></tr>`;
           mobile.innerHTML = `<div class="note">No selected properties in current filter scope.</div>`;
           return;
         }
@@ -2578,15 +2857,19 @@
           <tr>
             <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
             <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
-            <td>${formatMoney(r.closePrice)}</td>
-            <td>${esc(r.saleDate || "n/a")}</td>
+            <td>${formatMoney(r.listPriceAtPending)}</td>
+            <td>${closeDisplay(r)}</td>
+            <td>${domLabel(r)}</td>
+            <td>${hotCategoryBadge(r)}</td>
+            <td>${esc(r.saleDate || r.pendingDate || "n/a")}</td>
           </tr>
         `).join("");
         mobile.innerHTML = sorted.slice(0, 24).map((r) => `
           <article class="geo-mobile-card">
             <div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></div>
-            <div class="k">${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}</div>
-            <div class="v">${formatMoney(r.closePrice)}</div>
+            <div class="k">${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || r.pendingDate || "n/a")}</div>
+            <div class="v">List ${formatMoney(r.listPriceAtPending)} | Sale ${closeDisplay(r)}</div>
+            <div class="k">${domLabel(r)} | ${hotCategory(r)}</div>
           </article>
         `).join("");
       }
@@ -2637,11 +2920,11 @@
             fillOpacity: 0.97,
           });
           marker.bindTooltip(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>${esc(r.saleDate || "n/a")}<br><span style="font-size:11px;color:#1f6040;">Exact pin</span>`,
-            { direction: "top", className: "geo-tip" }
+            geoTooltipHtml(r),
+            { direction: "top", className: "geo-tip", pane: "geoTooltipPane", offset: [0, -10], opacity: 0.98, sticky: true }
           );
           marker.bindPopup(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#1f6040;">Exact coordinate • click dot to ${isSelected ? "remove" : "add"} property filter</span>`,
+            geoPopupHtml(r, zUrl, countyUrl, isSelected),
             { maxWidth: 360 }
           );
           marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
@@ -2666,6 +2949,9 @@
           minZoom: 10,
           maxZoom: 17,
         });
+        map.createPane("geoTooltipPane");
+        map.getPane("geoTooltipPane").style.zIndex = "760";
+        map.getPane("geoTooltipPane").style.pointerEvents = "none";
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         }).addTo(map);
@@ -2827,6 +3113,8 @@
         if (key === "saleDate") return String(row.saleDate || "");
         if (key === "closePrice") return Number(row.closePrice || 0);
         if (key === "listPriceAtPending") return Number(row.listPriceAtPending || 0);
+        if (key === "domMetric") return Number(domMetric(row) ?? -1);
+        if (key === "hotCategory") return String(hotCategory(row));
         if (key === "saleToList") return Number(row.saleToList || 0);
         if (key === "delta") return Number(row.delta || 0);
         if (key === "dataMode") return String(row.dataMode || "");
@@ -2858,7 +3146,7 @@
       }
 
       function setRecordSort(key) {
-        const textKeys = new Set(["address", "neighborhood", "type", "dataMode"]);
+        const textKeys = new Set(["address", "neighborhood", "type", "dataMode", "hotCategory"]);
         if (state.recordSort.key === key) {
           state.recordSort.dir = state.recordSort.dir === "asc" ? "desc" : "asc";
         } else {
@@ -2873,7 +3161,7 @@
         const tbody = document.getElementById("recordRows");
         const mobileList = document.getElementById("recordMobileList");
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="12">No rows for current filters.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="14">No rows for current filters.</td></tr>`;
           if (mobileList) mobileList.innerHTML = `<div class="note">No rows for current filters.</div>`;
           updateRecordSortHeaderUI();
           return;
@@ -2902,11 +3190,13 @@
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
                 <td>${esc(r.saleDate || "n/a")}</td>
-                <td>${formatMoney(r.closePrice)}</td>
+                <td>${closeDisplay(r)}</td>
                 <td>${formatMoney(r.listPriceAtPending)}</td>
+                <td>${domLabel(r)}</td>
+                <td>${hotCategoryBadge(r)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToList > 0 ? ratioNorm(r.saleToList) : 0, "rgba(61,213,157,0.33)")}">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</span></td>
-                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${formatMoney(r.delta)}</span></td>
-                <td><span class="mode">${esc(r.dataMode)}</span></td>
+                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${deltaDisplay(r)}</span></td>
+                <td><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></td>
               </tr>
             `;
           })
@@ -2923,8 +3213,8 @@
               <article class="mrow ${expanded ? "expanded" : ""}">
                 <button class="mrow-head" type="button" data-mobile-expand="${esc(key)}">
                   <span class="mrow-address">${esc(r.address)} ${addrBadge}</span>
-                  <span class="mrow-price">${formatMoney(r.closePrice)}</span>
-                  <span class="mrow-date">${esc(r.saleDate || "n/a")} <span class="mrow-toggle">${expanded ? "Hide" : "More"}</span></span>
+                  <span class="mrow-price">${closeDisplay(r)}</span>
+                  <span class="mrow-date">${esc(r.saleDate || r.pendingDate || "n/a")} <span class="mrow-toggle">${expanded ? "Hide" : "More"}</span></span>
                 </button>
                 <div class="mrow-detail">
                   <div class="mrow-grid">
@@ -2933,11 +3223,16 @@
                     <div class="mrow-item"><div class="k">Type</div><div class="v"><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></div></div>
                     <div class="mrow-item"><div class="k">Beds / Baths</div><div class="v">${r.beds || 0} / ${r.baths ? r.baths.toFixed(2) : "0.00"}</div></div>
                     <div class="mrow-item"><div class="k">SqFt</div><div class="v">${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</div></div>
+                    <div class="mrow-item"><div class="k">Sale Price</div><div class="v">${closeDisplay(r)}</div></div>
                     <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoney(r.listPriceAtPending)}</div></div>
+                    <div class="mrow-item"><div class="k">DOM</div><div class="v">${domLabel(r)}</div></div>
                     <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
-                    <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${formatMoney(r.delta)}</div></div>
-                    <div class="mrow-item"><div class="k">Hot Market</div><div class="v">${r.isUltraHot ? "Yes (Ultra <=5d)" : (r.isHotMarket ? "Yes (<=10d)" : "No")}</div></div>
-                    <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}</span></div></div>
+                    <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${deltaDisplay(r)}</div></div>
+                    <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)}</div></div>
+                    <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></div></div>
+                    ${r.isProjectionRow && r.projectedCloseLow > 0 && r.projectedCloseHigh > 0
+                      ? `<div class="mrow-item"><div class="k">Projected Range</div><div class="v">${formatMoney(r.projectedCloseLow)} - ${formatMoney(r.projectedCloseHigh)} (${r.projectionBasisCount} comps)</div></div>`
+                      : ""}
                   </div>
                 </div>
               </article>
@@ -2950,24 +3245,26 @@
       function renderAll() {
         const baseRows = computeBaseRows();
         state.baseRows = baseRows;
-        if (state.geo.selectedPropertyKeys.length) {
-          const validMapKeys = new Set(baseRows.map((r) => r.mapPropertyKey));
-          state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
-        }
         const stats = computeBaseStats(baseRows);
         const filtered = applyInteractions(baseRows, stats);
-        state.filteredRows = filtered;
+        const projectedRows = computeProjectedPendingRows(filtered, stats);
+        const viewRows = projectedRows.length ? [...filtered, ...projectedRows] : filtered;
+        if (state.geo.selectedPropertyKeys.length) {
+          const validMapKeys = new Set(viewRows.map((r) => r.mapPropertyKey));
+          state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
+        }
+        state.filteredRows = viewRows;
 
-        renderSummary(filtered, baseRows);
+        renderSummary(filtered, baseRows, projectedRows.length);
         renderChips();
         renderKpis(filtered, stats);
         renderInsights(filtered);
         renderCharts(filtered);
         renderHotMarket(filtered);
-        renderGeo(filtered);
+        renderGeo(viewRows);
         renderRatioRows(filtered);
         renderRankRows(filtered);
-        renderRecordRows(filtered);
+        renderRecordRows(viewRows);
       }
 
       function setInteraction(key, value) {
@@ -2996,7 +3293,8 @@
         if (!state.filteredRows.length) return;
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
-          "closePrice","listPriceAtPending","saleToList","delta","deltaPct","isHotMarket",
+          "closePrice","listPriceAtPending","saleToList","delta","deltaPct","isHotMarket","isUltraHot",
+          "hotCategory","domDays","isProjectionRow","projectedClosePrice","projectedCloseLow","projectedCloseHigh","projectionBasisCount",
           "beds","baths","sqft","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
@@ -3016,6 +3314,14 @@
             r.delta,
             r.deltaPct,
             r.isHotMarket ? "true" : "false",
+            r.isUltraHot ? "true" : "false",
+            hotCategory(r),
+            domMetric(r) ?? "",
+            r.isProjectionRow ? "true" : "false",
+            r.projectedClosePrice || "",
+            r.projectedCloseLow || "",
+            r.projectedCloseHigh || "",
+            r.projectionBasisCount || "",
             r.beds,
             r.baths,
             r.sqft,
@@ -3102,6 +3408,14 @@
           el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);
         });
+        const projectionToggle = document.getElementById("ffProjection");
+        if (projectionToggle) {
+          projectionToggle.checked = !!state.flags.projection;
+          projectionToggle.addEventListener("change", (evt) => {
+            state.flags.projection = !!evt.target.checked;
+            renderAll();
+          });
+        }
         lockDateInputsToPicker();
         ["fMinClose", "fMaxClose"].forEach((id) => {
           const el = document.getElementById(id);
@@ -3216,6 +3530,18 @@
             const toggle = document.getElementById("geoViewportFilter");
             if (toggle) toggle.checked = false;
             renderAll();
+            return;
+          }
+
+          const clearFlag = evt.target.closest("[data-clear-flag]");
+          if (clearFlag) {
+            const key = clearFlag.getAttribute("data-clear-flag");
+            if (key === "projection") {
+              state.flags.projection = false;
+              const flagEl = document.getElementById("ffProjection");
+              if (flagEl) flagEl.checked = false;
+              renderAll();
+            }
             return;
           }
 
