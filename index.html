@@ -1461,6 +1461,7 @@
                   <th><button class="th-sort" type="button" data-record-sort="beds">Beds <span class="sort-ind" data-sort-ind="beds">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="baths">Baths <span class="sort-ind" data-sort-ind="baths">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="sqft">SqFt <span class="sort-ind" data-sort-ind="sqft">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="lotSize">Lot Size <span class="sort-ind" data-sort-ind="lotSize">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="listPriceAtPending">List@Pending <span class="sort-ind" data-sort-ind="listPriceAtPending">&#8597;</span></button></th>
@@ -1533,7 +1534,7 @@
               <div class="table-wrap geo-selected-table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Address</th><th>Neighborhood</th><th>List</th><th>Sale</th><th>DOM</th><th>Hot</th><th>Date</th></tr>
+                    <tr><th>Address</th><th>Neighborhood</th><th>Lot</th><th>List</th><th>Sale</th><th>DOM</th><th>Hot</th><th>Date</th></tr>
                   </thead>
                   <tbody id="geoSelectedRows"></tbody>
                 </table>
@@ -1734,6 +1735,12 @@
         return `${(Number(v || 0) * 100).toFixed(1)}%`;
       }
 
+      function formatLot(v) {
+        const n = Number(v || 0);
+        if (!Number.isFinite(n) || n <= 0) return "n/a";
+        return `${Math.round(n).toLocaleString("en-US")} sf`;
+      }
+
       function domMetric(row) {
         if (row.mlsDOM > 0) return row.mlsDOM;
         if (row.daysToPending !== null && Number.isFinite(row.daysToPending) && row.daysToPending >= 0) return row.daysToPending;
@@ -1880,6 +1887,7 @@
             beds: num(pick("beds")),
             baths: num(pick("baths")),
             sqft: num(pick("sqft")),
+            sqFtLot: num(pick("sqFtLot")),
             yearBuilt: num(pick("yearBuilt")),
             zip: pick("zip"),
             lat,
@@ -2008,6 +2016,7 @@
         const isUltraHot = ultraByTag || ultraByDom || ultraByPending;
         const isHotMarket = isUltraHot || hotByTag || hotByDom || hotByPending;
         const sqft = num(source.sqft);
+        const lotSize = num(source.sqFtLot);
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
         const zipCoord = ZIP_COORDS[zip5(source.zip)];
         const mapLat = Number.isFinite(source.lat) ? source.lat : (zipCoord ? zipCoord.lat : null);
@@ -2039,6 +2048,7 @@
           beds: num(source.beds),
           baths: num(source.baths),
           sqft,
+          lotSize,
           yearBuilt: num(source.yearBuilt),
           daysToPending,
           saleToList,
@@ -2642,6 +2652,7 @@
               count: 0,
               prices: [],
               listPrices: [],
+              lotSizes: [],
               ratios: [],
               ratioAbove: 0,
               doms: [],
@@ -2656,6 +2667,7 @@
           g.count += 1;
           g.prices.push(r.closePrice || 0);
           if (r.listPriceAtPending > 0) g.listPrices.push(r.listPriceAtPending);
+          if (r.lotSize > 0) g.lotSizes.push(r.lotSize);
           if (r.saleToList > 0) {
             g.ratios.push(r.saleToList);
             if (r.saleToList > 1) g.ratioAbove += 1;
@@ -2682,6 +2694,7 @@
           count: g.count,
           medianList: median(g.listPrices),
           medianClose: median(g.prices),
+          medianLot: median(g.lotSizes),
           medianDom: median(g.doms),
           medianRatio: median(g.ratios),
           aboveRatioShare: g.ratios.length ? (g.ratioAbove / g.ratios.length) : 0,
@@ -2768,7 +2781,7 @@
           const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
           marker.on("click", () => setInteraction("neighborhood", p.name));
           marker.bindTooltip(
-            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list<br>${formatMoney(p.medianClose)} median sale<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List`,
+            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list<br>${formatMoney(p.medianClose)} median sale<br>${formatLot(p.medianLot)} median lot<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List`,
             { direction: "top", className: "geo-tip", pane: "geoTooltipPane", offset: [0, -8], opacity: 0.98, sticky: true }
           );
           marker.addTo(layer);
@@ -2781,6 +2794,7 @@
             <div class="geo-tip-title">${esc(row.address || "Address unavailable")}</div>
             <div class="geo-tip-row"><span class="k">List@Pending</span><span class="v">${formatMoney(row.listPriceAtPending)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale Price</span><span class="v">${closeDisplay(row)}</span></div>
+            <div class="geo-tip-row"><span class="k">Lot Size</span><span class="v">${formatLot(row.lotSize)}</span></div>
             <div class="geo-tip-row"><span class="k">DOM</span><span class="v">${domLabel(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Heat</span><span class="v">${hotCategory(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale/List</span><span class="v">${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x` : "n/a"}</span></div>
@@ -2796,6 +2810,7 @@
           <b>${esc(row.address || "Address unavailable")}</b><br>
           List@Pending: ${formatMoney(row.listPriceAtPending)}<br>
           Sale: ${closeDisplay(row)}${projectionLine}<br>
+          Lot Size: ${formatLot(row.lotSize)}<br>
           DOM: ${domLabel(row)} | ${hotCategory(row)}<br>
           ${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>
           ${esc(row.neighborhoodLabel || "Seattle")} | ${esc(row.saleDate || row.pendingDate || "n/a")}<br>
@@ -2835,7 +2850,7 @@
 
         if (!state.geo.selectedPropertyKeys.length) {
           countEl.textContent = "0 selected";
-          tbody.innerHTML = `<tr><td colspan="7">Click map dots to filter to specific properties.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8">Click map dots to filter to specific properties.</td></tr>`;
           mobile.innerHTML = `<div class="note">Click map dots to filter to specific properties.</div>`;
           return;
         }
@@ -2844,7 +2859,7 @@
         const selectedRows = rows.filter((r) => selectedSet.has(r.mapPropertyKey));
         countEl.textContent = `${selectedRows.length} selected`;
         if (!selectedRows.length) {
-          tbody.innerHTML = `<tr><td colspan="7">No selected properties in current filter scope.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8">No selected properties in current filter scope.</td></tr>`;
           mobile.innerHTML = `<div class="note">No selected properties in current filter scope.</div>`;
           return;
         }
@@ -2857,6 +2872,7 @@
           <tr>
             <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
             <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
+            <td>${formatLot(r.lotSize)}</td>
             <td>${formatMoney(r.listPriceAtPending)}</td>
             <td>${closeDisplay(r)}</td>
             <td>${domLabel(r)}</td>
@@ -2869,7 +2885,7 @@
             <div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></div>
             <div class="k">${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || r.pendingDate || "n/a")}</div>
             <div class="v">List ${formatMoney(r.listPriceAtPending)} | Sale ${closeDisplay(r)}</div>
-            <div class="k">${domLabel(r)} | ${hotCategory(r)}</div>
+            <div class="k">Lot ${formatLot(r.lotSize)} | ${domLabel(r)} | ${hotCategory(r)}</div>
           </article>
         `).join("");
       }
@@ -3110,6 +3126,7 @@
         if (key === "beds") return Number(row.beds || 0);
         if (key === "baths") return Number(row.baths || 0);
         if (key === "sqft") return Number(row.sqft || 0);
+        if (key === "lotSize") return Number(row.lotSize || 0);
         if (key === "saleDate") return String(row.saleDate || "");
         if (key === "closePrice") return Number(row.closePrice || 0);
         if (key === "listPriceAtPending") return Number(row.listPriceAtPending || 0);
@@ -3161,7 +3178,7 @@
         const tbody = document.getElementById("recordRows");
         const mobileList = document.getElementById("recordMobileList");
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="14">No rows for current filters.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="15">No rows for current filters.</td></tr>`;
           if (mobileList) mobileList.innerHTML = `<div class="note">No rows for current filters.</div>`;
           updateRecordSortHeaderUI();
           return;
@@ -3189,6 +3206,7 @@
                 <td>${r.beds || 0}</td>
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
+                <td>${formatLot(r.lotSize)}</td>
                 <td>${esc(r.saleDate || "n/a")}</td>
                 <td>${closeDisplay(r)}</td>
                 <td>${formatMoney(r.listPriceAtPending)}</td>
@@ -3223,6 +3241,7 @@
                     <div class="mrow-item"><div class="k">Type</div><div class="v"><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></div></div>
                     <div class="mrow-item"><div class="k">Beds / Baths</div><div class="v">${r.beds || 0} / ${r.baths ? r.baths.toFixed(2) : "0.00"}</div></div>
                     <div class="mrow-item"><div class="k">SqFt</div><div class="v">${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</div></div>
+                    <div class="mrow-item"><div class="k">Lot Size</div><div class="v">${formatLot(r.lotSize)}</div></div>
                     <div class="mrow-item"><div class="k">Sale Price</div><div class="v">${closeDisplay(r)}</div></div>
                     <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoney(r.listPriceAtPending)}</div></div>
                     <div class="mrow-item"><div class="k">DOM</div><div class="v">${domLabel(r)}</div></div>
@@ -3295,7 +3314,7 @@
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
           "closePrice","listPriceAtPending","saleToList","delta","deltaPct","isHotMarket","isUltraHot",
           "hotCategory","domDays","isProjectionRow","projectedClosePrice","projectedCloseLow","projectedCloseHigh","projectionBasisCount",
-          "beds","baths","sqft","yearBuilt","zip"
+          "beds","baths","sqft","lotSize","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
         state.filteredRows.forEach((r) => {
@@ -3325,6 +3344,7 @@
             r.beds,
             r.baths,
             r.sqft,
+            r.lotSize,
             r.yearBuilt,
             r.zip,
           ].map(escapeCsv).join(","));
