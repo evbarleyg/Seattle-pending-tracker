@@ -1460,6 +1460,14 @@
                   </label>
                   <label
                     class="flag-toggle"
+                    title="Show Active/Pending MLS rows in map and records, even before close is posted."
+                  >
+                    <input id="ffIncludeOpenMls" type="checkbox" />
+                    Include Open/Pending MLS Rows
+                    <span class="flag-badge">Optional</span>
+                  </label>
+                  <label
+                    class="flag-toggle"
                     title="Exclude rows tagged as likely pre-sold new builds when DOM <= 0, sale equals list, and new-build signal is present."
                   >
                     <input id="ffExcludePresold" type="checkbox" />
@@ -1467,7 +1475,7 @@
                     <span class="flag-badge">Optional</span>
                   </label>
                 </div>
-                <div class="flag-help">Pending/active MLS rows appear in dashboards when projection is enabled and comp coverage exists. Pre-sold rule: DOM <= 0 and Sale = List, plus Year Built >= 2023 or townhouse/new-construction style code.</div>
+                <div class="flag-help">Open/pending MLS rows are hidden by default. Turn on Include Open/Pending MLS Rows to show them in map/records. Projection estimates sale for open rows. Pre-sold rule: DOM <= 0 and Sale = List, plus Year Built >= 2023 or townhouse/new-construction style code.</div>
               </div>
               <div class="actions">
                 <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
@@ -1524,6 +1532,11 @@
             <div class="label">Median Days To Pending (MLS, if available)</div>
             <div class="value" id="kPendingDays">n/a</div>
             <button class="kbtn" data-kpi-action="mlsOnly">Filter MLS Rows (if any)</button>
+          </article>
+          <article class="kpi">
+            <div class="label">Open/Pending MLS Rows Available</div>
+            <div class="value" id="kOpenMlsRows">0</div>
+            <button class="kbtn" data-kpi-action="toggleOpenMls">Toggle Include Open/Pending</button>
           </article>
         </div>
 
@@ -1842,6 +1855,9 @@
         meta: {
           presoldCandidatesInSlice: 0,
           presoldExcludedInSlice: 0,
+          projectedRowsInSlice: 0,
+          openRowsAvailable: 0,
+          openRowsInSlice: 0,
         },
         geo: {
           map: null,
@@ -1860,6 +1876,7 @@
         flags: {
           projection: false,
           excludeLikelyPresoldNewBuild: false,
+          includeOpenMls: false,
         },
         interactions: {
           month: null,
@@ -2200,8 +2217,11 @@
         document.getElementById("fDateTo").value = "";
         state.flags.projection = false;
         state.flags.excludeLikelyPresoldNewBuild = false;
+        state.flags.includeOpenMls = false;
         const projectionToggle = document.getElementById("ffProjection");
         if (projectionToggle) projectionToggle.checked = false;
+        const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
+        if (includeOpenToggle) includeOpenToggle.checked = false;
         const excludePresoldToggle = document.getElementById("ffExcludePresold");
         if (excludePresoldToggle) excludePresoldToggle.checked = false;
       }
@@ -2532,6 +2552,42 @@
         return applyInteractions(projected, stats);
       }
 
+      function computeOpenMlsRows(stats, projectedKeys = new Set()) {
+        const f = readFormFilters();
+        if (f.mode === "PUBLIC_PROXY") {
+          state.meta.openRowsAvailable = 0;
+          state.meta.openRowsInSlice = 0;
+          return [];
+        }
+
+        let openRows = state.rows
+          .map(normalizeRow)
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.listPriceAtPending > 0);
+
+        if (f.neighborhoods.length) openRows = openRows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
+        if (f.type !== "All") openRows = openRows.filter((r) => r.typeLabel === f.type);
+        if (f.mlsStatus !== "All") openRows = openRows.filter((r) => r.mlsStatusNorm === String(f.mlsStatus || "").toUpperCase());
+        if (f.minClose) openRows = openRows.filter((r) => r.listPriceAtPending >= f.minClose);
+        if (f.maxClose !== null) openRows = openRows.filter((r) => r.listPriceAtPending <= f.maxClose);
+        if (f.dateFrom) openRows = openRows.filter((r) => r.effectiveDate >= f.dateFrom);
+        if (f.dateTo) openRows = openRows.filter((r) => r.effectiveDate <= f.dateTo);
+        if (f.scope === "hot10") openRows = openRows.filter((r) => r.isHotMarket);
+        if (f.scope === "ultra5") openRows = openRows.filter((r) => r.isUltraHot);
+
+        state.meta.openRowsAvailable = openRows.length;
+        if (!state.flags.includeOpenMls) {
+          state.meta.openRowsInSlice = 0;
+          return [];
+        }
+
+        let visible = applyInteractions(openRows, stats);
+        if (projectedKeys.size) {
+          visible = visible.filter((r) => !projectedKeys.has(r.mapPropertyKey));
+        }
+        state.meta.openRowsInSlice = visible.length;
+        return visible;
+      }
+
       function computeBaseStats(rows) {
         return {
           medianClose: median(rows.map((r) => r.closePrice)),
@@ -2608,8 +2664,9 @@
         const mapSelected = state.geo.selectedPropertyKeys.length;
         const viewportChip = state.geo.viewportFilter && state.geo.mapBounds;
         const projectionChip = state.flags.projection;
+        const includeOpenChip = state.flags.includeOpenMls;
         const presoldFlagChip = state.flags.excludeLikelyPresoldNewBuild;
-        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !presoldFlagChip) {
+        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -2624,6 +2681,11 @@
         }
         if (projectionChip) {
           chips.push(`<span class="chip">Feature: Pending Projections<button type="button" data-clear-flag="projection">x</button></span>`);
+          chips.push(`<span class="chip">Projected rows in slice: ${state.meta.projectedRowsInSlice || 0}</span>`);
+        }
+        if (includeOpenChip) {
+          chips.push(`<span class="chip">Feature: Include Open/Pending MLS<button type="button" data-clear-flag="includeOpenMls">x</button></span>`);
+          chips.push(`<span class="chip">Open/Pending rows in slice: ${state.meta.openRowsInSlice || 0}</span>`);
         }
         if (presoldFlagChip) {
           chips.push(`<span class="chip">Feature: Exclude Pre-Sold New Builds<button type="button" data-clear-flag="excludePresold">x</button></span>`);
@@ -2631,15 +2693,16 @@
         el.innerHTML = chips.join("");
       }
 
-      function renderSummary(filtered, baseRows, projectedCount = 0) {
+      function renderSummary(filtered, baseRows, projectedCount = 0, openCount = 0) {
         const pub = filtered.filter((r) => r.dataMode === "PUBLIC_PROXY").length;
-        const mls = (filtered.length - pub) + projectedCount;
+        const mls = (filtered.length - pub) + projectedCount + openCount;
         const projectionText = state.flags.projection ? ` | Pending Projections: ${projectedCount}` : "";
+        const openText = state.flags.includeOpenMls ? ` | Open/Pending MLS in slice: ${openCount}` : "";
         const presoldText = state.flags.excludeLikelyPresoldNewBuild
           ? ` | Excluded pre-sold: ${state.meta.presoldExcludedInSlice}`
           : (state.meta.presoldCandidatesInSlice ? ` | Likely pre-sold in slice: ${state.meta.presoldCandidatesInSlice}` : "");
         document.getElementById("filterSummary").textContent =
-          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${presoldText}`;
+          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount + openCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${openText}${presoldText}`;
       }
 
       function renderKpis(rows, stats) {
@@ -2657,6 +2720,7 @@
         document.getElementById("kPendingDays").textContent = mlsDom.length
           ? `${median(mlsDom).toFixed(0)} days`
           : (mlsPending.length ? `${median(mlsPending).toFixed(0)} days` : "n/a");
+        document.getElementById("kOpenMlsRows").textContent = String(state.meta.openRowsAvailable || 0);
 
         document.querySelectorAll(".kbtn").forEach((b) => b.classList.remove("active"));
         if (state.interactions.closeTier === "aboveMedian") document.querySelector('[data-kpi-action="closeTier"]').classList.add("active");
@@ -2664,6 +2728,7 @@
         if (state.interactions.ratioBucket === "gt100") document.querySelector('[data-kpi-action="ratioGt1"]').classList.add("active");
         if (state.interactions.psfTier === "aboveMedian") document.querySelector('[data-kpi-action="psfTier"]').classList.add("active");
         if (state.interactions.mode === "MLS_ENRICHED") document.querySelector('[data-kpi-action="mlsOnly"]').classList.add("active");
+        if (state.flags.includeOpenMls) document.querySelector('[data-kpi-action="toggleOpenMls"]').classList.add("active");
       }
 
       function renderInsights(rows) {
@@ -3576,14 +3641,17 @@
         const stats = computeBaseStats(baseRows);
         const filtered = applyInteractions(baseRows, stats);
         const projectedRows = computeProjectedPendingRows(filtered, stats);
-        const viewRows = projectedRows.length ? [...filtered, ...projectedRows] : filtered;
+        state.meta.projectedRowsInSlice = projectedRows.length;
+        const projectedKeys = new Set(projectedRows.map((r) => r.mapPropertyKey));
+        const openRows = computeOpenMlsRows(stats, projectedKeys);
+        const viewRows = [...filtered, ...projectedRows, ...openRows];
         if (state.geo.selectedPropertyKeys.length) {
           const validMapKeys = new Set(viewRows.map((r) => r.mapPropertyKey));
           state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
         }
         state.filteredRows = viewRows;
 
-        renderSummary(filtered, baseRows, projectedRows.length);
+        renderSummary(filtered, baseRows, projectedRows.length, openRows.length);
         renderChips();
         renderKpis(filtered, stats);
         renderInsights(filtered);
@@ -3747,6 +3815,14 @@
             renderAll();
           });
         }
+        const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
+        if (includeOpenToggle) {
+          includeOpenToggle.checked = !!state.flags.includeOpenMls;
+          includeOpenToggle.addEventListener("change", (evt) => {
+            state.flags.includeOpenMls = !!evt.target.checked;
+            renderAll();
+          });
+        }
         const excludePresoldToggle = document.getElementById("ffExcludePresold");
         if (excludePresoldToggle) {
           excludePresoldToggle.checked = !!state.flags.excludeLikelyPresoldNewBuild;
@@ -3887,6 +3963,12 @@
               if (flagEl) flagEl.checked = false;
               renderAll();
             }
+            if (key === "includeOpenMls") {
+              state.flags.includeOpenMls = false;
+              const flagEl = document.getElementById("ffIncludeOpenMls");
+              if (flagEl) flagEl.checked = false;
+              renderAll();
+            }
             if (key === "excludePresold") {
               state.flags.excludeLikelyPresoldNewBuild = false;
               const flagEl = document.getElementById("ffExcludePresold");
@@ -3905,6 +3987,13 @@
           if (action === "ratioGt1") return setInteraction("ratioBucket", "gt100");
           if (action === "psfTier") return setInteraction("psfTier", "aboveMedian");
           if (action === "mlsOnly") return setInteraction("mode", "MLS_ENRICHED");
+          if (action === "toggleOpenMls") {
+            state.flags.includeOpenMls = !state.flags.includeOpenMls;
+            const flagEl = document.getElementById("ffIncludeOpenMls");
+            if (flagEl) flagEl.checked = state.flags.includeOpenMls;
+            renderAll();
+            return;
+          }
         });
 
         const csvInput = document.getElementById("csvFile");
