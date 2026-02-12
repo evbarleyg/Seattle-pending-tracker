@@ -20,10 +20,11 @@ Recommended extra MLS columns:
 - `mlsClosePrice`
 - `mlsDOM`
 - `mlsCDOM`
-- `hotMarketTag` (`HOT_MARKET_<=10D` when DOM/list-to-pending is <=10 days)
+- `hotMarketTag` (`HOT_MARKET_<=10D` when DOM/list-to-pending is <=10 days; `ULTRA_HOT_<=5D` when <=5 days)
 - `saleToListRatio`
 - `bidUpAmount`
 - `bidUpPct`
+- `mlsJoinMethod` (`APN_PRICE_DATE_WINDOW` for county-matched rows, `MLS_SOLD_NOT_IN_COUNTY` for MLS sold rows not yet in county close exports)
 
 Normalization behavior in app:
 - `listDate = mlsListDate || listDate`

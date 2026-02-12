@@ -19,6 +19,8 @@ const REALTOR_FILES = [
 const MAX_DATE_LAG_DAYS = 45;
 const PRICE_TOLERANCE_ABS = 5000;
 const PRICE_TOLERANCE_PCT = 0.005;
+const HOT_MARKET_DAYS = 10;
+const ULTRA_HOT_DAYS = 5;
 
 function parseCsvLine(line) {
   const out = [];
@@ -89,6 +91,10 @@ function normalizeApn(v) {
   return digits.length === 10 ? digits : "";
 }
 
+function zip5(v) {
+  return (String(v || "").match(/[0-9]{5}/) || [])[0] || "";
+}
+
 function parcelDigits(row) {
   const parcel = String(row.parcelNbr || `${row.major || ""}${row.minor || ""}`).replace(/\D/g, "");
   return parcel.length >= 10 ? parcel.slice(-10) : "";
@@ -98,6 +104,73 @@ function safeCsv(v) {
   const s = String(v ?? "");
   if (s.includes(",") || s.includes("\"") || s.includes("\n")) return `"${s.replace(/"/g, "\"\"")}"`;
   return s;
+}
+
+function buildHotMarketTag(dom, daysToPending) {
+  const hasUltra = (dom > 0 && dom <= ULTRA_HOT_DAYS) || (daysToPending !== null && daysToPending <= ULTRA_HOT_DAYS);
+  if (hasUltra) return "ULTRA_HOT_<=5D";
+  const hasHot = (dom > 0 && dom <= HOT_MARKET_DAYS) || (daysToPending !== null && daysToPending <= HOT_MARKET_DAYS);
+  if (hasHot) return "HOT_MARKET_<=10D";
+  return "";
+}
+
+function inferTypeFromMlsStyle(styleCode) {
+  const s = String(styleCode || "").toLowerCase();
+  if (!s) return "Single Family";
+  if (s.includes("townhouse")) return "Townhouse";
+  if (s.includes("condo")) return "Condo";
+  if (s.includes("multi")) return "Multi-Family";
+  if (s.includes("floating")) return "Floating Home";
+  return "Single Family";
+}
+
+function buildParcelSnapshotByApn(rows) {
+  const out = new Map();
+  rows.forEach((row) => {
+    const apn = row.__parcel;
+    if (!apn) return;
+    const prev = out.get(apn) || {
+      address: "",
+      neighborhood: "",
+      type: "",
+      typeCode: "",
+      addressSource: "",
+      zip: "",
+      districtName: "",
+      area: "",
+      subArea: "",
+      sqFtLot: "",
+      zoning: "",
+      lat: "",
+      lon: "",
+      beds: "",
+      baths: "",
+      sqft: "",
+      yearBuilt: "",
+      assessedValue: "",
+    };
+    const next = { ...prev };
+    if (!next.address && row.address) next.address = row.address;
+    if (!next.neighborhood && row.neighborhood) next.neighborhood = row.neighborhood;
+    if (!next.type && row.type) next.type = row.type;
+    if (!next.typeCode && row.typeCode) next.typeCode = row.typeCode;
+    if (!next.addressSource && row.addressSource) next.addressSource = row.addressSource;
+    if (!next.zip && row.zip) next.zip = row.zip;
+    if (!next.districtName && row.districtName) next.districtName = row.districtName;
+    if (!next.area && row.area) next.area = row.area;
+    if (!next.subArea && row.subArea) next.subArea = row.subArea;
+    if (!next.sqFtLot && row.sqFtLot) next.sqFtLot = row.sqFtLot;
+    if (!next.zoning && row.zoning) next.zoning = row.zoning;
+    if (!next.lat && row.lat) next.lat = row.lat;
+    if (!next.lon && row.lon) next.lon = row.lon;
+    if (!next.beds && row.beds) next.beds = row.beds;
+    if (!next.baths && row.baths) next.baths = row.baths;
+    if (!next.sqft && row.sqft) next.sqft = row.sqft;
+    if (!next.yearBuilt && row.yearBuilt) next.yearBuilt = row.yearBuilt;
+    if (!next.assessedValue && row.assessedValue) next.assessedValue = row.assessedValue;
+    out.set(apn, next);
+  });
+  return out;
 }
 
 function normalizeHeaderNames(headers) {
@@ -200,6 +273,9 @@ function readRealtorRows() {
         baths: num(row.Bathrooms),
         sqft: Math.round(num(row["Square Footage"] || row["Square Footage Finished"])),
         yearBuilt: Math.round(num(row["Year Built"])),
+        city: String(row.City || "").trim(),
+        state: String(row.State || "").trim(),
+        zip: zip5(row["Zip Code"]),
         mlsAddress: mlsAddressFromParts(row),
       });
     });
@@ -245,6 +321,12 @@ function main() {
 
   const { headers, rows } = readBaseRows();
   const mlsRows = readRealtorRows();
+  const parcelSnapshotByApn = buildParcelSnapshotByApn(rows);
+  const knownCountySaleSignatures = new Set(
+    rows
+      .filter((r) => r.__parcel && r.__saleDate && r.__closePrice > 0)
+      .map((r) => `${r.__parcel}|${r.__saleDate}|${r.__closePrice}`)
+  );
   const mlsByApn = new Map();
   mlsRows.forEach((r) => {
     if (!mlsByApn.has(r.apn)) mlsByApn.set(r.apn, []);
@@ -310,9 +392,7 @@ function main() {
 
       out.mlsDaysToPending = daysToPending !== null ? String(daysToPending) : "";
       out.mlsDaysPendingToSale = daysPendingToSale !== null ? String(daysPendingToSale) : "";
-      const hotByPending = daysToPending !== null && daysToPending <= 10;
-      const hotByDom = c.dom > 0 && c.dom <= 10;
-      out.hotMarketTag = (hotByPending || hotByDom) ? "HOT_MARKET_<=10D" : "";
+      out.hotMarketTag = buildHotMarketTag(c.dom, daysToPending);
       out.saleToListRatio = saleToListRatio > 0 ? saleToListRatio.toFixed(4) : "";
       out.saleToOriginalListRatio = saleToOriginalRatio > 0 ? saleToOriginalRatio.toFixed(4) : "";
       out.bidUpAmount = String(Math.round(bidUp));
@@ -344,6 +424,91 @@ function main() {
     return out;
   });
 
+  let mlsOnlyAdded = 0;
+  const mlsOnlyRows = [];
+  mlsRows.forEach((c, index) => {
+    if (used.has(c.uid)) return;
+    if (!c.apn || !c.sellingDate || c.sellingPrice <= 0) return;
+    const signature = `${c.apn}|${c.sellingDate}|${c.sellingPrice}`;
+    if (knownCountySaleSignatures.has(signature)) return;
+
+    const snapshot = parcelSnapshotByApn.get(c.apn) || {};
+    const row = {};
+    headers.forEach((h) => { row[h] = ""; });
+
+    const major = c.apn.slice(0, 6);
+    const minor = c.apn.slice(6, 10);
+    const list = c.listingPrice > 0 ? c.listingPrice : 0;
+    const close = c.sellingPrice > 0 ? c.sellingPrice : 0;
+    const original = c.originalPrice > 0 ? c.originalPrice : 0;
+    const daysToPending = dayDiff(c.listingDate, c.pendingDate);
+    const daysPendingToSale = dayDiff(c.pendingDate, c.sellingDate);
+    const bidUp = (close > 0 && list > 0) ? (close - list) : 0;
+    const bidUpPct = (list > 0) ? (bidUp / list) : 0;
+    const saleToListRatio = (close > 0 && list > 0) ? (close / list) : 0;
+    const saleToOriginalRatio = (close > 0 && original > 0) ? (close / original) : 0;
+
+    row.dataMode = "MLS_ENRICHED";
+    row.id = `mls-only-${c.listingNumber || "na"}-${c.apn}-${c.sellingDate}-${index + 1}`;
+    row.address = c.mlsAddress || snapshot.address || "";
+    row.neighborhood = snapshot.neighborhood || c.region || "Seattle (Other)";
+    row.type = snapshot.type || inferTypeFromMlsStyle(c.styleCode);
+    row.typeCode = snapshot.typeCode || "11";
+    row.addressSource = c.mlsAddress ? "MLS_ADDRESS" : (snapshot.addressSource || "MLS_ADDRESS");
+    row.major = major;
+    row.minor = minor;
+    row.parcelNbr = c.apn;
+    row.listDate = c.listingDate || "";
+    row.pendingDate = c.pendingDate || "";
+    row.saleDate = c.sellingDate || "";
+    row.listPriceAtPending = list > 0 ? String(list) : "";
+    row.closePrice = close > 0 ? String(close) : "";
+    row.assessedValue = snapshot.assessedValue || "";
+    row.beds = c.beds > 0 ? String(c.beds) : (snapshot.beds || "");
+    row.baths = c.baths > 0 ? String(c.baths) : (snapshot.baths || "");
+    row.sqft = c.sqft > 0 ? String(c.sqft) : (snapshot.sqft || "");
+    row.yearBuilt = c.yearBuilt > 0 ? String(c.yearBuilt) : (snapshot.yearBuilt || "");
+    row.zip = c.zip || snapshot.zip || "";
+    row.districtName = snapshot.districtName || "";
+    row.area = snapshot.area || "";
+    row.subArea = snapshot.subArea || "";
+    row.sqFtLot = snapshot.sqFtLot || "";
+    row.zoning = snapshot.zoning || "";
+    row.lat = snapshot.lat || "";
+    row.lon = snapshot.lon || "";
+
+    row.mlsListDate = c.listingDate;
+    row.mlsPendingDate = c.pendingDate;
+    row.mlsListPriceAtPending = list > 0 ? String(list) : "";
+    row.mlsClosePrice = close > 0 ? String(close) : "";
+    row.mlsListingNumber = c.listingNumber;
+    row.mlsStatus = c.status;
+    row.mlsRegion = c.region;
+    row.mlsSellingDate = c.sellingDate;
+    row.mlsContractualDate = c.contractualDate;
+    row.mlsListingPrice = list > 0 ? String(list) : "";
+    row.mlsSellingPrice = close > 0 ? String(close) : "";
+    row.mlsOriginalPrice = original > 0 ? String(original) : "";
+    row.mlsDOM = c.dom > 0 ? String(c.dom) : "";
+    row.mlsCDOM = c.cdom > 0 ? String(c.cdom) : "";
+    row.mlsStyleCode = c.styleCode;
+    row.mlsSubdivision = c.subdivision;
+    row.mlsDateLagDays = "";
+    row.mlsJoinMethod = "MLS_SOLD_NOT_IN_COUNTY";
+    row.mlsDaysToPending = daysToPending !== null ? String(daysToPending) : "";
+    row.mlsDaysPendingToSale = daysPendingToSale !== null ? String(daysPendingToSale) : "";
+    row.hotMarketTag = buildHotMarketTag(c.dom, daysToPending);
+    row.saleToListRatio = saleToListRatio > 0 ? saleToListRatio.toFixed(4) : "";
+    row.saleToOriginalListRatio = saleToOriginalRatio > 0 ? saleToOriginalRatio.toFixed(4) : "";
+    row.bidUpAmount = String(Math.round(bidUp));
+    row.bidUpPct = list > 0 ? bidUpPct.toFixed(4) : "";
+
+    mlsOnlyRows.push(row);
+    mlsOnlyAdded += 1;
+  });
+
+  const finalRows = [...merged, ...mlsOnlyRows];
+
   const extraColumns = [
     "mlsListingNumber",
     "mlsStatus",
@@ -373,7 +538,7 @@ function main() {
   });
 
   const lines = [allHeaders.join(",")];
-  merged.forEach((row) => {
+  finalRows.forEach((row) => {
     lines.push(allHeaders.map((h) => safeCsv(row[h] || "")).join(","));
   });
   fs.writeFileSync(OUTPUT_FILE, `${lines.join("\n")}\n`);
@@ -384,6 +549,10 @@ function main() {
   console.log(`Base rows: ${rows.length}`);
   // eslint-disable-next-line no-console
   console.log(`Matched rows: ${matched}`);
+  // eslint-disable-next-line no-console
+  console.log(`MLS-only sold rows added: ${mlsOnlyAdded}`);
+  // eslint-disable-next-line no-console
+  console.log(`Total output rows: ${finalRows.length}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${OUTPUT_FILE}`);
 }

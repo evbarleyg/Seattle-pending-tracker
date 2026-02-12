@@ -22,7 +22,7 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 ## Data Modes
 
 - `PUBLIC_PROXY`: Built from public county records.
-- `MLS_ENRICHED`: County rows matched to realtor exports with list/pending/DOM/bid-up fields.
+- `MLS_ENRICHED`: County rows matched to realtor exports with list/pending/DOM/bid-up fields, plus MLS sold rows not yet posted in county-close exports.
 
 ## Local Run
 

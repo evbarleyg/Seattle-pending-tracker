@@ -1168,6 +1168,7 @@
                 <select id="fScope">
                   <option value="all">All Sales</option>
                   <option value="hot10">Hot Market (DOM/Pending <= 10 Days)</option>
+                  <option value="ultra5">Ultra Hot (DOM/Pending <= 5 Days)</option>
                 </select>
               </div>
               <div class="field">
@@ -1208,8 +1209,8 @@
             <li>Start with price/date filters to define your buy box, then click chart rows or table rows to drill down.</li>
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
-            <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior.</li>
-            <li>Hot Market sample is tagged where MLS <strong>DOM <= 10 days</strong> (or list-to-pending <= 10 days).</li>
+            <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior, including MLS sold records not yet posted in county sales exports.</li>
+            <li>Hot Market is tagged where MLS <strong>DOM <= 10 days</strong> (or list-to-pending <= 10 days), and Ultra Hot is <strong>&le; 5 days</strong>.</li>
           </ul>
         </section>
 
@@ -1291,17 +1292,22 @@
 
       <section id="view-heat" class="view">
         <section class="panel">
-          <h3>Hot Market Sample (<= 10 Days)</h3>
+          <h3>Hot Market Sample (<= 10 Days, Ultra <= 5 Days)</h3>
           <div class="kpi-grid">
             <article class="kpi">
-              <div class="label">Hot-Market Share (MLS)</div>
+              <div class="label">Hot-Market Share (<=10d, MLS)</div>
               <div class="value" id="hHotShare">0%</div>
               <button class="kbtn" data-set-interaction="hotMarket" data-set-value="hot">Filter Hot Market</button>
             </article>
             <article class="kpi">
+              <div class="label">Ultra-Hot Share (<=5d, MLS)</div>
+              <div class="value" id="hUltraShare">0%</div>
+              <button class="kbtn" data-set-interaction="hotMarket" data-set-value="ultra">Filter Ultra Hot</button>
+            </article>
+            <article class="kpi">
               <div class="label">Median Sale / List</div>
               <div class="value" id="hMedianSL">0.00x</div>
-              <div class="note">For homes that went pending in 7 days or less.</div>
+              <div class="note">For homes tagged as hot market in this slice.</div>
             </article>
             <article class="kpi">
               <div class="label">Median Bid-Up</div>
@@ -1322,7 +1328,7 @@
               <tbody id="hotRows"></tbody>
             </table>
           </div>
-          <div class="note">Hot Market tag = MLS DOM <= 10 days (or list-to-pending <= 10 days where DOM is missing).</div>
+          <div class="note">Hot Market tag = MLS DOM/list-to-pending <= 10 days. Ultra Hot tag = <= 5 days.</div>
         </section>
       </section>
 
@@ -1829,10 +1835,15 @@
         const saleToList = num(source.saleToListRatio) || (listPriceAtPending > 0 ? (closePrice / listPriceAtPending) : 0);
         const delta = num(source.bidUpAmount) || (closePrice - listPriceAtPending);
         const deltaPct = num(source.bidUpPct) || (listPriceAtPending > 0 ? delta / listPriceAtPending : 0);
-        const hotByTag = /HOT_MARKET/i.test(String(source.hotMarketTag || ""));
+        const tagRaw = String(source.hotMarketTag || "").toUpperCase();
+        const ultraByTag = /ULTRA[_\s]?HOT/.test(tagRaw);
+        const hotByTag = /HOT_MARKET/.test(tagRaw) || ultraByTag;
+        const ultraByDom = mlsDOM > 0 && mlsDOM <= 5;
+        const ultraByPending = daysToPending !== null && daysToPending <= 5;
         const hotByDom = mlsDOM > 0 && mlsDOM <= 10;
         const hotByPending = daysToPending !== null && daysToPending <= 10;
-        const isHotMarket = hotByTag || hotByDom || hotByPending;
+        const isUltraHot = ultraByTag || ultraByDom || ultraByPending;
+        const isHotMarket = isUltraHot || hotByTag || hotByDom || hotByPending;
         const sqft = num(source.sqft);
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
         const zipCoord = ZIP_COORDS[zip5(source.zip)];
@@ -1861,7 +1872,8 @@
           saleToList,
           delta,
           deltaPct,
-          hotMarketTag: isHotMarket ? "HOT_MARKET_<=10D" : "",
+          hotMarketTag: isUltraHot ? "ULTRA_HOT_<=5D" : (isHotMarket ? "HOT_MARKET_<=10D" : ""),
+          isUltraHot,
           isHotMarket,
           pricePerSqft,
           mapLat,
@@ -1993,6 +2005,9 @@
         if (f.scope === "hot10") {
           rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.isHotMarket);
         }
+        if (f.scope === "ultra5") {
+          rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.isUltraHot);
+        }
 
         return rows;
       }
@@ -2034,6 +2049,7 @@
           if (i.mode && r.dataMode !== i.mode) return false;
           if (i.ratioBucket && !inRatioBucket(r.saleToList, i.ratioBucket)) return false;
           if (i.hotMarket === "hot" && !r.isHotMarket) return false;
+          if (i.hotMarket === "ultra" && !r.isUltraHot) return false;
           if (i.closeTier === "aboveMedian" && r.closePrice < stats.medianClose) return false;
           if (i.psfTier === "aboveMedian") {
             if (r.pricePerSqft <= 0 || r.pricePerSqft < stats.medianPsf) return false;
@@ -2061,6 +2077,7 @@
           gt100: "> 1.00x",
           aboveMedian: "Above Median",
           hot: "Hot Market (<=10d)",
+          ultra: "Ultra Hot (<=5d)",
         };
         return `${titles[key] || key}: ${values[value] || value}`;
       }
@@ -2307,16 +2324,20 @@
 
       function renderHotMarket(rows) {
         const shareEl = document.getElementById("hHotShare");
+        const ultraShareEl = document.getElementById("hUltraShare");
         const medianRatioEl = document.getElementById("hMedianSL");
         const medianBidEl = document.getElementById("hMedianBid");
         const medianDomEl = document.getElementById("hMedianDOM");
         const tbody = document.getElementById("hotRows");
-        if (!shareEl || !medianRatioEl || !medianBidEl || !medianDomEl || !tbody) return;
+        if (!shareEl || !ultraShareEl || !medianRatioEl || !medianBidEl || !medianDomEl || !tbody) return;
 
         const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED");
         const hotRows = mlsRows.filter((r) => r.isHotMarket);
+        const ultraRows = mlsRows.filter((r) => r.isUltraHot);
         const share = mlsRows.length ? (hotRows.length / mlsRows.length) * 100 : 0;
+        const ultraShare = mlsRows.length ? (ultraRows.length / mlsRows.length) * 100 : 0;
         shareEl.textContent = `${share.toFixed(1)}%`;
+        ultraShareEl.textContent = `${ultraShare.toFixed(1)}%`;
 
         const ratios = hotRows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
         const bidUps = hotRows.map((r) => r.delta);
@@ -2915,7 +2936,7 @@
                     <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoney(r.listPriceAtPending)}</div></div>
                     <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${formatMoney(r.delta)}</div></div>
-                    <div class="mrow-item"><div class="k">Hot Market</div><div class="v">${r.isHotMarket ? "Yes (<=10d)" : "No"}</div></div>
+                    <div class="mrow-item"><div class="k">Hot Market</div><div class="v">${r.isUltraHot ? "Yes (Ultra <=5d)" : (r.isHotMarket ? "Yes (<=10d)" : "No")}</div></div>
                     <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}</span></div></div>
                   </div>
                 </div>
