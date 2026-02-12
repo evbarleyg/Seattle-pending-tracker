@@ -2089,6 +2089,23 @@
         summary.textContent = `${selected.length} neighborhoods selected`;
       }
 
+      function isNeighborhoodSelected(name) {
+        return getSelectedNeighborhoods().includes(name);
+      }
+
+      function toggleNeighborhoodFilter(name, forceState = null) {
+        const key = String(name || "").trim();
+        if (!key) return;
+        const selected = new Set(getSelectedNeighborhoods());
+        const shouldSelect = forceState === null ? !selected.has(key) : !!forceState;
+        if (shouldSelect) selected.add(key);
+        else selected.delete(key);
+        setNeighborhoodSelections([...selected]);
+        updateNeighborhoodSummary();
+        state.interactions.neighborhood = null;
+        renderAll();
+      }
+
       function syncPriceSliderPair(changedId) {
         const minEl = document.getElementById("fMinClose");
         const maxEl = document.getElementById("fMaxClose");
@@ -2771,7 +2788,7 @@
         mapPoints.forEach((p) => {
           const size = Math.round(24 + ((p.count / maxCount) * 34));
           const color = geoRatioColor(p.medianRatio > 0 ? ratioScale(p.medianRatio) : 0.5);
-          const active = state.interactions.neighborhood === p.name ? "active" : "";
+          const active = isNeighborhoodSelected(p.name) ? "active" : "";
           const icon = L.divIcon({
             className: "geo-marker-wrap",
             html: `<button class="geo-bubble ${active}" style="--b-size:${size}px;--b-color:${color}" type="button">${p.count}</button>`,
@@ -2779,9 +2796,9 @@
             iconAnchor: [size / 2, size / 2],
           });
           const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
-          marker.on("click", () => setInteraction("neighborhood", p.name));
+          marker.on("click", () => toggleNeighborhoodFilter(p.name));
           marker.bindTooltip(
-            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list<br>${formatMoney(p.medianClose)} median sale<br>${formatLot(p.medianLot)} median lot<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List`,
+            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list<br>${formatMoney(p.medianClose)} median sale<br>${formatLot(p.medianLot)} median lot<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List<br><span style="font-size:11px;color:#335d86;">Click to add/remove neighborhood filter</span>`,
             { direction: "top", className: "geo-tip", pane: "geoTooltipPane", offset: [0, -8], opacity: 0.98, sticky: true }
           );
           marker.addTo(layer);
@@ -3040,9 +3057,9 @@
         if (map && state.geo.layer) drawGeoLayer(rows, geoRows);
 
         tbody.innerHTML = geoRows.slice(0, 20).map((g) => {
-          const active = state.interactions.neighborhood === g.name;
+          const active = isNeighborhoodSelected(g.name);
           return `
-            <tr class="clickable ${active ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(g.name)}">
+            <tr class="clickable ${active ? "active" : ""}" data-geo-neighborhood-toggle="${esc(g.name)}">
               <td>${esc(g.name)}</td>
               <td>${g.count}</td>
               <td>${formatMoney(g.medianClose)}</td>
@@ -3052,9 +3069,9 @@
           `;
         }).join("");
         mobileInsights.innerHTML = geoRows.slice(0, 20).map((g) => {
-          const active = state.interactions.neighborhood === g.name;
+          const active = isNeighborhoodSelected(g.name);
           return `
-            <button class="geo-mobile-card ${active ? "active" : ""}" type="button" data-set-interaction="neighborhood" data-set-value="${esc(g.name)}">
+            <button class="geo-mobile-card ${active ? "active" : ""}" type="button" data-geo-neighborhood-toggle="${esc(g.name)}">
               <div class="v">${esc(g.name)}</div>
               <div class="k">${g.count} sales | ${(g.aboveRatioShare * 100).toFixed(1)}% above 1.0x</div>
               <div class="v">${formatMoney(g.medianClose)} | ${g.medianRatio > 0 ? `${g.medianRatio.toFixed(2)}x` : "n/a"}</div>
@@ -3521,6 +3538,12 @@
             const key = mobileExpand.getAttribute("data-mobile-expand");
             state.recordMobileExpanded = state.recordMobileExpanded === key ? null : key;
             renderRecordRows(state.filteredRows);
+            return;
+          }
+
+          const geoNeighborhoodToggle = evt.target.closest("[data-geo-neighborhood-toggle]");
+          if (geoNeighborhoodToggle) {
+            toggleNeighborhoodFilter(geoNeighborhoodToggle.getAttribute("data-geo-neighborhood-toggle"));
             return;
           }
 
