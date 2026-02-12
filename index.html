@@ -650,12 +650,19 @@
       .chart {
         display: grid;
         gap: 8px;
+        min-width: 0;
       }
       .vchart {
-        min-height: 280px;
+        min-height: 300px;
         display: grid;
-        grid-template-columns: 58px 1fr;
+        grid-template-columns: 58px minmax(0, 1fr);
         gap: 10px;
+      }
+      .chart-scroll {
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
       }
       .y-axis {
         display: flex;
@@ -671,9 +678,10 @@
         border-bottom: 1px solid #2d4363;
         padding: 6px 6px 0 8px;
         display: grid;
-        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        grid-template-columns: repeat(var(--cols, 1), minmax(var(--bar-min-width, 64px), 1fr));
         gap: 8px;
-        align-items: end;
+        align-items: stretch;
+        width: max(100%, var(--plot-min-width, 0px));
         min-width: 0;
       }
       .vbar {
@@ -683,9 +691,10 @@
         color: #dce8ff;
         cursor: pointer;
         display: grid;
-        grid-template-rows: 1fr auto auto;
+        grid-template-rows: minmax(0, 1fr) auto auto;
         padding: 6px 4px 4px;
-        min-height: 165px;
+        min-height: 0;
+        height: 100%;
       }
       .vbar.active {
         border-color: #4eb2ff;
@@ -694,16 +703,18 @@
         align-self: end;
         width: 100%;
         height: 100%;
+        min-height: 0;
         display: flex;
         align-items: end;
         justify-content: center;
       }
       .vbar-fill {
         display: block;
-        width: 78%;
+        width: 72%;
         border-radius: 8px 8px 0 0;
         background: linear-gradient(180deg, #56d1ff, #3d93ed);
-        min-height: 6px;
+        min-height: 4px;
+        max-height: 100%;
       }
       .vbar-fill.warm {
         background: linear-gradient(180deg, #f3c366, #cc8536);
@@ -720,6 +731,7 @@
         text-align: center;
         font-size: 11px;
         color: #b8cae4;
+        white-space: nowrap;
       }
 
       table {
@@ -1143,19 +1155,22 @@
           font-size: 28px;
         }
         .vchart {
-          min-height: 206px;
+          min-height: 228px;
           grid-template-columns: 38px 1fr;
         }
+        .chart-scroll {
+          padding-bottom: 2px;
+        }
         .plot {
-          gap: 4px;
+          gap: 6px;
           padding: 4px 4px 0 6px;
         }
         .vbar {
-          min-height: 146px;
           padding: 4px 2px 2px;
         }
         .vbar-month {
           font-size: 10px;
+          line-height: 1.05;
         }
         .vbar-value {
           font-size: 10px;
@@ -1269,6 +1284,12 @@
                   <option value="All">All</option>
                   <option value="PUBLIC_PROXY">Public Proxy</option>
                   <option value="MLS_ENRICHED">MLS Enriched</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="fMlsStatus">MLS Status</label>
+                <select id="fMlsStatus">
+                  <option value="All">All</option>
                 </select>
               </div>
               <div class="field">
@@ -1488,10 +1509,11 @@
             <div class="geo-note">Basemap: OpenStreetMap. Zoom in for exact parcel-coordinate property pins only. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
             <div class="geo-legend">
               <span class="geo-legend-item"><span class="geo-dot exact"></span>Exact parcel coordinate</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-low"></span>Lower S/List</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-mid"></span>Mid S/List</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-high"></span>Higher S/List</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-low"></span>S/List <= 0.95x</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-mid"></span>S/List ~ 1.00x</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-high"></span>S/List >= 1.05x</span>
               <span class="geo-legend-item"><span class="geo-dot selected"></span>Selected property</span>
+              <span class="geo-legend-item">Color scale fixed and capped: 0.90x to 1.20x</span>
             </div>
           </section>
           <section class="panel geo-side-panel">
@@ -1579,6 +1601,8 @@
       const PRICE_SLIDER_CAP = 3000000;
       const PRICE_SLIDER_STEP = 10000;
       const GEO_DETAIL_ZOOM = 13;
+      const SA_COLOR_MIN = 0.9;
+      const SA_COLOR_MAX = 1.2;
 
       const TYPE_LABELS = {
         "11": "Single Family",
@@ -1729,6 +1753,16 @@
           currency: "USD",
           maximumFractionDigits: 0,
         });
+      }
+
+      function formatMoneyCompact(v, digits = 2) {
+        const n = Number(v || 0);
+        if (!Number.isFinite(n)) return "$0";
+        const sign = n < 0 ? "-" : "";
+        const abs = Math.abs(n);
+        if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(digits).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1")}M`;
+        if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}K`;
+        return `${sign}$${Math.round(abs)}`;
       }
 
       function formatPct(v) {
@@ -1897,6 +1931,7 @@
             mlsPendingDate: pick("mlsPendingDate"),
             mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
             mlsClosePrice: num(pick("mlsClosePrice")),
+            mlsStatus: pick("mlsStatus"),
             mlsDOM: num(pick("mlsDOM")),
             mlsCDOM: num(pick("mlsCDOM")),
             hotMarketTag: pick("hotMarketTag"),
@@ -1943,6 +1978,19 @@
         return TYPE_LABELS[code] || (code ? `Type ${code}` : "Unknown");
       }
 
+      function normalizeMlsStatus(rawStatus) {
+        const raw = String(rawStatus || "").trim();
+        if (!raw) return "";
+        const upper = raw.toUpperCase();
+        if (upper === "SOLD") return "Sold";
+        if (upper === "ACTIVE") return "Active";
+        if (upper === "PENDING") return "Pending";
+        if (upper === "PENDING INSPECTION") return "Pending Inspection";
+        if (upper === "PENDING BU REQUESTED") return "Pending BU Requested";
+        if (upper === "CONTINGENT") return "Contingent";
+        return /^[A-Z0-9\s/-]+$/.test(raw) ? titleCase(raw) : raw;
+      }
+
       function mapPropertyKey(rowLike) {
         const id = String(rowLike.id || "").trim();
         const parcel = String(rowLike.parcelNbr || `${rowLike.major || ""}${rowLike.minor || ""}`).replace(/[^0-9]/g, "");
@@ -1973,6 +2021,7 @@
         updateNeighborhoodSummary();
         document.getElementById("fType").value = findDefaultSingleFamilyLabel();
         document.getElementById("fMode").value = "All";
+        document.getElementById("fMlsStatus").value = "All";
         document.getElementById("fScope").value = "all";
         const minEl = document.getElementById("fMinClose");
         const maxEl = document.getElementById("fMaxClose");
@@ -2018,6 +2067,8 @@
         const sqft = num(source.sqft);
         const lotSize = num(source.sqFtLot);
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
+        const mlsStatusLabel = normalizeMlsStatus(source.mlsStatus);
+        const mlsStatusNorm = mlsStatusLabel.toUpperCase();
         const zipCoord = ZIP_COORDS[zip5(source.zip)];
         const mapLat = Number.isFinite(source.lat) ? source.lat : (zipCoord ? zipCoord.lat : null);
         const mapLon = Number.isFinite(source.lon) ? source.lon : (zipCoord ? zipCoord.lon : null);
@@ -2030,6 +2081,8 @@
           dataMode,
           typeLabel: labelType(source.type, source.typeCode),
           neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
+          mlsStatusLabel,
+          mlsStatusNorm,
           saleDate: toIso(saleDate),
           listDate: toIso(listDate),
           pendingDate: toIso(pendingDate),
@@ -2155,12 +2208,19 @@
         const normalized = state.rows.map(normalizeRow);
         const neighborhoods = Array.from(new Set(normalized.map((r) => r.neighborhoodLabel).filter(Boolean))).sort();
         const types = uniqueValues(normalized, "typeLabel");
+        const mlsStatuses = ["All", ...Array.from(new Set(
+          normalized
+            .map((r) => r.mlsStatusLabel)
+            .filter((v) => !!v)
+        )).sort()];
 
         const nWrap = document.getElementById("fNeighborhoodOptions");
         const tSelect = document.getElementById("fType");
+        const sSelect = document.getElementById("fMlsStatus");
 
         const currentN = new Set(getSelectedNeighborhoods());
         const currentT = tSelect.value || "All";
+        const currentS = sSelect.value || "All";
 
         nWrap.innerHTML = neighborhoods.length
           ? neighborhoods.map((v) => {
@@ -2169,8 +2229,10 @@
             }).join("")
           : `<div class="note">No neighborhoods in dataset.</div>`;
         tSelect.innerHTML = types.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+        sSelect.innerHTML = mlsStatuses.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
 
         tSelect.value = types.includes(currentT) ? currentT : "All";
+        sSelect.value = mlsStatuses.includes(currentS) ? currentS : "All";
         updateNeighborhoodSummary();
         configurePriceSliders();
       }
@@ -2181,6 +2243,7 @@
           neighborhoods: getSelectedNeighborhoods(),
           type: document.getElementById("fType").value,
           mode: document.getElementById("fMode").value,
+          mlsStatus: document.getElementById("fMlsStatus").value,
           scope: document.getElementById("fScope").value,
           minClose: Number(document.getElementById("fMinClose").value || PRICE_SLIDER_MIN),
           maxClose: maxRaw >= PRICE_SLIDER_CAP ? null : maxRaw,
@@ -2196,6 +2259,7 @@
         if (f.neighborhoods.length) rows = rows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
         if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
         if (f.mode !== "All") rows = rows.filter((r) => r.dataMode === f.mode);
+        if (f.mlsStatus !== "All") rows = rows.filter((r) => r.mlsStatusNorm === String(f.mlsStatus || "").toUpperCase());
         if (f.minClose) rows = rows.filter((r) => r.closePrice >= f.minClose);
         if (f.maxClose !== null) rows = rows.filter((r) => r.closePrice <= f.maxClose);
         if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
@@ -2229,6 +2293,7 @@
         if (f.neighborhoods.length) pendingRows = pendingRows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
         if (f.type !== "All") pendingRows = pendingRows.filter((r) => r.typeLabel === f.type);
         if (f.mode !== "All") pendingRows = pendingRows.filter((r) => r.dataMode === f.mode);
+        if (f.mlsStatus !== "All") pendingRows = pendingRows.filter((r) => r.mlsStatusNorm === String(f.mlsStatus || "").toUpperCase());
         if (f.minClose) pendingRows = pendingRows.filter((r) => r.listPriceAtPending >= f.minClose);
         if (f.maxClose !== null) pendingRows = pendingRows.filter((r) => r.listPriceAtPending <= f.maxClose);
         if (f.dateFrom) pendingRows = pendingRows.filter((r) => r.effectiveDate >= f.dateFrom);
@@ -2437,7 +2502,7 @@
         el.innerHTML = lines.map((line) => `<li>${esc(line)}</li>`).join("");
       }
 
-      function renderColumnChart(containerId, items, valueFn, labelFn, tailFn, warm) {
+      function renderColumnChart(containerId, items, valueFn, labelFn, axisLabelFn, warm, pointLabelFn) {
         const container = document.getElementById(containerId);
         if (!items.length) {
           container.innerHTML = `<div class="note">No rows for current filters.</div>`;
@@ -2453,9 +2518,13 @@
         const high = Number.isFinite(qHigh) ? qHigh : maxVal;
         const span = Math.max(high - low, 1);
 
-        const topLabel = tailFn({ v: high, raw: maxVal, kind: "top" });
-        const midLabel = tailFn({ v: low + span / 2, raw: (minVal + maxVal) / 2, kind: "mid" });
-        const lowLabel = tailFn({ v: low, raw: minVal, kind: "low" });
+        const topLabel = axisLabelFn({ v: high, raw: maxVal, kind: "top" });
+        const midLabel = axisLabelFn({ v: low + span / 2, raw: (minVal + maxVal) / 2, kind: "mid" });
+        const lowLabel = axisLabelFn({ v: low, raw: minVal, kind: "low" });
+        const compactPointLabel = pointLabelFn || ((raw) => axisLabelFn({ v: raw, raw, kind: "point" }));
+        const isMobile = window.matchMedia("(max-width: 680px)").matches;
+        const barMinWidth = isMobile ? 68 : 62;
+        const plotMinWidth = Math.max(items.length * barMinWidth, isMobile ? 420 : 620);
 
         const bars = items.map((item) => {
           const raw = valueFn(item);
@@ -2463,11 +2532,14 @@
           const norm = (clamped - low) / span;
           const height = 12 + (norm * 88);
           const active = state.interactions.month === item.month;
+          const fullLabel = axisLabelFn({ v: raw, raw, kind: "point" });
+          const displayLabel = compactPointLabel(raw);
+          const monthText = labelFn(item);
           return `
-            <button class="vbar ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button">
+            <button class="vbar ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button" title="${esc(`${monthText}: ${fullLabel}`)}" aria-label="${esc(`${monthText}: ${fullLabel}`)}">
               <span class="vbar-track"><span class="vbar-fill ${warm ? "warm" : ""}" style="height:${height}%"></span></span>
-              <span class="vbar-month">${esc(labelFn(item))}</span>
-              <span class="vbar-value">${esc(tailFn({ v: raw, raw, kind: "point" }))}</span>
+              <span class="vbar-month">${esc(monthText)}</span>
+              <span class="vbar-value">${esc(displayLabel)}</span>
             </button>
           `;
         }).join("");
@@ -2479,7 +2551,9 @@
               <span>${esc(midLabel)}</span>
               <span>${esc(lowLabel)}</span>
             </div>
-            <div class="plot" style="--cols:${items.length}">${bars}</div>
+            <div class="chart-scroll">
+              <div class="plot" style="--cols:${items.length};--bar-min-width:${barMinWidth}px;--plot-min-width:${plotMinWidth}px">${bars}</div>
+            </div>
           </div>
         `;
       }
@@ -2498,7 +2572,8 @@
           (x) => x.count,
           (x) => monthLabelCompact(x.month),
           (x) => `${Math.round(x.v).toLocaleString("en-US")} sales`,
-          false
+          false,
+          (raw) => Math.round(raw).toLocaleString("en-US")
         );
 
         const price = {};
@@ -2515,8 +2590,9 @@
           priceRows,
           (x) => x.medianPrice,
           (x) => monthLabelCompact(x.month),
-          (x) => formatMoney(x.v),
-          true
+          (x) => formatMoneyCompact(x.v, 2),
+          true,
+          (raw) => formatMoneyCompact(raw, 2)
         );
       }
 
@@ -2730,6 +2806,13 @@
         return `hsl(${hue} 74% 56%)`;
       }
 
+      function fixedSaleToListNorm(value) {
+        const v = Number(value || 0);
+        if (!Number.isFinite(v) || v <= 0) return 0.5;
+        const clamped = Math.max(SA_COLOR_MIN, Math.min(SA_COLOR_MAX, v));
+        return (clamped - SA_COLOR_MIN) / Math.max(SA_COLOR_MAX - SA_COLOR_MIN, 0.0001);
+      }
+
       function hash32(text) {
         let h = 2166136261;
         const s = String(text || "");
@@ -2784,10 +2867,9 @@
 
       function drawGeoNeighborhoodBubbles(mapPoints, layer) {
         const maxCount = Math.max(...mapPoints.map((p) => p.count), 1);
-        const ratioScale = seqScale(mapPoints.filter((p) => p.medianRatio > 0).map((p) => p.medianRatio));
         mapPoints.forEach((p) => {
           const size = Math.round(24 + ((p.count / maxCount) * 34));
-          const color = geoRatioColor(p.medianRatio > 0 ? ratioScale(p.medianRatio) : 0.5);
+          const color = geoRatioColor(fixedSaleToListNorm(p.medianRatio));
           const active = isNeighborhoodSelected(p.name) ? "active" : "";
           const icon = L.divIcon({
             className: "geo-marker-wrap",
@@ -2935,12 +3017,9 @@
           map.createPane("geoDetailPoints");
           map.getPane("geoDetailPoints").style.zIndex = "650";
         }
-        const rowRatioScale = seqScale(detailPoints
-          .map((p) => p.row.saleToList)
-          .filter((v) => v > 0));
 
         detailPoints.forEach(({ row: r, lat, lon }) => {
-          const color = geoRatioColor(r.saleToList > 0 ? rowRatioScale(r.saleToList) : 0.5);
+          const color = geoRatioColor(fixedSaleToListNorm(r.saleToList));
           const zUrl = zillowUrl(r);
           const countyUrl = countyRecordUrl(r);
           const isSelected = state.geo.selectedPropertyKeys.includes(r.mapPropertyKey);
@@ -3440,7 +3519,7 @@
       }
 
       function bindEvents() {
-        ["fType", "fMode", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
+        ["fType", "fMode", "fMlsStatus", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);
