@@ -6,7 +6,7 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 
 ## What This App Does
 
-- Loads a Seattle sales proxy dataset by default (`public_sales_proxy_all_prices_last12mo.csv`).
+- Loads an MLS-enriched Seattle dataset by default (`public_sales_proxy_mls_enriched_last12mo.csv`).
 - Starts with default filters:
   - `Property Type`: Single Family
   - `Close Price`: $1.1M to $1.4M
@@ -21,8 +21,8 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 
 ## Data Modes
 
-- `PUBLIC_PROXY`: Built from public county records; useful for close-price/assessed-value analysis.
-- `MLS_ENRICHED`: Optional mode when realtor MLS fields are supplied (true list/pending timeline fields).
+- `PUBLIC_PROXY`: Built from public county records.
+- `MLS_ENRICHED`: County rows matched to realtor exports with list/pending/DOM/bid-up fields.
 
 ## Local Run
 
@@ -40,13 +40,19 @@ This writes `/Users/evanbarley-greenfield/Documents/Evan Tester Project/parcel_c
 node scripts/build_public_proxy_csv.js
 ```
 
-3. Start the local server:
+3. Build the MLS-enriched default dataset (from `realtor_exports/*.csv`):
+
+```bash
+node scripts/build_mls_enriched_dataset.js
+```
+
+4. Start the local server:
 
 ```bash
 node scripts/serve.js
 ```
 
-4. Open:
+5. Open:
 
 `http://localhost:4173`
 
@@ -84,5 +90,6 @@ git push -u origin main
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/index.html` - App UI + logic
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_public_proxy_csv.js` - Public dataset builder
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_parcel_coord_lookup.js` - Normalize GIS export to `major,minor,lat,lon` join file
-- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_all_prices_last12mo.csv` - Default loaded dataset
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_mls_enriched_last12mo.csv` - Default loaded dataset
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_mls_enriched_dataset.js` - MLS merge/enrichment builder
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/DATA_SCHEMA.md` - Field notes and normalization behavior

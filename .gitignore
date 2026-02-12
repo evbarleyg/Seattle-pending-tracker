@@ -7,4 +7,8 @@ EXTR_*.csv
 Value History/
 
 # Keep the app-ready derived dataset
-!public_sales_proxy_all_prices_last6mo.csv
+!public_sales_proxy_all_prices_last12mo.csv
+!public_sales_proxy_mls_enriched_last12mo.csv
+
+# Local realtor exports used to build enrichment (do not commit)
+realtor_exports/

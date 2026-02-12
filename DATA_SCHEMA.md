@@ -18,12 +18,19 @@ Recommended extra MLS columns:
 - `mlsPendingDate`
 - `mlsListPriceAtPending`
 - `mlsClosePrice`
+- `mlsDOM`
+- `mlsCDOM`
+- `hotMarketTag` (`HOT_MARKET_<=10D` when DOM/list-to-pending is <=10 days)
+- `saleToListRatio`
+- `bidUpAmount`
+- `bidUpPct`
 
 Normalization behavior in app:
 - `listDate = mlsListDate || listDate`
 - `pendingDate = mlsPendingDate || pendingDate`
-- `listPriceAtPending = mlsListPriceAtPending || listPriceAtPending || assessedValue`
+- `listPriceAtPending = mlsListPriceAtPending || listPriceAtPending`
 - `closePrice = mlsClosePrice || closePrice`
+- `saleToList = saleToListRatio || (closePrice / listPriceAtPending)`
 - `map coordinates = lat/lon (if present) || inferred zip/neighborhood anchors`
 
 # Build and Run
@@ -44,14 +51,20 @@ This creates `/Users/evanbarley-greenfield/Documents/Evan Tester Project/parcel_
 node scripts/build_public_proxy_csv.js
 ```
 
-3. Serve app locally so auto-load works:
+3. Build MLS-enriched dataset from realtor exports:
+
+```bash
+node scripts/build_mls_enriched_dataset.js
+```
+
+4. Serve app locally so auto-load works:
 
 ```bash
 node scripts/serve.js
 ```
 
-4. Open:
+5. Open:
 
 `http://localhost:4173`
 
-The app auto-loads `public_sales_proxy_all_prices_last12mo.csv` when served over HTTP.
+The app auto-loads `public_sales_proxy_mls_enriched_last12mo.csv` when served over HTTP.

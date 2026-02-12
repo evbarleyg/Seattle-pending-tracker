@@ -1116,6 +1116,7 @@
         <div class="tabs" role="tablist">
           <button class="tab active" data-view="overview" role="tab">Overview</button>
           <button class="tab" data-view="charts" role="tab">Charts</button>
+          <button class="tab" data-view="heat" role="tab">Hot Market</button>
           <button class="tab" data-view="geo" role="tab">Geo</button>
           <button class="tab" data-view="records" role="tab">Records</button>
           <button class="tab" data-view="data" role="tab">Data</button>
@@ -1166,7 +1167,7 @@
                 <label for="fScope">Scope</label>
                 <select id="fScope">
                   <option value="all">All Sales</option>
-                  <option value="pending7">MLS Pending <= 7 Days</option>
+                  <option value="hot10">Hot Market (DOM/Pending <= 10 Days)</option>
                 </select>
               </div>
               <div class="field">
@@ -1207,8 +1208,8 @@
             <li>Start with price/date filters to define your buy box, then click chart rows or table rows to drill down.</li>
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
-            <li>Public Proxy mode has real close prices and assessed values, but not true original list/pending timestamps.</li>
-            <li>MLS Enriched mode can add true list/pending/close timing when those fields are available.</li>
+            <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior.</li>
+            <li>Hot Market sample is tagged where MLS <strong>DOM <= 10 days</strong> (or list-to-pending <= 10 days).</li>
           </ul>
         </section>
 
@@ -1224,14 +1225,14 @@
             <button class="kbtn" data-kpi-action="closeTier">Filter Close >= Median</button>
           </article>
           <article class="kpi">
-            <div class="label">Median Sale / Assessed</div>
+            <div class="label">Median Sale / List@Pending</div>
             <div class="value" id="kMedianSA">0.00x</div>
             <button class="kbtn" data-kpi-action="ratioMid">Filter 1.00x - 1.05x</button>
           </article>
           <article class="kpi">
-            <div class="label">Share Above Assessed</div>
+            <div class="label">Share Above List@Pending</div>
             <div class="value" id="kAboveAssessed">0%</div>
-            <button class="kbtn" data-kpi-action="ratioGt1">Filter S/A > 1.00x</button>
+            <button class="kbtn" data-kpi-action="ratioGt1">Filter S/List > 1.00x</button>
           </article>
           <article class="kpi">
             <div class="label">Median Price / SqFt</div>
@@ -1264,7 +1265,7 @@
         </div>
         <div class="two-col">
           <section class="panel">
-            <h3>Sale / Assessed Buckets</h3>
+            <h3>Sale / List@Pending Buckets</h3>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -1279,13 +1280,50 @@
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Neighborhood</th><th>Count</th><th>Median Close</th><th>Median S/A</th></tr>
+                  <tr><th>Neighborhood</th><th>Count</th><th>Median Close</th><th>Median S/List</th></tr>
                 </thead>
                 <tbody id="rankRows"></tbody>
               </table>
             </div>
           </section>
         </div>
+      </section>
+
+      <section id="view-heat" class="view">
+        <section class="panel">
+          <h3>Hot Market Sample (<= 10 Days)</h3>
+          <div class="kpi-grid">
+            <article class="kpi">
+              <div class="label">Hot-Market Share (MLS)</div>
+              <div class="value" id="hHotShare">0%</div>
+              <button class="kbtn" data-set-interaction="hotMarket" data-set-value="hot">Filter Hot Market</button>
+            </article>
+            <article class="kpi">
+              <div class="label">Median Sale / List</div>
+              <div class="value" id="hMedianSL">0.00x</div>
+              <div class="note">For homes that went pending in 7 days or less.</div>
+            </article>
+            <article class="kpi">
+              <div class="label">Median Bid-Up</div>
+              <div class="value" id="hMedianBid">$0</div>
+              <div class="note">Close minus list-at-pending.</div>
+            </article>
+            <article class="kpi">
+              <div class="label">Median DOM</div>
+              <div class="value" id="hMedianDOM">n/a</div>
+              <div class="note">MLS DOM for the hot-market sample.</div>
+            </article>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Neighborhood</th><th>Hot Sales</th><th>Median DOM</th><th>Median Sale/List</th><th>Above List</th></tr>
+              </thead>
+              <tbody id="hotRows"></tbody>
+            </table>
+          </div>
+          <div class="note">Hot Market tag = MLS DOM <= 10 days (or list-to-pending <= 10 days where DOM is missing).</div>
+        </section>
       </section>
 
       <section id="view-records" class="view">
@@ -1303,8 +1341,8 @@
                   <th><button class="th-sort" type="button" data-record-sort="sqft">SqFt <span class="sort-ind" data-sort-ind="sqft">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="assessedValue">Assessed <span class="sort-ind" data-sort-ind="assessedValue">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="saleToAssessed">S/A <span class="sort-ind" data-sort-ind="saleToAssessed">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="listPriceAtPending">List@Pending <span class="sort-ind" data-sort-ind="listPriceAtPending">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="saleToList">S/List <span class="sort-ind" data-sort-ind="saleToList">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="delta">Delta vs List@Pending <span class="sort-ind" data-sort-ind="delta">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="dataMode">Data Mode <span class="sort-ind" data-sort-ind="dataMode">&#8597;</span></button></th>
                 </tr>
@@ -1325,9 +1363,9 @@
             <div class="geo-note">Basemap: OpenStreetMap. Zoom in for exact parcel-coordinate property pins only. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
             <div class="geo-legend">
               <span class="geo-legend-item"><span class="geo-dot exact"></span>Exact parcel coordinate</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-low"></span>Lower S/A</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-mid"></span>Mid S/A</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-high"></span>Higher S/A</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-low"></span>Lower S/List</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-mid"></span>Mid S/List</span>
+              <span class="geo-legend-item"><span class="geo-dot sa-high"></span>Higher S/List</span>
               <span class="geo-legend-item"><span class="geo-dot selected"></span>Selected property</span>
             </div>
           </section>
@@ -1347,14 +1385,14 @@
                 <div class="value" id="geoTopPrice">n/a</div>
               </div>
               <div class="geo-kpi">
-                <div class="label">Highest Median S/A</div>
+                <div class="label">Highest Median S/List</div>
                 <div class="value" id="geoTopRatio">n/a</div>
               </div>
             </div>
             <div class="table-wrap geo-insights-table-wrap">
               <table>
                 <thead>
-                  <tr><th>Neighborhood</th><th>Sales</th><th>Median Close</th><th>Median S/A</th><th>Above 1.0x</th></tr>
+                  <tr><th>Neighborhood</th><th>Sales</th><th>Median Close</th><th>Median S/List</th><th>Above 1.0x</th></tr>
                 </thead>
                 <tbody id="geoRows"></tbody>
               </table>
@@ -1389,13 +1427,13 @@
           <div class="note" id="uploadStatus">Auto-load enabled for the default dataset.</div>
 
           <p class="note">Auto-load filename:</p>
-          <div class="mono">public_sales_proxy_all_prices_last12mo.csv</div>
+          <div class="mono">public_sales_proxy_mls_enriched_last12mo.csv</div>
 
           <p class="note">Minimum columns:</p>
           <div class="mono">id,address,type,closePrice</div>
 
           <p class="note">Recommended columns:</p>
-          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,assessedValue,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice</div>
+          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice,mlsDOM,mlsCDOM,hotMarketTag,saleToListRatio,bidUpAmount,bidUpPct</div>
 
           <p class="note">Intended use:</p>
           <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details when available.</div>
@@ -1409,7 +1447,7 @@
       crossorigin=""
     ></script>
     <script>
-      const DEFAULT_DATASET = "public_sales_proxy_all_prices_last12mo.csv";
+      const DEFAULT_DATASET = "public_sales_proxy_mls_enriched_last12mo.csv";
       const DEFAULT_MIN_CLOSE = 1100000;
       const DEFAULT_MAX_CLOSE = 1400000;
       const PRICE_SLIDER_MIN = 0;
@@ -1520,6 +1558,7 @@
           neighborhood: null,
           type: null,
           ratioBucket: null,
+          hotMarket: null,
           mode: null,
           closeTier: null,
           psfTier: null,
@@ -1684,6 +1723,13 @@
             mlsPendingDate: pick("mlsPendingDate"),
             mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
             mlsClosePrice: num(pick("mlsClosePrice")),
+            mlsDOM: num(pick("mlsDOM")),
+            mlsCDOM: num(pick("mlsCDOM")),
+            hotMarketTag: pick("hotMarketTag"),
+            saleToListRatio: num(pick("saleToListRatio")),
+            saleToOriginalListRatio: num(pick("saleToOriginalListRatio")),
+            bidUpAmount: num(pick("bidUpAmount")),
+            bidUpPct: num(pick("bidUpPct")),
           };
         });
       }
@@ -1775,12 +1821,18 @@
 
         const closePrice = num(source.mlsClosePrice || source.closePrice);
         const assessedValue = num(source.assessedValue);
-        const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || assessedValue || closePrice);
+        const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || closePrice);
 
         const daysToPending = daysBetween(listDate, pendingDate);
-        const saleToAssessed = assessedValue > 0 ? closePrice / assessedValue : 0;
-        const delta = closePrice - listPriceAtPending;
-        const deltaPct = listPriceAtPending > 0 ? delta / listPriceAtPending : 0;
+        const mlsDOM = num(source.mlsDOM);
+        const mlsCDOM = num(source.mlsCDOM);
+        const saleToList = num(source.saleToListRatio) || (listPriceAtPending > 0 ? (closePrice / listPriceAtPending) : 0);
+        const delta = num(source.bidUpAmount) || (closePrice - listPriceAtPending);
+        const deltaPct = num(source.bidUpPct) || (listPriceAtPending > 0 ? delta / listPriceAtPending : 0);
+        const hotByTag = /HOT_MARKET/i.test(String(source.hotMarketTag || ""));
+        const hotByDom = mlsDOM > 0 && mlsDOM <= 10;
+        const hotByPending = daysToPending !== null && daysToPending <= 10;
+        const isHotMarket = hotByTag || hotByDom || hotByPending;
         const sqft = num(source.sqft);
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
         const zipCoord = ZIP_COORDS[zip5(source.zip)];
@@ -1799,14 +1851,18 @@
           closePrice,
           assessedValue,
           listPriceAtPending,
+          mlsDOM,
+          mlsCDOM,
           beds: num(source.beds),
           baths: num(source.baths),
           sqft,
           yearBuilt: num(source.yearBuilt),
           daysToPending,
-          saleToAssessed,
+          saleToList,
           delta,
           deltaPct,
+          hotMarketTag: isHotMarket ? "HOT_MARKET_<=10D" : "",
+          isHotMarket,
           pricePerSqft,
           mapLat,
           mapLon,
@@ -1934,8 +1990,8 @@
         if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
         if (f.dateTo) rows = rows.filter((r) => r.saleDate <= f.dateTo);
 
-        if (f.scope === "pending7") {
-          rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null && r.daysToPending <= 7);
+        if (f.scope === "hot10") {
+          rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.isHotMarket);
         }
 
         return rows;
@@ -1976,7 +2032,8 @@
           if (i.neighborhood && r.neighborhoodLabel !== i.neighborhood) return false;
           if (i.type && r.typeLabel !== i.type) return false;
           if (i.mode && r.dataMode !== i.mode) return false;
-          if (i.ratioBucket && !inRatioBucket(r.saleToAssessed, i.ratioBucket)) return false;
+          if (i.ratioBucket && !inRatioBucket(r.saleToList, i.ratioBucket)) return false;
+          if (i.hotMarket === "hot" && !r.isHotMarket) return false;
           if (i.closeTier === "aboveMedian" && r.closePrice < stats.medianClose) return false;
           if (i.psfTier === "aboveMedian") {
             if (r.pricePerSqft <= 0 || r.pricePerSqft < stats.medianPsf) return false;
@@ -1990,7 +2047,8 @@
           month: "Month",
           neighborhood: "Neighborhood",
           type: "Type",
-          ratioBucket: "Ratio",
+          ratioBucket: "Sale/List",
+          hotMarket: "Market Speed",
           mode: "Mode",
           closeTier: "Close Price",
           psfTier: "Price/SqFt",
@@ -2002,6 +2060,7 @@
           gt105: "> 1.05x",
           gt100: "> 1.00x",
           aboveMedian: "Above Median",
+          hot: "Hot Market (<=10d)",
         };
         return `${titles[key] || key}: ${values[value] || value}`;
       }
@@ -2035,9 +2094,10 @@
       }
 
       function renderKpis(rows, stats) {
-        const ratios = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const ratios = rows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
         const psf = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
         const mlsPending = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null).map((r) => r.daysToPending);
+        const mlsDom = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.mlsDOM > 0).map((r) => r.mlsDOM);
 
         document.getElementById("kSales").textContent = rows.length;
         document.getElementById("kMedianClose").textContent = formatMoney(median(rows.map((r) => r.closePrice)));
@@ -2045,7 +2105,9 @@
         const above = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
         document.getElementById("kAboveAssessed").textContent = `${above.toFixed(1)}%`;
         document.getElementById("kPsf").textContent = formatMoney(median(psf));
-        document.getElementById("kPendingDays").textContent = mlsPending.length ? `${median(mlsPending).toFixed(0)} days` : "n/a";
+        document.getElementById("kPendingDays").textContent = mlsDom.length
+          ? `${median(mlsDom).toFixed(0)} days`
+          : (mlsPending.length ? `${median(mlsPending).toFixed(0)} days` : "n/a");
 
         document.querySelectorAll(".kbtn").forEach((b) => b.classList.remove("active"));
         if (state.interactions.closeTier === "aboveMedian") document.querySelector('[data-kpi-action="closeTier"]').classList.add("active");
@@ -2062,7 +2124,7 @@
           return;
         }
 
-        const ratios = rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed);
+        const ratios = rows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
         const overShare = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
 
         const byNeighborhood = {};
@@ -2078,7 +2140,7 @@
 
         const lines = [
           `Median close price is ${formatMoney(median(rows.map((r) => r.closePrice)))} across ${rows.length} homes in this slice.`,
-          `${overShare.toFixed(1)}% of homes closed above assessed value (median S/A ${median(ratios).toFixed(2)}x).`,
+          `${overShare.toFixed(1)}% of homes closed above list-at-pending (median Sale/List ${median(ratios).toFixed(2)}x).`,
           `Highest activity is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
           `Most active month is ${topMonth ? monthLabel(topMonth[0]) : "n/a"} (${topMonth ? topMonth[1] : 0} sales).`,
         ];
@@ -2193,7 +2255,7 @@
 
         const total = rows.length;
         tbody.innerHTML = buckets.map((b) => {
-          const set = rows.filter((r) => inRatioBucket(r.saleToAssessed, b.key));
+          const set = rows.filter((r) => inRatioBucket(r.saleToList, b.key));
           const share = total ? ((set.length / total) * 100).toFixed(1) : "0.0";
           const active = state.interactions.ratioBucket === b.key;
           return `
@@ -2225,7 +2287,7 @@
             name,
             count: set.length,
             medianClose: median(set.map((r) => r.closePrice)),
-            medianRatio: median(set.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed)),
+            medianRatio: median(set.filter((r) => r.saleToList > 0).map((r) => r.saleToList)),
           }))
           .sort((a, b) => (b.count - a.count) || (b.medianClose - a.medianClose))
           .slice(0, 18);
@@ -2241,6 +2303,69 @@
             </tr>
           `;
         }).join("");
+      }
+
+      function renderHotMarket(rows) {
+        const shareEl = document.getElementById("hHotShare");
+        const medianRatioEl = document.getElementById("hMedianSL");
+        const medianBidEl = document.getElementById("hMedianBid");
+        const medianDomEl = document.getElementById("hMedianDOM");
+        const tbody = document.getElementById("hotRows");
+        if (!shareEl || !medianRatioEl || !medianBidEl || !medianDomEl || !tbody) return;
+
+        const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED");
+        const hotRows = mlsRows.filter((r) => r.isHotMarket);
+        const share = mlsRows.length ? (hotRows.length / mlsRows.length) * 100 : 0;
+        shareEl.textContent = `${share.toFixed(1)}%`;
+
+        const ratios = hotRows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
+        const bidUps = hotRows.map((r) => r.delta);
+        const doms = hotRows
+          .map((r) => (r.mlsDOM > 0 ? r.mlsDOM : r.daysToPending))
+          .filter((v) => v !== null && Number.isFinite(v) && v >= 0);
+
+        medianRatioEl.textContent = hotRows.length ? `${median(ratios).toFixed(2)}x` : "n/a";
+        medianBidEl.textContent = hotRows.length ? formatMoney(median(bidUps)) : "n/a";
+        medianDomEl.textContent = doms.length ? `${median(doms).toFixed(0)} days` : "n/a";
+
+        if (!hotRows.length) {
+          tbody.innerHTML = `<tr><td colspan="5">No hot-market MLS rows in this slice.</td></tr>`;
+          return;
+        }
+
+        const grouped = {};
+        hotRows.forEach((r) => {
+          if (!grouped[r.neighborhoodLabel]) grouped[r.neighborhoodLabel] = [];
+          grouped[r.neighborhoodLabel].push(r);
+        });
+
+        const rank = Object.entries(grouped)
+          .map(([name, set]) => {
+            const setDom = set
+              .map((r) => (r.mlsDOM > 0 ? r.mlsDOM : r.daysToPending))
+              .filter((v) => v !== null && Number.isFinite(v) && v >= 0);
+            const setRatio = set.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
+            const above = setRatio.length ? (setRatio.filter((v) => v > 1).length / setRatio.length) * 100 : 0;
+            return {
+              name,
+              count: set.length,
+              medianDom: setDom.length ? median(setDom) : 0,
+              medianRatio: setRatio.length ? median(setRatio) : 0,
+              abovePct: above,
+            };
+          })
+          .sort((a, b) => (b.count - a.count) || (a.medianDom - b.medianDom))
+          .slice(0, 20);
+
+        tbody.innerHTML = rank.map((r) => `
+          <tr class="clickable" data-set-interaction="neighborhood" data-set-value="${esc(r.name)}">
+            <td>${esc(r.name)}</td>
+            <td>${r.count}</td>
+            <td>${r.medianDom > 0 ? `${r.medianDom.toFixed(0)} days` : "n/a"}</td>
+            <td>${r.medianRatio > 0 ? `${r.medianRatio.toFixed(2)}x` : "n/a"}</td>
+            <td>${r.abovePct.toFixed(1)}%</td>
+          </tr>
+        `).join("");
       }
 
       function zip5(zip) {
@@ -2268,9 +2393,9 @@
           const g = grouped[name];
           g.count += 1;
           g.prices.push(r.closePrice || 0);
-          if (r.saleToAssessed > 0) {
-            g.ratios.push(r.saleToAssessed);
-            if (r.saleToAssessed > 1) g.ratioAbove += 1;
+          if (r.saleToList > 0) {
+            g.ratios.push(r.saleToList);
+            if (r.saleToList > 1) g.ratioAbove += 1;
           }
 
           const hasExactCoord = Number.isFinite(r.lat) && Number.isFinite(r.lon);
@@ -2372,7 +2497,7 @@
           const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
           marker.on("click", () => setInteraction("neighborhood", p.name));
           marker.bindTooltip(
-            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/A`,
+            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${formatMoney(p.medianClose)} median close<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List`,
             { direction: "top", className: "geo-tip" }
           );
           marker.addTo(layer);
@@ -2474,11 +2599,11 @@
           map.getPane("geoDetailPoints").style.zIndex = "650";
         }
         const rowRatioScale = seqScale(detailPoints
-          .map((p) => p.row.saleToAssessed)
+          .map((p) => p.row.saleToList)
           .filter((v) => v > 0));
 
         detailPoints.forEach(({ row: r, lat, lon }) => {
-          const color = geoRatioColor(r.saleToAssessed > 0 ? rowRatioScale(r.saleToAssessed) : 0.5);
+          const color = geoRatioColor(r.saleToList > 0 ? rowRatioScale(r.saleToList) : 0.5);
           const zUrl = zillowUrl(r);
           const countyUrl = countyRecordUrl(r);
           const isSelected = state.geo.selectedPropertyKeys.includes(r.mapPropertyKey);
@@ -2491,11 +2616,11 @@
             fillOpacity: 0.97,
           });
           marker.bindTooltip(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.saleDate || "n/a")}<br><span style="font-size:11px;color:#1f6040;">Exact pin</span>`,
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>${esc(r.saleDate || "n/a")}<br><span style="font-size:11px;color:#1f6040;">Exact pin</span>`,
             { direction: "top", className: "geo-tip" }
           );
           marker.bindPopup(
-            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x Sale/Assessed` : "n/a Sale/Assessed"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#1f6040;">Exact coordinate • click dot to ${isSelected ? "remove" : "add"} property filter</span>`,
+            `<b>${esc(r.address || "Address unavailable")}</b><br>${formatMoney(r.closePrice)} close<br>${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || "n/a")}<br><a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br><span style="font-size:11px;color:#1f6040;">Exact coordinate • click dot to ${isSelected ? "remove" : "add"} property filter</span>`,
             { maxWidth: 360 }
           );
           marker.on("click", () => toggleMapPropertySelection(r.mapPropertyKey));
@@ -2680,8 +2805,8 @@
         if (key === "sqft") return Number(row.sqft || 0);
         if (key === "saleDate") return String(row.saleDate || "");
         if (key === "closePrice") return Number(row.closePrice || 0);
-        if (key === "assessedValue") return Number(row.assessedValue || 0);
-        if (key === "saleToAssessed") return Number(row.saleToAssessed || 0);
+        if (key === "listPriceAtPending") return Number(row.listPriceAtPending || 0);
+        if (key === "saleToList") return Number(row.saleToList || 0);
         if (key === "delta") return Number(row.delta || 0);
         if (key === "dataMode") return String(row.dataMode || "");
         return "";
@@ -2733,7 +2858,7 @@
           return;
         }
 
-        const ratioNorm = seqScale(rows.filter((r) => r.saleToAssessed > 0).map((r) => r.saleToAssessed));
+        const ratioNorm = seqScale(rows.filter((r) => r.saleToList > 0).map((r) => r.saleToList));
         const deltaNorm = divScale(rows.map((r) => r.delta));
         const sortedRows = applyRecordSort(rows);
 
@@ -2757,8 +2882,8 @@
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
                 <td>${esc(r.saleDate || "n/a")}</td>
                 <td>${formatMoney(r.closePrice)}</td>
-                <td>${formatMoney(r.assessedValue)}</td>
-                <td><span class="heat" style="${seqHeat(r.saleToAssessed > 0 ? ratioNorm(r.saleToAssessed) : 0, "rgba(61,213,157,0.33)")}">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</span></td>
+                <td>${formatMoney(r.listPriceAtPending)}</td>
+                <td><span class="heat" style="${seqHeat(r.saleToList > 0 ? ratioNorm(r.saleToList) : 0, "rgba(61,213,157,0.33)")}">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</span></td>
                 <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${formatMoney(r.delta)}</span></td>
                 <td><span class="mode">${esc(r.dataMode)}</span></td>
               </tr>
@@ -2787,9 +2912,10 @@
                     <div class="mrow-item"><div class="k">Type</div><div class="v"><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></div></div>
                     <div class="mrow-item"><div class="k">Beds / Baths</div><div class="v">${r.beds || 0} / ${r.baths ? r.baths.toFixed(2) : "0.00"}</div></div>
                     <div class="mrow-item"><div class="k">SqFt</div><div class="v">${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</div></div>
-                    <div class="mrow-item"><div class="k">Assessed</div><div class="v">${formatMoney(r.assessedValue)}</div></div>
-                    <div class="mrow-item"><div class="k">Sale / Assessed</div><div class="v">${r.saleToAssessed > 0 ? `${r.saleToAssessed.toFixed(2)}x` : "n/a"}</div></div>
+                    <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoney(r.listPriceAtPending)}</div></div>
+                    <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${formatMoney(r.delta)}</div></div>
+                    <div class="mrow-item"><div class="k">Hot Market</div><div class="v">${r.isHotMarket ? "Yes (<=10d)" : "No"}</div></div>
                     <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}</span></div></div>
                   </div>
                 </div>
@@ -2816,6 +2942,7 @@
         renderKpis(filtered, stats);
         renderInsights(filtered);
         renderCharts(filtered);
+        renderHotMarket(filtered);
         renderGeo(filtered);
         renderRatioRows(filtered);
         renderRankRows(filtered);
@@ -2848,7 +2975,7 @@
         if (!state.filteredRows.length) return;
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
-          "closePrice","assessedValue","saleToAssessed","listPriceAtPending","delta","deltaPct",
+          "closePrice","listPriceAtPending","saleToList","delta","deltaPct","isHotMarket",
           "beds","baths","sqft","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
@@ -2863,11 +2990,11 @@
             r.listDate,
             r.pendingDate,
             r.closePrice,
-            r.assessedValue,
-            r.saleToAssessed,
             r.listPriceAtPending,
+            r.saleToList,
             r.delta,
             r.deltaPct,
+            r.isHotMarket ? "true" : "false",
             r.beds,
             r.baths,
             r.sqft,
