@@ -236,8 +236,6 @@ function readRealtorRows() {
       const status = String(row.Status || "").trim();
       const sellingDate = toIsoDate(row["Selling Date"]);
       const sellingPrice = Math.round(num(row["Selling Price"]));
-      const soldLike = /sold|closed/i.test(status) || (sellingDate && sellingPrice > 0);
-      if (!soldLike) return;
 
       const apn = normalizeApn(row.APN);
       if (!apn) return;
@@ -250,12 +248,16 @@ function readRealtorRows() {
       const dom = Math.round(num(row.DOM));
       const cdom = Math.round(num(row.CDOM));
       const listingNumber = String(row["Listing Number"] || row["Listing Number (2)"] || "").trim();
-      const uid = [file, listingNumber, apn, sellingDate, sellingPrice, rowIndex].join("|");
+      const uid = [file, listingNumber, apn, status, sellingDate, sellingPrice, rowIndex].join("|");
+      const isClosedStatus = /sold|closed/i.test(status);
+      const hasCloseRecord = !!sellingDate && sellingPrice > 0;
+      const isClosed = isClosedStatus || hasCloseRecord;
 
       out.push({
         uid,
         region,
         status,
+        isClosed,
         apn,
         listingNumber,
         listingDate,
@@ -321,6 +323,8 @@ function main() {
 
   const { headers, rows } = readBaseRows();
   const mlsRows = readRealtorRows();
+  const mlsClosedRows = mlsRows.filter((r) => r.isClosed && r.sellingDate && r.sellingPrice > 0);
+  const mlsOpenRows = mlsRows.filter((r) => !r.isClosed);
   const parcelSnapshotByApn = buildParcelSnapshotByApn(rows);
   const knownCountySaleSignatures = new Set(
     rows
@@ -328,7 +332,7 @@ function main() {
       .map((r) => `${r.__parcel}|${r.__saleDate}|${r.__closePrice}`)
   );
   const mlsByApn = new Map();
-  mlsRows.forEach((r) => {
+  mlsClosedRows.forEach((r) => {
     if (!mlsByApn.has(r.apn)) mlsByApn.set(r.apn, []);
     mlsByApn.get(r.apn).push(r);
   });
@@ -426,7 +430,7 @@ function main() {
 
   let mlsOnlyAdded = 0;
   const mlsOnlyRows = [];
-  mlsRows.forEach((c, index) => {
+  mlsClosedRows.forEach((c, index) => {
     if (used.has(c.uid)) return;
     if (!c.apn || !c.sellingDate || c.sellingPrice <= 0) return;
     const signature = `${c.apn}|${c.sellingDate}|${c.sellingPrice}`;
@@ -507,7 +511,78 @@ function main() {
     mlsOnlyAdded += 1;
   });
 
-  const finalRows = [...merged, ...mlsOnlyRows];
+  let mlsOpenAdded = 0;
+  const mlsOpenOnlyRows = [];
+  mlsOpenRows.forEach((c, index) => {
+    const snapshot = parcelSnapshotByApn.get(c.apn) || {};
+    const row = {};
+    headers.forEach((h) => { row[h] = ""; });
+
+    const major = c.apn.slice(0, 6);
+    const minor = c.apn.slice(6, 10);
+    const list = c.listingPrice > 0 ? c.listingPrice : 0;
+    const daysToPending = dayDiff(c.listingDate, c.pendingDate);
+
+    row.dataMode = "MLS_ENRICHED";
+    row.id = `mls-open-${c.listingNumber || "na"}-${c.apn}-${index + 1}`;
+    row.address = c.mlsAddress || snapshot.address || "";
+    row.neighborhood = snapshot.neighborhood || c.region || "Seattle (Other)";
+    row.type = snapshot.type || inferTypeFromMlsStyle(c.styleCode);
+    row.typeCode = snapshot.typeCode || "11";
+    row.addressSource = c.mlsAddress ? "MLS_ADDRESS" : (snapshot.addressSource || "MLS_ADDRESS");
+    row.major = major;
+    row.minor = minor;
+    row.parcelNbr = c.apn;
+    row.listDate = c.listingDate || "";
+    row.pendingDate = c.pendingDate || "";
+    row.saleDate = "";
+    row.listPriceAtPending = list > 0 ? String(list) : "";
+    row.closePrice = "";
+    row.assessedValue = snapshot.assessedValue || "";
+    row.beds = c.beds > 0 ? String(c.beds) : (snapshot.beds || "");
+    row.baths = c.baths > 0 ? String(c.baths) : (snapshot.baths || "");
+    row.sqft = c.sqft > 0 ? String(c.sqft) : (snapshot.sqft || "");
+    row.yearBuilt = c.yearBuilt > 0 ? String(c.yearBuilt) : (snapshot.yearBuilt || "");
+    row.zip = c.zip || snapshot.zip || "";
+    row.districtName = snapshot.districtName || "";
+    row.area = snapshot.area || "";
+    row.subArea = snapshot.subArea || "";
+    row.sqFtLot = snapshot.sqFtLot || "";
+    row.zoning = snapshot.zoning || "";
+    row.lat = snapshot.lat || "";
+    row.lon = snapshot.lon || "";
+
+    row.mlsListDate = c.listingDate;
+    row.mlsPendingDate = c.pendingDate;
+    row.mlsListPriceAtPending = list > 0 ? String(list) : "";
+    row.mlsClosePrice = "";
+    row.mlsListingNumber = c.listingNumber;
+    row.mlsStatus = c.status;
+    row.mlsRegion = c.region;
+    row.mlsSellingDate = "";
+    row.mlsContractualDate = c.contractualDate;
+    row.mlsListingPrice = list > 0 ? String(list) : "";
+    row.mlsSellingPrice = "";
+    row.mlsOriginalPrice = c.originalPrice > 0 ? String(c.originalPrice) : "";
+    row.mlsDOM = c.dom > 0 ? String(c.dom) : "";
+    row.mlsCDOM = c.cdom > 0 ? String(c.cdom) : "";
+    row.mlsStyleCode = c.styleCode;
+    row.mlsSubdivision = c.subdivision;
+    row.mlsDateLagDays = "";
+    row.mlsJoinMethod = "MLS_STATUS_OPEN";
+    row.mlsDaysToPending = daysToPending !== null ? String(daysToPending) : "";
+    row.mlsDaysPendingToSale = "";
+    row.hotMarketTag = buildHotMarketTag(c.dom, daysToPending);
+    row.saleToListRatio = "";
+    row.saleToOriginalListRatio = "";
+    row.bidUpAmount = "";
+    row.bidUpPct = "";
+
+    mlsOpenOnlyRows.push(row);
+    mlsOpenAdded += 1;
+  });
+
+  const finalRows = [...merged, ...mlsOnlyRows, ...mlsOpenOnlyRows];
 
   const extraColumns = [
     "mlsListingNumber",
@@ -546,11 +621,17 @@ function main() {
   // eslint-disable-next-line no-console
   console.log(`MLS rows parsed: ${mlsRows.length}`);
   // eslint-disable-next-line no-console
+  console.log(`MLS closed rows: ${mlsClosedRows.length}`);
+  // eslint-disable-next-line no-console
+  console.log(`MLS open-status rows: ${mlsOpenRows.length}`);
+  // eslint-disable-next-line no-console
   console.log(`Base rows: ${rows.length}`);
   // eslint-disable-next-line no-console
   console.log(`Matched rows: ${matched}`);
   // eslint-disable-next-line no-console
   console.log(`MLS-only sold rows added: ${mlsOnlyAdded}`);
+  // eslint-disable-next-line no-console
+  console.log(`MLS-only open rows added: ${mlsOpenAdded}`);
   // eslint-disable-next-line no-console
   console.log(`Total output rows: ${finalRows.length}`);
   // eslint-disable-next-line no-console
