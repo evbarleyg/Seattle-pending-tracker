@@ -320,18 +320,22 @@
       .field-wide {
         grid-column: span 2;
       }
+      .field-flags {
+        grid-column: 1 / -1;
+      }
       .flag-toggle {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 999px;
         background: #0f1b2f;
-        padding: 7px 10px;
+        padding: 5px 10px;
         font-size: 12px;
         color: #dcecff;
         cursor: pointer;
         transition: border-color 0.14s ease;
+        white-space: nowrap;
       }
       .flag-toggle:hover {
         border-color: #4d7cb4;
@@ -339,12 +343,13 @@
       .flag-stack {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 8px;
       }
       .flag-help {
-        margin-top: 6px;
+        margin-top: 5px;
         font-size: 11px;
         color: var(--muted);
+        line-height: 1.35;
       }
       .flag-toggle input {
         width: auto;
@@ -432,6 +437,12 @@
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 10px;
+      }
+      .kpi-grid-overview {
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+      }
+      .kpi-grid-heat {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
       }
       .kpi {
         border: 1px solid var(--line);
@@ -1245,7 +1256,10 @@
       @media (max-width: 1120px) {
         .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .field-wide { grid-column: span 2; }
+        .field-flags { grid-column: 1 / -1; }
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .kpi-grid-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .kpi-grid-heat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
         .geo-layout { grid-template-columns: 1fr; }
         .geo-main-panel,
@@ -1256,7 +1270,10 @@
       @media (max-width: 680px) {
         .filters { grid-template-columns: 1fr; }
         .field-wide { grid-column: span 1; }
+        .field-flags { grid-column: span 1; }
         .kpi-grid { grid-template-columns: 1fr 1fr; }
+        .kpi-grid-overview { grid-template-columns: 1fr 1fr; }
+        .kpi-grid-heat { grid-template-columns: 1fr 1fr; }
         .header-controls {
           flex-direction: column;
           align-items: flex-start;
@@ -1322,6 +1339,8 @@
         .flag-toggle {
           width: auto;
           justify-content: flex-start;
+          font-size: 11px;
+          padding: 4px 8px;
         }
         .actions {
           flex-wrap: nowrap;
@@ -1364,7 +1383,9 @@
         }
       }
       @media (max-width: 520px) {
-        .kpi-grid { grid-template-columns: 1fr; }
+        .kpi-grid,
+        .kpi-grid-overview,
+        .kpi-grid-heat { grid-template-columns: 1fr; }
         .geo-gradient-labels {
           font-size: 10px;
         }
@@ -1433,6 +1454,15 @@
                 </select>
               </div>
               <div class="field">
+                <label for="fRecordView">Map/Records View</label>
+                <select id="fRecordView" title="Controls what appears in the Geo and Records tabs.">
+                  <option value="all">All Visible Rows</option>
+                  <option value="projOnly">Projected Only</option>
+                  <option value="openOnly">Open/Pending Only</option>
+                  <option value="projAndOpen">Projected + Open/Pending</option>
+                </select>
+              </div>
+              <div class="field">
                 <label for="fMinClose">Min Close Price</label>
                 <input id="fMinClose" type="range" />
                 <div class="range-value" id="fMinCloseValue">$0</div>
@@ -1450,21 +1480,19 @@
                 <label for="fDateTo">Sale Date To</label>
                 <input id="fDateTo" type="date" />
               </div>
-              <div class="field">
+              <div class="field field-flags">
                 <label for="ffProjection">Feature Flags</label>
                 <div class="flag-stack">
                   <label class="flag-toggle">
                     <input id="ffProjection" type="checkbox" />
-                    Pending Price Projection
-                    <span class="flag-badge">Experimental</span>
+                    Pending Projection
                   </label>
                   <label
                     class="flag-toggle"
                     title="Show Active/Pending MLS rows in map and records, even before close is posted."
                   >
                     <input id="ffIncludeOpenMls" type="checkbox" />
-                    Include Open/Pending MLS Rows
-                    <span class="flag-badge">Optional</span>
+                    Include Open/Pending MLS
                   </label>
                   <label
                     class="flag-toggle"
@@ -1472,10 +1500,9 @@
                   >
                     <input id="ffExcludePresold" type="checkbox" />
                     Exclude likely pre-sold new builds
-                    <span class="flag-badge">Optional</span>
                   </label>
                 </div>
-                <div class="flag-help">Open/pending MLS rows are hidden by default. Turn on Include Open/Pending MLS Rows to show them in map/records. Projection estimates sale for open rows. Pre-sold rule: DOM <= 0 and Sale = List, plus Year Built >= 2023 or townhouse/new-construction style code.</div>
+                <div class="flag-help">Projections show in Geo/Records with <strong>PROJ</strong>. To isolate them, set <strong>Map/Records View = Projected Only</strong>.</div>
               </div>
               <div class="actions">
                 <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
@@ -1497,12 +1524,13 @@
             <li>Start with price/date filters to define your buy box, then click chart rows or table rows to drill down.</li>
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
+            <li>To inspect projections only, enable <strong>Pending Projection</strong> and set <strong>Map/Records View = Projected Only</strong>.</li>
             <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior, including MLS sold records not yet posted in county sales exports.</li>
             <li>Hot Market is tagged where market DOM is <strong>&le; 10 days</strong> (CDOM preferred, then DOM, then MLS list-to-pending), and Ultra Hot is <strong>&le; 5 days</strong>.</li>
           </ul>
         </section>
 
-        <div class="kpi-grid">
+        <div class="kpi-grid kpi-grid-overview">
           <article class="kpi">
             <div class="label">Sales Count</div>
             <div class="value" id="kSales">0</div>
@@ -1586,7 +1614,7 @@
       <section id="view-heat" class="view">
         <section class="panel">
           <h3>Hot Market Sample (<= 10 Days, Ultra <= 5 Days)</h3>
-          <div class="kpi-grid">
+          <div class="kpi-grid kpi-grid-heat">
             <article class="kpi">
               <div class="label">Hot-Market Share (<=10d, MLS)</div>
               <div class="value" id="hHotShare">0%</div>
@@ -2206,6 +2234,7 @@
         document.getElementById("fType").value = findDefaultSingleFamilyLabel();
         document.getElementById("fMlsStatus").value = "All";
         document.getElementById("fScope").value = "all";
+        document.getElementById("fRecordView").value = "all";
         const minEl = document.getElementById("fMinClose");
         const maxEl = document.getElementById("fMaxClose");
         const minBound = Number(minEl.min || 0);
@@ -2460,11 +2489,28 @@
           mode: "All",
           mlsStatus: document.getElementById("fMlsStatus").value,
           scope: document.getElementById("fScope").value,
+          recordView: document.getElementById("fRecordView").value || "all",
           minClose: Number(document.getElementById("fMinClose").value || PRICE_SLIDER_MIN),
           maxClose: maxRaw >= PRICE_SLIDER_CAP ? null : maxRaw,
           dateFrom: document.getElementById("fDateFrom").value,
           dateTo: document.getElementById("fDateTo").value,
         };
+      }
+
+      function recordViewLabel(value) {
+        if (value === "projOnly") return "Projected Only";
+        if (value === "openOnly") return "Open/Pending Only";
+        if (value === "projAndOpen") return "Projected + Open/Pending";
+        return "All Visible Rows";
+      }
+
+      function applyRecordViewSelection(value) {
+        if (value === "projOnly" || value === "projAndOpen") state.flags.projection = true;
+        if (value === "openOnly" || value === "projAndOpen") state.flags.includeOpenMls = true;
+        const projectionToggle = document.getElementById("ffProjection");
+        if (projectionToggle) projectionToggle.checked = !!state.flags.projection;
+        const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
+        if (includeOpenToggle) includeOpenToggle.checked = !!state.flags.includeOpenMls;
       }
 
       function computeBaseRows() {
@@ -2668,12 +2714,14 @@
       function renderChips() {
         const entries = Object.entries(state.interactions).filter(([, v]) => v);
         const el = document.getElementById("activeChips");
+        const filterState = readFormFilters();
         const mapSelected = state.geo.selectedPropertyKeys.length;
         const viewportChip = state.geo.viewportFilter && state.geo.mapBounds;
         const projectionChip = state.flags.projection;
         const includeOpenChip = state.flags.includeOpenMls;
         const presoldFlagChip = state.flags.excludeLikelyPresoldNewBuild;
-        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip) {
+        const customRecordView = filterState.recordView !== "all";
+        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip && !customRecordView) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -2697,10 +2745,13 @@
         if (presoldFlagChip) {
           chips.push(`<span class="chip">Feature: Exclude Pre-Sold New Builds<button type="button" data-clear-flag="excludePresold">x</button></span>`);
         }
+        if (customRecordView) {
+          chips.push(`<span class="chip">Map/Records: ${recordViewLabel(filterState.recordView)}<button type="button" data-clear-record-view="1">x</button></span>`);
+        }
         el.innerHTML = chips.join("");
       }
 
-      function renderSummary(filtered, baseRows, projectedCount = 0, openCount = 0) {
+      function renderSummary(filtered, baseRows, projectedCount = 0, openCount = 0, viewRowsCount = 0, recordView = "all") {
         const pub = filtered.filter((r) => r.dataMode === "PUBLIC_PROXY").length;
         const mls = (filtered.length - pub) + projectedCount + openCount;
         const projectionText = state.flags.projection ? ` | Pending Projections: ${projectedCount}` : "";
@@ -2708,8 +2759,11 @@
         const presoldText = state.flags.excludeLikelyPresoldNewBuild
           ? ` | Excluded pre-sold: ${state.meta.presoldExcludedInSlice}`
           : (state.meta.presoldCandidatesInSlice ? ` | Likely pre-sold in slice: ${state.meta.presoldCandidatesInSlice}` : "");
+        const recordViewText = recordView !== "all"
+          ? ` | Map/Records View: ${recordViewLabel(recordView)} (${viewRowsCount})`
+          : "";
         document.getElementById("filterSummary").textContent =
-          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount + openCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${openText}${presoldText}`;
+          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount + openCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${openText}${presoldText}${recordViewText}`;
       }
 
       function renderKpis(rows, stats) {
@@ -3648,6 +3702,7 @@
       }
 
       function renderAll() {
+        const filterState = readFormFilters();
         const baseRows = computeBaseRows();
         state.baseRows = baseRows;
         const stats = computeBaseStats(baseRows);
@@ -3656,14 +3711,17 @@
         state.meta.projectedRowsInSlice = projectedRows.length;
         const projectedKeys = new Set(projectedRows.map((r) => r.mapPropertyKey));
         const openRows = computeOpenMlsRows(stats, projectedKeys);
-        const viewRows = [...filtered, ...projectedRows, ...openRows];
+        let viewRows = [...filtered, ...projectedRows, ...openRows];
+        if (filterState.recordView === "projOnly") viewRows = [...projectedRows];
+        if (filterState.recordView === "openOnly") viewRows = [...openRows];
+        if (filterState.recordView === "projAndOpen") viewRows = [...projectedRows, ...openRows];
         if (state.geo.selectedPropertyKeys.length) {
           const validMapKeys = new Set(viewRows.map((r) => r.mapPropertyKey));
           state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
         }
         state.filteredRows = viewRows;
 
-        renderSummary(filtered, baseRows, projectedRows.length, openRows.length);
+        renderSummary(filtered, baseRows, projectedRows.length, openRows.length, viewRows.length, filterState.recordView);
         renderChips();
         renderKpis(filtered, stats);
         renderInsights(filtered);
@@ -3819,11 +3877,23 @@
           el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);
         });
+        const recordViewSelect = document.getElementById("fRecordView");
+        if (recordViewSelect) {
+          recordViewSelect.addEventListener("change", () => {
+            applyRecordViewSelection(recordViewSelect.value || "all");
+            renderAll();
+          });
+        }
         const projectionToggle = document.getElementById("ffProjection");
         if (projectionToggle) {
           projectionToggle.checked = !!state.flags.projection;
           projectionToggle.addEventListener("change", (evt) => {
             state.flags.projection = !!evt.target.checked;
+            const viewEl = document.getElementById("fRecordView");
+            if (viewEl && !state.flags.projection) {
+              if (viewEl.value === "projOnly") viewEl.value = "all";
+              if (viewEl.value === "projAndOpen") viewEl.value = state.flags.includeOpenMls ? "openOnly" : "all";
+            }
             renderAll();
           });
         }
@@ -3832,6 +3902,11 @@
           includeOpenToggle.checked = !!state.flags.includeOpenMls;
           includeOpenToggle.addEventListener("change", (evt) => {
             state.flags.includeOpenMls = !!evt.target.checked;
+            const viewEl = document.getElementById("fRecordView");
+            if (viewEl && !state.flags.includeOpenMls) {
+              if (viewEl.value === "openOnly") viewEl.value = "all";
+              if (viewEl.value === "projAndOpen") viewEl.value = state.flags.projection ? "projOnly" : "all";
+            }
             renderAll();
           });
         }
@@ -3987,6 +4062,14 @@
               if (flagEl) flagEl.checked = false;
               renderAll();
             }
+            return;
+          }
+
+          const clearRecordView = evt.target.closest("[data-clear-record-view]");
+          if (clearRecordView) {
+            const viewEl = document.getElementById("fRecordView");
+            if (viewEl) viewEl.value = "all";
+            renderAll();
             return;
           }
 
