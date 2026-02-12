@@ -1498,7 +1498,7 @@
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
             <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior, including MLS sold records not yet posted in county sales exports.</li>
-            <li>Hot Market is tagged where MLS <strong>DOM <= 10 days</strong> (or list-to-pending <= 10 days), and Ultra Hot is <strong>&le; 5 days</strong>.</li>
+            <li>Hot Market is tagged where market DOM is <strong>&le; 10 days</strong> (CDOM preferred, then DOM, then MLS list-to-pending), and Ultra Hot is <strong>&le; 5 days</strong>.</li>
           </ul>
         </section>
 
@@ -1529,7 +1529,7 @@
             <button class="kbtn" data-kpi-action="psfTier">Filter $/SqFt >= Median</button>
           </article>
           <article class="kpi">
-            <div class="label">Median Days To Pending (MLS, if available)</div>
+            <div class="label">Median Market DOM (MLS, CDOM preferred)</div>
             <div class="value" id="kPendingDays">n/a</div>
             <button class="kbtn" data-kpi-action="mlsOnly">Filter MLS Rows (if any)</button>
           </article>
@@ -1621,7 +1621,7 @@
               <tbody id="hotRows"></tbody>
             </table>
           </div>
-          <div class="note">Hot Market tag = MLS DOM/list-to-pending <= 10 days. Ultra Hot tag = <= 5 days.</div>
+          <div class="note">Hot Market tag = market DOM <= 10 days (CDOM preferred). Ultra Hot tag = <= 5 days.</div>
         </section>
       </section>
 
@@ -1949,8 +1949,9 @@
       }
 
       function domMetric(row) {
-        if (row.mlsDOM > 0) return row.mlsDOM;
-        if (row.daysToPending !== null && Number.isFinite(row.daysToPending) && row.daysToPending >= 0) return row.daysToPending;
+        if (row.hasMlsCdomValue && Number.isFinite(row.mlsCDOM) && row.mlsCDOM >= 0) return row.mlsCDOM;
+        if (row.hasMlsDomValue && Number.isFinite(row.mlsDOM) && row.mlsDOM >= 0) return row.mlsDOM;
+        if (row.dataMode === "MLS_ENRICHED" && row.daysToPending !== null && Number.isFinite(row.daysToPending) && row.daysToPending >= 0) return row.daysToPending;
         return null;
       }
 
@@ -2115,6 +2116,7 @@
             mlsDOMRaw: pick("mlsDOM"),
             mlsStatus: pick("mlsStatus"),
             mlsDOM: num(pick("mlsDOM")),
+            mlsCDOMRaw: pick("mlsCDOM"),
             mlsCDOM: num(pick("mlsCDOM")),
             hotMarketTag: pick("hotMarketTag"),
             saleToListRatio: num(pick("saleToListRatio")),
@@ -2236,23 +2238,27 @@
         const assessedValue = num(source.assessedValue);
         const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || closePrice);
 
-        const daysToPending = daysBetween(listDate, pendingDate);
+        const daysToPendingRaw = daysBetween(listDate, pendingDate);
+        const daysToPending = dataMode === "MLS_ENRICHED" ? daysToPendingRaw : null;
         const mlsDOMRaw = String(source.mlsDOMRaw ?? source.mlsDOM ?? "").trim();
         const hasMlsDomValue = mlsDOMRaw !== "";
         const mlsDOM = num(mlsDOMRaw);
-        const mlsCDOM = num(source.mlsCDOM);
+        const mlsCDOMRaw = String(source.mlsCDOMRaw ?? source.mlsCDOM ?? "").trim();
+        const hasMlsCdomValue = mlsCDOMRaw !== "";
+        const mlsCDOM = num(mlsCDOMRaw);
+        const marketDomDays = hasMlsCdomValue
+          ? mlsCDOM
+          : (hasMlsDomValue ? mlsDOM : daysToPending);
         const saleToList = num(source.saleToListRatio) || (listPriceAtPending > 0 ? (closePrice / listPriceAtPending) : 0);
         const delta = num(source.bidUpAmount) || (closePrice - listPriceAtPending);
         const deltaPct = num(source.bidUpPct) || (listPriceAtPending > 0 ? delta / listPriceAtPending : 0);
         const tagRaw = String(source.hotMarketTag || "").toUpperCase();
         const ultraByTag = /ULTRA[_\s]?HOT/.test(tagRaw);
         const hotByTag = /HOT_MARKET/.test(tagRaw) || ultraByTag;
-        const ultraByDom = mlsDOM > 0 && mlsDOM <= 5;
-        const ultraByPending = daysToPending !== null && daysToPending <= 5;
-        const hotByDom = mlsDOM > 0 && mlsDOM <= 10;
-        const hotByPending = daysToPending !== null && daysToPending <= 10;
-        const isUltraHot = ultraByTag || ultraByDom || ultraByPending;
-        const isHotMarket = isUltraHot || hotByTag || hotByDom || hotByPending;
+        const ultraByDom = marketDomDays !== null && Number.isFinite(marketDomDays) && marketDomDays <= 5;
+        const hotByDom = marketDomDays !== null && Number.isFinite(marketDomDays) && marketDomDays <= 10;
+        const isUltraHot = ultraByTag || ultraByDom;
+        const isHotMarket = isUltraHot || hotByTag || hotByDom;
         const sqft = num(source.sqft);
         const lotSize = num(source.sqFtLot);
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
@@ -2304,6 +2310,7 @@
           mlsDOM,
           mlsCDOM,
           hasMlsDomValue,
+          hasMlsCdomValue,
           beds: num(source.beds),
           baths: num(source.baths),
           sqft,
@@ -2708,8 +2715,10 @@
       function renderKpis(rows, stats) {
         const ratios = rows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
         const psf = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
-        const mlsPending = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null).map((r) => r.daysToPending);
-        const mlsDom = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.mlsDOM > 0).map((r) => r.mlsDOM);
+        const mlsMarketDom = rows
+          .filter((r) => r.dataMode === "MLS_ENRICHED")
+          .map((r) => domMetric(r))
+          .filter((v) => v !== null && Number.isFinite(v));
 
         document.getElementById("kSales").textContent = rows.length;
         document.getElementById("kMedianClose").textContent = formatMoney(median(rows.map((r) => r.closePrice)));
@@ -2717,9 +2726,9 @@
         const above = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
         document.getElementById("kAboveAssessed").textContent = `${above.toFixed(1)}%`;
         document.getElementById("kPsf").textContent = formatMoney(median(psf));
-        document.getElementById("kPendingDays").textContent = mlsDom.length
-          ? `${median(mlsDom).toFixed(0)} days`
-          : (mlsPending.length ? `${median(mlsPending).toFixed(0)} days` : "n/a");
+        document.getElementById("kPendingDays").textContent = mlsMarketDom.length
+          ? `${median(mlsMarketDom).toFixed(0)} days`
+          : "n/a";
         document.getElementById("kOpenMlsRows").textContent = String(state.meta.openRowsAvailable || 0);
 
         document.querySelectorAll(".kbtn").forEach((b) => b.classList.remove("active"));
@@ -2759,9 +2768,12 @@
           `Most active month is ${topMonth ? monthLabel(topMonth[0]) : "n/a"} (${topMonth ? topMonth[1] : 0} sales).`,
         ];
 
-        const mlsRows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.daysToPending !== null);
-        if (mlsRows.length) {
-          lines.push(`MLS-enriched subset median days-to-pending: ${median(mlsRows.map((r) => r.daysToPending)).toFixed(0)} days.`);
+        const mlsDomRows = rows
+          .filter((r) => r.dataMode === "MLS_ENRICHED")
+          .map((r) => domMetric(r))
+          .filter((v) => v !== null && Number.isFinite(v));
+        if (mlsDomRows.length) {
+          lines.push(`MLS-enriched subset median market DOM (CDOM preferred): ${median(mlsDomRows).toFixed(0)} days.`);
         } else {
           lines.push("This slice currently uses public-record timing only. MLS timeline fields can be layered in when available.");
         }
@@ -2950,7 +2962,7 @@
         const ratios = hotRows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
         const bidUps = hotRows.map((r) => r.delta);
         const doms = hotRows
-          .map((r) => (r.mlsDOM > 0 ? r.mlsDOM : r.daysToPending))
+          .map((r) => domMetric(r))
           .filter((v) => v !== null && Number.isFinite(v) && v >= 0);
 
         medianRatioEl.textContent = hotRows.length ? `${median(ratios).toFixed(2)}x` : "n/a";
@@ -2971,7 +2983,7 @@
         const rank = Object.entries(grouped)
           .map(([name, set]) => {
             const setDom = set
-              .map((r) => (r.mlsDOM > 0 ? r.mlsDOM : r.daysToPending))
+              .map((r) => domMetric(r))
               .filter((v) => v !== null && Number.isFinite(v) && v >= 0);
             const setRatio = set.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
             const above = setRatio.length ? (setRatio.filter((v) => v > 1).length / setRatio.length) * 100 : 0;
