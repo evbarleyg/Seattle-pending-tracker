@@ -24,6 +24,16 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 - `PUBLIC_PROXY`: Built from public county records.
 - `MLS_ENRICHED`: County rows matched to realtor exports with list/pending/DOM/bid-up fields, plus MLS sold rows not yet posted in county-close exports.
 
+## Buyer-Focused Flags
+
+- `Pending Price Projection (Experimental)`: projects close price ranges for pending MLS rows using filtered comp ratios.
+- `Exclude likely pre-sold new builds` (off by default): removes rows matching:
+  - `dataMode = MLS_ENRICHED`
+  - `closePrice > 0` and `listPriceAtPending > 0`
+  - explicit MLS DOM present and `DOM <= 0`
+  - `closePrice == listPriceAtPending` (within <$1 tolerance)
+  - plus new-build signal: `yearBuilt >= 2023` or style text containing `townhouse/new construction/new build`
+
 ## Local Run
 
 1. Optional but recommended for exact map pins: normalize a King County GIS parcel-point export to `major+minor+lat+lon`:

@@ -20,10 +20,13 @@ Recommended extra MLS columns:
 - `mlsClosePrice`
 - `mlsDOM`
 - `mlsCDOM`
+- `mlsStyleCode`
 - `hotMarketTag` (`HOT_MARKET_<=10D` when DOM/list-to-pending is <=10 days; `ULTRA_HOT_<=5D` when <=5 days)
 - `saleToListRatio`
 - `bidUpAmount`
 - `bidUpPct`
+- `isLikelyPresoldNewBuild` (derived boolean for likely pre-sold new-build behavior)
+- `presoldRuleReason` (machine-readable reason tokens, e.g. `dom_le_0|sale_eq_list|year_built_gte_2023`)
 - `mlsJoinMethod` (`APN_PRICE_DATE_WINDOW` for county-matched rows, `MLS_SOLD_NOT_IN_COUNTY` for MLS sold rows not yet in county close exports)
 
 Normalization behavior in app:
@@ -33,6 +36,7 @@ Normalization behavior in app:
 - `closePrice = mlsClosePrice || closePrice`
 - `saleToList = saleToListRatio || (closePrice / listPriceAtPending)`
 - `map coordinates = lat/lon (if present) || inferred zip/neighborhood anchors`
+- `isLikelyPresoldNewBuild = (MLS_ENRICHED sold row) && (explicit mlsDOM <= 0) && (closePrice ~= listPriceAtPending) && (yearBuilt >= 2023 || mlsStyleCode contains townhouse/new construction/new build)`
 
 # Build and Run
 

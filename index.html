@@ -121,10 +121,14 @@
         font-size: 13px;
         padding: 9px 14px;
         cursor: pointer;
+        transition: background-color 0.14s ease, color 0.14s ease;
       }
       .tab.active {
         color: #fff;
         background: linear-gradient(135deg, #275ea7, #2d8cb4);
+      }
+      .tab:hover {
+        color: #e9f3ff;
       }
       .header-controls {
         margin-top: 14px;
@@ -141,6 +145,10 @@
         color: #d8e9ff;
         background: rgba(17, 28, 47, 0.88);
         cursor: pointer;
+        transition: border-color 0.14s ease, background-color 0.14s ease;
+      }
+      .theme-toggle:hover {
+        border-color: #4d7cb4;
       }
 
       .app {
@@ -204,7 +212,7 @@
       .filters-body {
         margin-top: 10px;
         display: grid;
-        gap: 8px;
+        gap: 10px;
       }
       .field label {
         display: block;
@@ -220,6 +228,7 @@
         border-radius: 10px;
         padding: 8px 10px;
         font-size: 14px;
+        min-height: 38px;
       }
       input[type="range"] {
         padding: 0;
@@ -244,6 +253,12 @@
         background: #0c1728;
         color: var(--text);
         font-size: 14px;
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .multi-dd > summary::-webkit-details-marker {
         display: none;
@@ -260,6 +275,8 @@
         background: #0f1b2f;
         box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
         padding: 10px;
+        max-height: min(52vh, 340px);
+        overflow: hidden;
       }
       .multi-dd-actions {
         display: flex;
@@ -313,6 +330,20 @@
         padding: 7px 10px;
         font-size: 12px;
         color: #dcecff;
+        cursor: pointer;
+        transition: border-color 0.14s ease;
+      }
+      .flag-toggle:hover {
+        border-color: #4d7cb4;
+      }
+      .flag-stack {
+        display: grid;
+        gap: 6px;
+      }
+      .flag-help {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--muted);
       }
       .flag-toggle input {
         width: auto;
@@ -337,6 +368,13 @@
         color: #fff;
         background: linear-gradient(135deg, #21589d, #2b93ba);
         cursor: pointer;
+        transition: transform 0.12s ease, filter 0.12s ease;
+      }
+      .btn:hover {
+        filter: brightness(1.06);
+      }
+      .btn:active {
+        transform: translateY(1px);
       }
       .btn.alt {
         border-color: var(--line);
@@ -534,6 +572,49 @@
         align-items: center;
         gap: 6px;
       }
+      .geo-gradient-legend {
+        margin-top: 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(16, 31, 52, 0.52);
+      }
+      .geo-gradient-head {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .geo-gradient-track {
+        position: relative;
+        height: 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(210, 230, 255, 0.35);
+        background: linear-gradient(
+          90deg,
+          hsl(220 74% 56%) 0%,
+          hsl(178 74% 56%) 25%,
+          hsl(137 74% 56%) 50%,
+          hsl(96 74% 56%) 75%,
+          hsl(55 74% 56%) 100%
+        );
+      }
+      .geo-gradient-labels {
+        margin-top: 6px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        align-items: center;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .geo-gradient-labels span:nth-child(1) { text-align: left; }
+      .geo-gradient-labels span:nth-child(2),
+      .geo-gradient-labels span:nth-child(3) { text-align: center; }
+      .geo-gradient-labels span:nth-child(4) { text-align: right; }
+      .geo-gradient-note {
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
       .geo-dot {
         width: 10px;
         height: 10px;
@@ -653,12 +734,15 @@
         min-width: 0;
       }
       .vchart {
+        height: 300px;
         min-height: 300px;
         display: grid;
         grid-template-columns: 58px minmax(0, 1fr);
+        grid-template-rows: 1fr;
         gap: 10px;
       }
       .chart-scroll {
+        height: 100%;
         min-width: 0;
         overflow-x: auto;
         overflow-y: hidden;
@@ -681,6 +765,7 @@
         grid-template-columns: repeat(var(--cols, 1), minmax(var(--bar-min-width, 64px), 1fr));
         gap: 8px;
         align-items: stretch;
+        height: 100%;
         width: max(100%, var(--plot-min-width, 0px));
         min-width: 0;
       }
@@ -732,6 +817,7 @@
         font-size: 11px;
         color: #b8cae4;
         white-space: nowrap;
+        font-weight: 600;
       }
 
       table {
@@ -837,6 +923,9 @@
         align-items: center;
         gap: 6px;
       }
+      .th-sort:hover {
+        color: var(--text);
+      }
       .th-sort.active {
         color: var(--text);
       }
@@ -856,8 +945,12 @@
         font-size: 11px;
         padding: 2px 8px;
         cursor: pointer;
+        transition: border-color 0.12s ease;
       }
       .mini-btn.active {
+        border-color: #4eb2ff;
+      }
+      .mini-btn:hover {
         border-color: #4eb2ff;
       }
       .mode {
@@ -889,6 +982,11 @@
         background: rgba(61, 164, 206, 0.2);
         color: #ddf3ff;
       }
+      .hot-pill.presold {
+        border-color: #9c7a24;
+        background: rgba(214, 169, 66, 0.23);
+        color: #ffefc5;
+      }
       .heat {
         display: inline-block;
         min-width: 92px;
@@ -909,6 +1007,19 @@
         margin-top: 8px;
         color: var(--muted);
         font-size: 12px;
+      }
+
+      button:focus-visible,
+      .tab:focus-visible,
+      .theme-toggle:focus-visible,
+      .multi-dd > summary:focus-visible,
+      .mini-link:focus-visible,
+      .th-sort:focus-visible,
+      select:focus-visible,
+      input:focus-visible,
+      a:focus-visible {
+        outline: 2px solid #5eaef7;
+        outline-offset: 2px;
       }
 
       /* Light theme defaults for readability */
@@ -1008,6 +1119,9 @@
         border-color: #b4c8e2;
         background: #edf4ff;
       }
+      body.light .flag-help {
+        color: #58779c;
+      }
       body.light .multi-opt { color: #234261; }
       body.light .btn.alt {
         color: #274667;
@@ -1078,6 +1192,11 @@
         background: #ebf7ff;
         color: #1f5f7d;
       }
+      body.light .hot-pill.presold {
+        border-color: #d4b76f;
+        background: #fff9e8;
+        color: #7c611d;
+      }
       body.light .mono {
         background: #f7fbff;
         border-color: #c5d4e7;
@@ -1104,10 +1223,19 @@
       body.light .geo-dot.exact {
         border-color: #2f7e59;
       }
-      body.light .geo-dot.sa-low { border-color: #155280; }
-      body.light .geo-dot.sa-mid { border-color: #13645d; }
-      body.light .geo-dot.sa-high { border-color: #3f5f16; }
       body.light .geo-dot.selected { border-color: #956f0b; }
+      body.light .geo-gradient-legend {
+        border-color: #c8d7eb;
+        background: rgba(247, 251, 255, 0.86);
+      }
+      body.light .geo-gradient-track {
+        border-color: #b8cbe2;
+      }
+      body.light .geo-gradient-head,
+      body.light .geo-gradient-labels,
+      body.light .geo-gradient-note {
+        color: #4a6586;
+      }
       body.light .geo-mobile-card {
         border-color: #c8d7eb;
         background: rgba(247, 251, 255, 0.88);
@@ -1155,6 +1283,7 @@
           font-size: 28px;
         }
         .vchart {
+          height: 228px;
           min-height: 228px;
           grid-template-columns: 38px 1fr;
         }
@@ -1188,6 +1317,10 @@
         }
         .panel {
           padding: 10px;
+        }
+        .flag-toggle {
+          width: 100%;
+          justify-content: space-between;
         }
         .actions {
           flex-wrap: nowrap;
@@ -1227,6 +1360,12 @@
         }
         .record-mobile-list {
           display: grid;
+        }
+      }
+      @media (max-width: 520px) {
+        .kpi-grid { grid-template-columns: 1fr; }
+        .geo-gradient-labels {
+          font-size: 10px;
         }
       }
     </style>
@@ -1320,11 +1459,22 @@
               </div>
               <div class="field field-wide">
                 <label for="ffProjection">Feature Flags</label>
-                <label class="flag-toggle">
-                  <input id="ffProjection" type="checkbox" />
-                  Pending Price Projection
-                  <span class="flag-badge">Experimental</span>
-                </label>
+                <div class="flag-stack">
+                  <label class="flag-toggle">
+                    <input id="ffProjection" type="checkbox" />
+                    Pending Price Projection
+                    <span class="flag-badge">Experimental</span>
+                  </label>
+                  <label
+                    class="flag-toggle"
+                    title="Exclude rows tagged as likely pre-sold new builds when DOM <= 0, sale equals list, and new-build signal is present."
+                  >
+                    <input id="ffExcludePresold" type="checkbox" />
+                    Exclude likely pre-sold new builds
+                    <span class="flag-badge">Optional</span>
+                  </label>
+                </div>
+                <div class="flag-help">Rule: DOM <= 0 and Sale = List, plus Year Built >= 2023 or townhouse/new-construction style code.</div>
               </div>
               <div class="actions">
                 <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
@@ -1509,11 +1659,18 @@
             <div class="geo-note">Basemap: OpenStreetMap. Zoom in for exact parcel-coordinate property pins only. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
             <div class="geo-legend">
               <span class="geo-legend-item"><span class="geo-dot exact"></span>Exact parcel coordinate</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-low"></span>S/List <= 0.95x</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-mid"></span>S/List ~ 1.00x</span>
-              <span class="geo-legend-item"><span class="geo-dot sa-high"></span>S/List >= 1.05x</span>
               <span class="geo-legend-item"><span class="geo-dot selected"></span>Selected property</span>
-              <span class="geo-legend-item">Color scale fixed and capped: 0.90x to 1.20x</span>
+            </div>
+            <div class="geo-gradient-legend">
+              <div class="geo-gradient-head">Sale/List color scale (fixed and capped)</div>
+              <div class="geo-gradient-track" aria-label="Sale-to-list color legend from 0.90x (blue) to 1.20x (yellow-green)"></div>
+              <div class="geo-gradient-labels">
+                <span>0.90x</span>
+                <span>1.00x</span>
+                <span>1.10x</span>
+                <span>1.20x</span>
+              </div>
+              <div class="geo-gradient-note">Pin colors stay on this absolute scale, regardless of current selection.</div>
             </div>
           </section>
           <section class="panel geo-side-panel">
@@ -1580,7 +1737,7 @@
           <div class="mono">id,address,type,closePrice</div>
 
           <p class="note">Recommended columns:</p>
-          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice,mlsDOM,mlsCDOM,hotMarketTag,saleToListRatio,bidUpAmount,bidUpPct</div>
+          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice,mlsDOM,mlsCDOM,mlsStyleCode,hotMarketTag,saleToListRatio,bidUpAmount,bidUpPct,isLikelyPresoldNewBuild,presoldRuleReason</div>
 
           <p class="note">Intended use:</p>
           <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details when available.</div>
@@ -1603,6 +1760,7 @@
       const GEO_DETAIL_ZOOM = 13;
       const SA_COLOR_MIN = 0.9;
       const SA_COLOR_MAX = 1.2;
+      const PRESOLD_NEW_BUILD_YEAR_MIN = 2023;
 
       const TYPE_LABELS = {
         "11": "Single Family",
@@ -1688,6 +1846,10 @@
         rows: [],
         baseRows: [],
         filteredRows: [],
+        meta: {
+          presoldCandidatesInSlice: 0,
+          presoldExcludedInSlice: 0,
+        },
         geo: {
           map: null,
           layer: null,
@@ -1704,6 +1866,7 @@
         recordMobileExpanded: null,
         flags: {
           projection: false,
+          excludeLikelyPresoldNewBuild: false,
         },
         interactions: {
           month: null,
@@ -1796,6 +1959,13 @@
         if (row.isUltraHot) return `<span class="hot-pill ultra">Ultra Hot</span>`;
         if (row.isHotMarket) return `<span class="hot-pill hot">Hot</span>`;
         return `<span class="hot-pill">Normal</span>`;
+      }
+
+      function presoldBadgeHtml(row) {
+        if (state.flags.excludeLikelyPresoldNewBuild) return "";
+        if (!row.isLikelyPresoldNewBuild) return "";
+        const reason = row.presoldRuleReason ? ` title="${esc(row.presoldRuleReason)}"` : "";
+        return `<span class="hot-pill presold"${reason}>Likely Pre-Sold New Build</span>`;
       }
 
       function closeDisplay(row) {
@@ -1931,6 +2101,8 @@
             mlsPendingDate: pick("mlsPendingDate"),
             mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
             mlsClosePrice: num(pick("mlsClosePrice")),
+            mlsStyleCode: pick("mlsStyleCode"),
+            mlsDOMRaw: pick("mlsDOM"),
             mlsStatus: pick("mlsStatus"),
             mlsDOM: num(pick("mlsDOM")),
             mlsCDOM: num(pick("mlsCDOM")),
@@ -2035,8 +2207,11 @@
         document.getElementById("fDateFrom").value = "";
         document.getElementById("fDateTo").value = "";
         state.flags.projection = false;
+        state.flags.excludeLikelyPresoldNewBuild = false;
         const projectionToggle = document.getElementById("ffProjection");
         if (projectionToggle) projectionToggle.checked = false;
+        const excludePresoldToggle = document.getElementById("ffExcludePresold");
+        if (excludePresoldToggle) excludePresoldToggle.checked = false;
       }
 
       function normalizeRow(source) {
@@ -2050,7 +2225,9 @@
         const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || closePrice);
 
         const daysToPending = daysBetween(listDate, pendingDate);
-        const mlsDOM = num(source.mlsDOM);
+        const mlsDOMRaw = String(source.mlsDOMRaw ?? source.mlsDOM ?? "").trim();
+        const hasMlsDomValue = mlsDOMRaw !== "";
+        const mlsDOM = num(mlsDOMRaw);
         const mlsCDOM = num(source.mlsCDOM);
         const saleToList = num(source.saleToListRatio) || (listPriceAtPending > 0 ? (closePrice / listPriceAtPending) : 0);
         const delta = num(source.bidUpAmount) || (closePrice - listPriceAtPending);
@@ -2069,6 +2246,21 @@
         const pricePerSqft = sqft > 0 ? closePrice / sqft : 0;
         const mlsStatusLabel = normalizeMlsStatus(source.mlsStatus);
         const mlsStatusNorm = mlsStatusLabel.toUpperCase();
+        const styleCode = String(source.mlsStyleCode || "").trim();
+        const hasNewBuildSignal = num(source.yearBuilt) >= PRESOLD_NEW_BUILD_YEAR_MIN
+          || /townhouse|new construction|new build/i.test(styleCode);
+        const hasSoldContext = dataMode === "MLS_ENRICHED" && closePrice > 0 && listPriceAtPending > 0;
+        const domLeZero = hasMlsDomValue && mlsDOM <= 0;
+        const saleEqualsList = Math.abs(closePrice - listPriceAtPending) < 1;
+        const isLikelyPresoldNewBuild = hasSoldContext && domLeZero && saleEqualsList && hasNewBuildSignal;
+        const presoldReasonTokens = [];
+        if (isLikelyPresoldNewBuild) {
+          presoldReasonTokens.push("dom_le_0");
+          presoldReasonTokens.push("sale_eq_list");
+          if (num(source.yearBuilt) >= PRESOLD_NEW_BUILD_YEAR_MIN) presoldReasonTokens.push("year_built_gte_2023");
+          if (/townhouse|new construction|new build/i.test(styleCode)) presoldReasonTokens.push("style_new_build_signal");
+        }
+        const presoldRuleReason = presoldReasonTokens.join("|");
         const zipCoord = ZIP_COORDS[zip5(source.zip)];
         const mapLat = Number.isFinite(source.lat) ? source.lat : (zipCoord ? zipCoord.lat : null);
         const mapLon = Number.isFinite(source.lon) ? source.lon : (zipCoord ? zipCoord.lon : null);
@@ -2083,6 +2275,7 @@
           neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
           mlsStatusLabel,
           mlsStatusNorm,
+          mlsStyleCode: styleCode,
           saleDate: toIso(saleDate),
           listDate: toIso(listDate),
           pendingDate: toIso(pendingDate),
@@ -2098,6 +2291,7 @@
           listPriceAtPending,
           mlsDOM,
           mlsCDOM,
+          hasMlsDomValue,
           beds: num(source.beds),
           baths: num(source.baths),
           sqft,
@@ -2110,6 +2304,8 @@
           hotMarketTag: isUltraHot ? "ULTRA_HOT_<=5D" : (isHotMarket ? "HOT_MARKET_<=10D" : ""),
           isUltraHot,
           isHotMarket,
+          isLikelyPresoldNewBuild,
+          presoldRuleReason,
           pricePerSqft,
           mapLat,
           mapLon,
@@ -2265,6 +2461,14 @@
         if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
         if (f.dateTo) rows = rows.filter((r) => r.saleDate <= f.dateTo);
 
+        const presoldCandidatesInSlice = rows.filter((r) => r.isLikelyPresoldNewBuild).length;
+        state.meta.presoldCandidatesInSlice = presoldCandidatesInSlice;
+        state.meta.presoldExcludedInSlice = 0;
+        if (state.flags.excludeLikelyPresoldNewBuild) {
+          state.meta.presoldExcludedInSlice = presoldCandidatesInSlice;
+          rows = rows.filter((r) => !r.isLikelyPresoldNewBuild);
+        }
+
         if (f.scope === "hot10") {
           rows = rows.filter((r) => r.dataMode === "MLS_ENRICHED" && r.isHotMarket);
         }
@@ -2412,7 +2616,8 @@
         const mapSelected = state.geo.selectedPropertyKeys.length;
         const viewportChip = state.geo.viewportFilter && state.geo.mapBounds;
         const projectionChip = state.flags.projection;
-        if (!entries.length && !mapSelected && !viewportChip && !projectionChip) {
+        const presoldFlagChip = state.flags.excludeLikelyPresoldNewBuild;
+        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !presoldFlagChip) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -2428,6 +2633,9 @@
         if (projectionChip) {
           chips.push(`<span class="chip">Feature: Pending Projections<button type="button" data-clear-flag="projection">x</button></span>`);
         }
+        if (presoldFlagChip) {
+          chips.push(`<span class="chip">Feature: Exclude Pre-Sold New Builds<button type="button" data-clear-flag="excludePresold">x</button></span>`);
+        }
         el.innerHTML = chips.join("");
       }
 
@@ -2435,8 +2643,11 @@
         const pub = filtered.filter((r) => r.dataMode === "PUBLIC_PROXY").length;
         const mls = (filtered.length - pub) + projectedCount;
         const projectionText = state.flags.projection ? ` | Pending Projections: ${projectedCount}` : "";
+        const presoldText = state.flags.excludeLikelyPresoldNewBuild
+          ? ` | Excluded pre-sold: ${state.meta.presoldExcludedInSlice}`
+          : (state.meta.presoldCandidatesInSlice ? ` | Likely pre-sold in slice: ${state.meta.presoldCandidatesInSlice}` : "");
         document.getElementById("filterSummary").textContent =
-          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}`;
+          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${presoldText}`;
       }
 
       function renderKpis(rows, stats) {
@@ -2888,6 +3099,10 @@
       }
 
       function geoTooltipHtml(row) {
+        const presoldBadge = presoldBadgeHtml(row);
+        const presoldRow = presoldBadge
+          ? `<div class="geo-tip-row"><span class="k">Tag</span><span class="v">${presoldBadge}</span></div>`
+          : "";
         return `
           <div class="geo-tip-card">
             <div class="geo-tip-title">${esc(row.address || "Address unavailable")}</div>
@@ -2897,6 +3112,7 @@
             <div class="geo-tip-row"><span class="k">DOM</span><span class="v">${domLabel(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Heat</span><span class="v">${hotCategory(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale/List</span><span class="v">${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x` : "n/a"}</span></div>
+            ${presoldRow}
           </div>
         `;
       }
@@ -2905,6 +3121,10 @@
         const projectionLine = row.isProjectionRow && row.projectedCloseLow > 0 && row.projectedCloseHigh > 0
           ? `<br>Projected range: ${formatMoney(row.projectedCloseLow)} - ${formatMoney(row.projectedCloseHigh)}`
           : "";
+        const presoldBadge = presoldBadgeHtml(row);
+        const presoldLine = presoldBadge
+          ? `<br>${presoldBadge}`
+          : "";
         return `
           <b>${esc(row.address || "Address unavailable")}</b><br>
           List@Pending: ${formatMoney(row.listPriceAtPending)}<br>
@@ -2912,6 +3132,7 @@
           Lot Size: ${formatLot(row.lotSize)}<br>
           DOM: ${domLabel(row)} | ${hotCategory(row)}<br>
           ${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>
+          ${presoldLine}
           ${esc(row.neighborhoodLabel || "Seattle")} | ${esc(row.saleDate || row.pendingDate || "n/a")}<br>
           <a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br>
           <span style="font-size:11px;color:#1f6040;">Exact coordinate • click dot to ${isSelected ? "remove" : "add"} property filter</span>
@@ -2975,7 +3196,7 @@
             <td>${formatMoney(r.listPriceAtPending)}</td>
             <td>${closeDisplay(r)}</td>
             <td>${domLabel(r)}</td>
-            <td>${hotCategoryBadge(r)}</td>
+            <td>${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</td>
             <td>${esc(r.saleDate || r.pendingDate || "n/a")}</td>
           </tr>
         `).join("");
@@ -2984,7 +3205,7 @@
             <div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></div>
             <div class="k">${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || r.pendingDate || "n/a")}</div>
             <div class="v">List ${formatMoney(r.listPriceAtPending)} | Sale ${closeDisplay(r)}</div>
-            <div class="k">Lot ${formatLot(r.lotSize)} | ${domLabel(r)} | ${hotCategory(r)}</div>
+            <div class="k">Lot ${formatLot(r.lotSize)} | ${domLabel(r)} | ${hotCategory(r)}${presoldBadgeHtml(r) ? " | Likely Pre-Sold New Build" : ""}</div>
           </article>
         `).join("");
       }
@@ -3307,7 +3528,7 @@
                 <td>${closeDisplay(r)}</td>
                 <td>${formatMoney(r.listPriceAtPending)}</td>
                 <td>${domLabel(r)}</td>
-                <td>${hotCategoryBadge(r)}</td>
+                <td>${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToList > 0 ? ratioNorm(r.saleToList) : 0, "rgba(61,213,157,0.33)")}">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</span></td>
                 <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${deltaDisplay(r)}</span></td>
                 <td><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></td>
@@ -3343,7 +3564,7 @@
                     <div class="mrow-item"><div class="k">DOM</div><div class="v">${domLabel(r)}</div></div>
                     <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${deltaDisplay(r)}</div></div>
-                    <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)}</div></div>
+                    <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</div></div>
                     <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></div></div>
                     ${r.isProjectionRow && r.projectedCloseLow > 0 && r.projectedCloseHigh > 0
                       ? `<div class="mrow-item"><div class="k">Projected Range</div><div class="v">${formatMoney(r.projectedCloseLow)} - ${formatMoney(r.projectedCloseHigh)} (${r.projectionBasisCount} comps)</div></div>`
@@ -3409,7 +3630,7 @@
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
           "closePrice","listPriceAtPending","saleToList","delta","deltaPct","isHotMarket","isUltraHot",
-          "hotCategory","domDays","isProjectionRow","projectedClosePrice","projectedCloseLow","projectedCloseHigh","projectionBasisCount",
+          "hotCategory","domDays","isLikelyPresoldNewBuild","presoldRuleReason","isProjectionRow","projectedClosePrice","projectedCloseLow","projectedCloseHigh","projectionBasisCount",
           "beds","baths","sqft","lotSize","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
@@ -3432,6 +3653,8 @@
             r.isUltraHot ? "true" : "false",
             hotCategory(r),
             domMetric(r) ?? "",
+            r.isLikelyPresoldNewBuild ? "true" : "false",
+            r.presoldRuleReason || "",
             r.isProjectionRow ? "true" : "false",
             r.projectedClosePrice || "",
             r.projectedCloseLow || "",
@@ -3529,6 +3752,14 @@
           projectionToggle.checked = !!state.flags.projection;
           projectionToggle.addEventListener("change", (evt) => {
             state.flags.projection = !!evt.target.checked;
+            renderAll();
+          });
+        }
+        const excludePresoldToggle = document.getElementById("ffExcludePresold");
+        if (excludePresoldToggle) {
+          excludePresoldToggle.checked = !!state.flags.excludeLikelyPresoldNewBuild;
+          excludePresoldToggle.addEventListener("change", (evt) => {
+            state.flags.excludeLikelyPresoldNewBuild = !!evt.target.checked;
             renderAll();
           });
         }
@@ -3661,6 +3892,12 @@
             if (key === "projection") {
               state.flags.projection = false;
               const flagEl = document.getElementById("ffProjection");
+              if (flagEl) flagEl.checked = false;
+              renderAll();
+            }
+            if (key === "excludePresold") {
+              state.flags.excludeLikelyPresoldNewBuild = false;
+              const flagEl = document.getElementById("ffExcludePresold");
               if (flagEl) flagEl.checked = false;
               renderAll();
             }
