@@ -337,7 +337,8 @@
         border-color: #4d7cb4;
       }
       .flag-stack {
-        display: grid;
+        display: flex;
+        flex-wrap: wrap;
         gap: 6px;
       }
       .flag-help {
@@ -1319,8 +1320,8 @@
           padding: 10px;
         }
         .flag-toggle {
-          width: 100%;
-          justify-content: space-between;
+          width: auto;
+          justify-content: flex-start;
         }
         .actions {
           flex-wrap: nowrap;
@@ -1418,14 +1419,6 @@
                 <select id="fType"></select>
               </div>
               <div class="field">
-                <label for="fMode">Data Mode</label>
-                <select id="fMode">
-                  <option value="All">All</option>
-                  <option value="PUBLIC_PROXY">Public Proxy</option>
-                  <option value="MLS_ENRICHED">MLS Enriched</option>
-                </select>
-              </div>
-              <div class="field">
                 <label for="fMlsStatus">MLS Status</label>
                 <select id="fMlsStatus">
                   <option value="All">All</option>
@@ -1457,7 +1450,7 @@
                 <label for="fDateTo">Sale Date To</label>
                 <input id="fDateTo" type="date" />
               </div>
-              <div class="field field-wide">
+              <div class="field">
                 <label for="ffProjection">Feature Flags</label>
                 <div class="flag-stack">
                   <label class="flag-toggle">
@@ -1474,7 +1467,7 @@
                     <span class="flag-badge">Optional</span>
                   </label>
                 </div>
-                <div class="flag-help">Rule: DOM <= 0 and Sale = List, plus Year Built >= 2023 or townhouse/new-construction style code.</div>
+                <div class="flag-help">Pending/active MLS rows appear in dashboards when projection is enabled and comp coverage exists. Pre-sold rule: DOM <= 0 and Sale = List, plus Year Built >= 2023 or townhouse/new-construction style code.</div>
               </div>
               <div class="actions">
                 <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
@@ -2192,7 +2185,6 @@
         setNeighborhoodSelections([]);
         updateNeighborhoodSummary();
         document.getElementById("fType").value = findDefaultSingleFamilyLabel();
-        document.getElementById("fMode").value = "All";
         document.getElementById("fMlsStatus").value = "All";
         document.getElementById("fScope").value = "all";
         const minEl = document.getElementById("fMinClose");
@@ -2438,7 +2430,7 @@
         return {
           neighborhoods: getSelectedNeighborhoods(),
           type: document.getElementById("fType").value,
-          mode: document.getElementById("fMode").value,
+          mode: "All",
           mlsStatus: document.getElementById("fMlsStatus").value,
           scope: document.getElementById("fScope").value,
           minClose: Number(document.getElementById("fMinClose").value || PRICE_SLIDER_MIN),
@@ -3742,7 +3734,7 @@
       }
 
       function bindEvents() {
-        ["fType", "fMode", "fMlsStatus", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
+        ["fType", "fMlsStatus", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);

@@ -245,8 +245,10 @@ function readRealtorRows() {
       const contractualDate = toIsoDate(row["Contractual Date"]);
       const listingPrice = Math.round(num(row["Listing Price"]));
       const originalPrice = Math.round(num(row["Original Price"]));
-      const dom = Math.round(num(row.DOM));
-      const cdom = Math.round(num(row.CDOM));
+      const domRaw = String(row.DOM || "").trim();
+      const cdomRaw = String(row.CDOM || "").trim();
+      const dom = Math.round(num(domRaw));
+      const cdom = Math.round(num(cdomRaw));
       const listingNumber = String(row["Listing Number"] || row["Listing Number (2)"] || "").trim();
       const uid = [file, listingNumber, apn, status, sellingDate, sellingPrice, rowIndex].join("|");
       const isClosedStatus = /sold|closed/i.test(status);
@@ -267,6 +269,8 @@ function readRealtorRows() {
         listingPrice,
         sellingPrice,
         originalPrice,
+        domRaw,
+        cdomRaw,
         dom,
         cdom,
         styleCode: String(row["Style Code"] || "").trim(),
@@ -377,8 +381,8 @@ function main() {
       out.mlsListingPrice = c.listingPrice > 0 ? String(c.listingPrice) : "";
       out.mlsSellingPrice = c.sellingPrice > 0 ? String(c.sellingPrice) : "";
       out.mlsOriginalPrice = c.originalPrice > 0 ? String(c.originalPrice) : "";
-      out.mlsDOM = c.dom > 0 ? String(c.dom) : "";
-      out.mlsCDOM = c.cdom > 0 ? String(c.cdom) : "";
+      out.mlsDOM = c.domRaw !== "" ? String(c.dom) : "";
+      out.mlsCDOM = c.cdomRaw !== "" ? String(c.cdom) : "";
       out.mlsStyleCode = c.styleCode;
       out.mlsSubdivision = c.subdivision;
       out.mlsDateLagDays = String(match.dateLag);
@@ -493,8 +497,8 @@ function main() {
     row.mlsListingPrice = list > 0 ? String(list) : "";
     row.mlsSellingPrice = close > 0 ? String(close) : "";
     row.mlsOriginalPrice = original > 0 ? String(original) : "";
-    row.mlsDOM = c.dom > 0 ? String(c.dom) : "";
-    row.mlsCDOM = c.cdom > 0 ? String(c.cdom) : "";
+    row.mlsDOM = c.domRaw !== "" ? String(c.dom) : "";
+    row.mlsCDOM = c.cdomRaw !== "" ? String(c.cdom) : "";
     row.mlsStyleCode = c.styleCode;
     row.mlsSubdivision = c.subdivision;
     row.mlsDateLagDays = "";
@@ -564,8 +568,8 @@ function main() {
     row.mlsListingPrice = list > 0 ? String(list) : "";
     row.mlsSellingPrice = "";
     row.mlsOriginalPrice = c.originalPrice > 0 ? String(c.originalPrice) : "";
-    row.mlsDOM = c.dom > 0 ? String(c.dom) : "";
-    row.mlsCDOM = c.cdom > 0 ? String(c.cdom) : "";
+    row.mlsDOM = c.domRaw !== "" ? String(c.dom) : "";
+    row.mlsCDOM = c.cdomRaw !== "" ? String(c.cdom) : "";
     row.mlsStyleCode = c.styleCode;
     row.mlsSubdivision = c.subdivision;
     row.mlsDateLagDays = "";
