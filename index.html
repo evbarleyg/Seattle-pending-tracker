@@ -220,6 +220,28 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .scope-toggle {
+        margin-top: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .scope-pill {
+        border: 1px solid #35547a;
+        border-radius: 999px;
+        background: #12233a;
+        color: #dcecff;
+        font-size: 11px;
+        padding: 3px 8px;
+        cursor: pointer;
+        line-height: 1.2;
+      }
+      .scope-pill.active {
+        border-color: #4eb2ff;
+        background: linear-gradient(135deg, #21589d, #2b93ba);
+        color: #fff;
+      }
       select, input {
         width: 100%;
         color: var(--text);
@@ -1201,6 +1223,16 @@
         color: #58779c;
       }
       body.light .multi-opt { color: #234261; }
+      body.light .scope-pill {
+        color: #1f4468;
+        border-color: #b8cadf;
+        background: #ffffff;
+      }
+      body.light .scope-pill.active {
+        border-color: #2e78c8;
+        background: linear-gradient(135deg, #21589d, #2b93ba);
+        color: #fff;
+      }
       body.light .btn.alt {
         color: #274667;
         background: #ffffff;
@@ -1518,6 +1550,10 @@
                   <option value="hot10">Hot Market (DOM/Pending <= 10 Days)</option>
                   <option value="ultra5">Ultra Hot (DOM/Pending <= 5 Days)</option>
                 </select>
+                <div class="scope-toggle" aria-label="Hot vs ultra-hot quick toggle">
+                  <button type="button" class="scope-pill" data-scope-toggle="hot10">Hot (<=10d)</button>
+                  <button type="button" class="scope-pill" data-scope-toggle="ultra5">Ultra (<=5d)</button>
+                </div>
               </div>
               <div class="field">
                 <label for="fRecordView">Map/Records View</label>
@@ -2304,6 +2340,7 @@
         document.getElementById("fType").value = findDefaultSingleFamilyLabel();
         document.getElementById("fMlsStatus").value = "All";
         document.getElementById("fScope").value = "all";
+        updateScopeToggleUI("all");
         document.getElementById("fRecordView").value = "all";
         const minEl = document.getElementById("fMinClose");
         const maxEl = document.getElementById("fMaxClose");
@@ -2572,6 +2609,24 @@
         if (value === "openOnly") return "Open/Pending Only";
         if (value === "projAndOpen") return "Projected + Open/Pending";
         return "All Visible Rows";
+      }
+
+      function updateScopeToggleUI(scopeValue = null) {
+        const current = scopeValue || document.getElementById("fScope")?.value || "all";
+        document.querySelectorAll("[data-scope-toggle]").forEach((btn) => {
+          const value = btn.getAttribute("data-scope-toggle");
+          const active = current === value;
+          btn.classList.toggle("active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+      }
+
+      function setScopeQuick(value) {
+        const scopeEl = document.getElementById("fScope");
+        if (!scopeEl) return;
+        scopeEl.value = scopeEl.value === value ? "all" : value;
+        updateScopeToggleUI(scopeEl.value);
+        renderAll();
       }
 
       function applyRecordViewSelection(value) {
@@ -3912,6 +3967,7 @@
 
       function renderAll() {
         const filterState = readFormFilters();
+        updateScopeToggleUI(filterState.scope);
         const slices = computeSlices(filterState);
         state.baseRows = slices.closedRows;
         const viewRows = slices.recordGeoRows;
@@ -4076,6 +4132,15 @@
         ["fType", "fMlsStatus", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("change", renderAll);
+        });
+        const scopeSelect = document.getElementById("fScope");
+        if (scopeSelect) {
+          scopeSelect.addEventListener("change", () => updateScopeToggleUI(scopeSelect.value));
+        }
+        document.querySelectorAll("[data-scope-toggle]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            setScopeQuick(btn.getAttribute("data-scope-toggle"));
+          });
         });
         const recordViewSelect = document.getElementById("fRecordView");
         if (recordViewSelect) {
