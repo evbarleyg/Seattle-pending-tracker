@@ -392,6 +392,11 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .slice-status {
+        margin-top: 4px;
+        color: #bfd6f3;
+        font-size: 12px;
+      }
       .chips {
         margin-top: 8px;
         display: flex;
@@ -837,6 +842,9 @@
         border-collapse: collapse;
         font-size: 13px;
       }
+      #view-records table {
+        font-size: 12px;
+      }
       .table-wrap {
         width: 100%;
         overflow-x: auto;
@@ -918,6 +926,56 @@
         padding: 8px 6px;
         border-bottom: 1px solid rgba(42,62,95,0.78);
       }
+      #view-records th,
+      #view-records td {
+        padding: 6px 6px;
+        line-height: 1.2;
+        vertical-align: middle;
+      }
+      #view-records th {
+        white-space: nowrap;
+      }
+      #view-records .col-date,
+      #view-records .date-cell {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        min-width: 84px;
+      }
+      #view-records td:first-child {
+        min-width: 230px;
+        max-width: 300px;
+      }
+      #view-records td:first-child .address-link {
+        display: inline-block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: top;
+      }
+      #view-records td:first-child .addr-sub-link {
+        display: inline-block;
+        margin-left: 0;
+        margin-right: 6px;
+        font-size: 10px;
+      }
+      #view-records td:first-child .addr-badge {
+        display: inline-block;
+        font-size: 10px;
+      }
+      #view-records .mini-btn {
+        font-size: 10px;
+        padding: 1px 7px;
+      }
+      #view-records .mode,
+      #view-records .hot-pill {
+        font-size: 10px;
+        padding: 1px 7px;
+      }
+      #view-records .heat {
+        min-width: 82px;
+        padding: 2px 5px;
+      }
       th {
         color: var(--muted);
         font-weight: 600;
@@ -934,6 +992,9 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
+      }
+      #view-records .th-sort {
+        white-space: nowrap;
       }
       .th-sort:hover {
         color: var(--text);
@@ -1019,6 +1080,10 @@
         margin-top: 8px;
         color: var(--muted);
         font-size: 12px;
+      }
+      .note.compact {
+        margin-top: 0;
+        margin-bottom: 8px;
       }
 
       button:focus-visible,
@@ -1106,6 +1171,7 @@
         border-color: #bccde2;
       }
       body.light .range-value { color: #516884; }
+      body.light .slice-status { color: #35587e; }
       body.light .multi-dd > summary {
         color: #1a2f4a;
         background: #ffffff;
@@ -1511,6 +1577,7 @@
               </div>
             </div>
             <div class="summary" id="filterSummary">No data loaded.</div>
+            <div class="slice-status" id="sliceStatus">Projected: 0 | Open/Pending: 0 | View: All Visible Rows</div>
             <div class="chips" id="activeChips"></div>
           </div>
         </details>
@@ -1656,6 +1723,7 @@
       <section id="view-records" class="view">
         <section class="panel">
           <h3>Row-Level Summary</h3>
+          <div class="note compact" id="recordsStatus">Showing closed rows by default. Use Map/Records View for projected/open rows.</div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -1667,7 +1735,7 @@
                   <th><button class="th-sort" type="button" data-record-sort="baths">Baths <span class="sort-ind" data-sort-ind="baths">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="sqft">SqFt <span class="sort-ind" data-sort-ind="sqft">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="lotSize">Lot Size <span class="sort-ind" data-sort-ind="lotSize">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
+                  <th class="col-date"><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="listPriceAtPending">List@Pending <span class="sort-ind" data-sort-ind="listPriceAtPending">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="domMetric">DOM <span class="sort-ind" data-sort-ind="domMetric">&#8597;</span></button></th>
@@ -1689,6 +1757,7 @@
         <div class="geo-layout">
           <section class="panel geo-main-panel">
             <h3>Seattle Neighborhood Map</h3>
+            <div class="note compact" id="geoStatus">Map rows follow Map/Records View and current global filters.</div>
             <div class="geo-map-wrap" id="geoMap"></div>
             <div class="geo-note">Basemap: OpenStreetMap. Zoom in for exact parcel-coordinate property pins only. Click dots to add/remove property filters that update the full dashboard and row-level records.</div>
             <div class="geo-legend">
@@ -1901,6 +1970,7 @@
           dir: "desc",
         },
         recordMobileExpanded: null,
+        renderDebounce: null,
         flags: {
           projection: false,
           excludeLikelyPresoldNewBuild: false,
@@ -2513,8 +2583,16 @@
         if (includeOpenToggle) includeOpenToggle.checked = !!state.flags.includeOpenMls;
       }
 
-      function computeBaseRows() {
-        const f = readFormFilters();
+      function scheduleRender(delay = 90) {
+        if (state.renderDebounce) clearTimeout(state.renderDebounce);
+        state.renderDebounce = setTimeout(() => {
+          state.renderDebounce = null;
+          renderAll();
+        }, delay);
+      }
+
+      function computeBaseRows(filterState = readFormFilters()) {
+        const f = filterState;
         let rows = state.rows.map(normalizeRow).filter((r) => r.closePrice > 0 && !!r.saleDate);
 
         if (f.neighborhoods.length) rows = rows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
@@ -2544,14 +2622,26 @@
         return rows;
       }
 
-      function computeProjectedPendingRows(referenceRows, stats) {
-        if (!state.flags.projection) return [];
-        const f = readFormFilters();
-        if (f.mode === "PUBLIC_PROXY") return [];
+      function computeProjectedPendingRows(referenceRows, stats, filterState = readFormFilters()) {
+        const f = filterState;
+        const result = {
+          rows: [],
+          candidatesFiltered: 0,
+          compSourceCount: 0,
+          reason: "",
+        };
+        if (!state.flags.projection) {
+          result.reason = "Projection disabled. Turn on Pending Projection in Feature Flags.";
+          return result;
+        }
+        if (f.mode === "PUBLIC_PROXY") {
+          result.reason = "Projection is unavailable in Public Proxy mode.";
+          return result;
+        }
 
         const compSource = referenceRows
           .filter((r) => r.hasActualClose && r.listPriceAtPending > 0 && r.saleToList > 0);
-        if (!compSource.length) return [];
+        result.compSourceCount = compSource.length;
 
         const existing = new Set(referenceRows.map((r) => r.mapPropertyKey));
         let pendingRows = state.rows
@@ -2569,6 +2659,15 @@
         if (f.dateTo) pendingRows = pendingRows.filter((r) => r.effectiveDate <= f.dateTo);
         if (f.scope === "hot10") pendingRows = pendingRows.filter((r) => r.isHotMarket);
         if (f.scope === "ultra5") pendingRows = pendingRows.filter((r) => r.isUltraHot);
+        result.candidatesFiltered = pendingRows.length;
+        if (!pendingRows.length) {
+          result.reason = "No pending/open candidates after filters.";
+          return result;
+        }
+        if (!compSource.length) {
+          result.reason = "No eligible comps for projection in this slice.";
+          return result;
+        }
 
         const projected = pendingRows.map((r) => {
           let localComps = compSource.filter((c) => c.typeLabel === r.typeLabel && c.neighborhoodLabel === r.neighborhoodLabel);
@@ -2602,15 +2701,25 @@
           };
         });
 
-        return applyInteractions(projected, stats);
+        result.rows = applyInteractions(projected, stats);
+        if (!result.rows.length && !result.reason) {
+          result.reason = "No projected rows in current cross-filters.";
+        }
+        return result;
       }
 
-      function computeOpenMlsRows(stats, projectedKeys = new Set()) {
-        const f = readFormFilters();
+      function computeOpenMlsRows(stats, projectedKeys = new Set(), filterState = readFormFilters()) {
+        const f = filterState;
+        const result = {
+          rows: [],
+          candidatesFiltered: 0,
+          reason: "",
+        };
         if (f.mode === "PUBLIC_PROXY") {
           state.meta.openRowsAvailable = 0;
           state.meta.openRowsInSlice = 0;
-          return [];
+          result.reason = "Open/Pending MLS rows are unavailable in Public Proxy mode.";
+          return result;
         }
 
         let openRows = state.rows
@@ -2628,9 +2737,11 @@
         if (f.scope === "ultra5") openRows = openRows.filter((r) => r.isUltraHot);
 
         state.meta.openRowsAvailable = openRows.length;
+        result.candidatesFiltered = openRows.length;
         if (!state.flags.includeOpenMls) {
           state.meta.openRowsInSlice = 0;
-          return [];
+          result.reason = "Open/Pending MLS rows are hidden. Turn on Include Open/Pending MLS.";
+          return result;
         }
 
         let visible = applyInteractions(openRows, stats);
@@ -2638,7 +2749,74 @@
           visible = visible.filter((r) => !projectedKeys.has(r.mapPropertyKey));
         }
         state.meta.openRowsInSlice = visible.length;
-        return visible;
+        result.rows = visible;
+        if (!result.rows.length && !result.reason) {
+          result.reason = result.candidatesFiltered
+            ? "No open/pending rows in current cross-filters."
+            : "No pending/open candidates after filters.";
+        }
+        return result;
+      }
+
+      function buildRecordGeoRows(filterState, closedRows, projectedRows, openRows) {
+        if (filterState.recordView === "projOnly") return [...projectedRows];
+        if (filterState.recordView === "openOnly") return [...openRows];
+        if (filterState.recordView === "projAndOpen") return [...projectedRows, ...openRows];
+        return [...closedRows, ...projectedRows, ...openRows];
+      }
+
+      function buildRecordGeoEmptyMessage(filterState, projectionResult, openResult) {
+        const view = filterState.recordView || "all";
+        if (view === "projOnly") {
+          if (!state.flags.projection) return "Projection disabled. Turn on Pending Projection in Feature Flags.";
+          if (!projectionResult.candidatesFiltered) return "No pending/open candidates after filters.";
+          if (!projectionResult.compSourceCount) return "No eligible comps for projection in this slice.";
+          return "No projected rows in current cross-filters.";
+        }
+        if (view === "openOnly") {
+          if (!state.flags.includeOpenMls) return "Open/Pending MLS rows are hidden. Turn on Include Open/Pending MLS.";
+          if (!openResult.candidatesFiltered) return "No pending/open candidates after filters.";
+          return "No open/pending rows in current cross-filters.";
+        }
+        if (view === "projAndOpen") {
+          if (!state.flags.projection && !state.flags.includeOpenMls) {
+            return "Projection disabled and Open/Pending MLS hidden. Enable one or both feature flags.";
+          }
+          if (!projectionResult.candidatesFiltered && !openResult.candidatesFiltered) {
+            return "No pending/open candidates after filters.";
+          }
+          if (state.flags.projection && projectionResult.candidatesFiltered && !projectionResult.compSourceCount && !openResult.rows.length) {
+            return "No eligible comps for projection in this slice.";
+          }
+          return "No projected/open rows in current cross-filters.";
+        }
+        return "No rows for current filters.";
+      }
+
+      function computeSlices(filterState = readFormFilters()) {
+        const closedRows = computeBaseRows(filterState);
+        const stats = computeBaseStats(closedRows);
+        const closedSlice = applyInteractions(closedRows, stats);
+        const projectionResult = computeProjectedPendingRows(closedSlice, stats, filterState);
+        const projectedRows = projectionResult.rows;
+        state.meta.projectedRowsInSlice = projectedRows.length;
+        const projectedKeys = new Set(projectedRows.map((r) => r.mapPropertyKey));
+        const openResult = computeOpenMlsRows(stats, projectedKeys, filterState);
+        const openRows = openResult.rows;
+        const recordGeoRows = buildRecordGeoRows(filterState, closedSlice, projectedRows, openRows);
+        const emptyMessage = buildRecordGeoEmptyMessage(filterState, projectionResult, openResult);
+        return {
+          filterState,
+          stats,
+          closedRows,
+          closedSlice,
+          projectedRows,
+          openRows,
+          recordGeoRows,
+          projectionResult,
+          openResult,
+          emptyMessage,
+        };
       }
 
       function computeBaseStats(rows) {
@@ -2711,10 +2889,9 @@
         return `${titles[key] || key}: ${values[value] || value}`;
       }
 
-      function renderChips() {
+      function renderChips(filterState, slices) {
         const entries = Object.entries(state.interactions).filter(([, v]) => v);
         const el = document.getElementById("activeChips");
-        const filterState = readFormFilters();
         const mapSelected = state.geo.selectedPropertyKeys.length;
         const viewportChip = state.geo.viewportFilter && state.geo.mapBounds;
         const projectionChip = state.flags.projection;
@@ -2736,11 +2913,11 @@
         }
         if (projectionChip) {
           chips.push(`<span class="chip">Feature: Pending Projections<button type="button" data-clear-flag="projection">x</button></span>`);
-          chips.push(`<span class="chip">Projected rows in slice: ${state.meta.projectedRowsInSlice || 0}</span>`);
+          chips.push(`<span class="chip">Projected rows in slice: ${slices.projectedRows.length}</span>`);
         }
         if (includeOpenChip) {
           chips.push(`<span class="chip">Feature: Include Open/Pending MLS<button type="button" data-clear-flag="includeOpenMls">x</button></span>`);
-          chips.push(`<span class="chip">Open/Pending rows in slice: ${state.meta.openRowsInSlice || 0}</span>`);
+          chips.push(`<span class="chip">Open/Pending rows in slice: ${slices.openRows.length}</span>`);
         }
         if (presoldFlagChip) {
           chips.push(`<span class="chip">Feature: Exclude Pre-Sold New Builds<button type="button" data-clear-flag="excludePresold">x</button></span>`);
@@ -2751,19 +2928,33 @@
         el.innerHTML = chips.join("");
       }
 
-      function renderSummary(filtered, baseRows, projectedCount = 0, openCount = 0, viewRowsCount = 0, recordView = "all") {
-        const pub = filtered.filter((r) => r.dataMode === "PUBLIC_PROXY").length;
-        const mls = (filtered.length - pub) + projectedCount + openCount;
-        const projectionText = state.flags.projection ? ` | Pending Projections: ${projectedCount}` : "";
-        const openText = state.flags.includeOpenMls ? ` | Open/Pending MLS in slice: ${openCount}` : "";
+      function renderSummary(slices) {
+        const closed = slices.closedSlice;
+        const closedBase = slices.closedRows;
+        const pub = closed.filter((r) => r.dataMode === "PUBLIC_PROXY").length;
+        const mls = closed.length - pub;
+        const projectionText = state.flags.projection ? ` | Pending Projections: ${slices.projectedRows.length}` : "";
+        const openText = state.flags.includeOpenMls ? ` | Open/Pending MLS in slice: ${slices.openRows.length}` : "";
         const presoldText = state.flags.excludeLikelyPresoldNewBuild
           ? ` | Excluded pre-sold: ${state.meta.presoldExcludedInSlice}`
           : (state.meta.presoldCandidatesInSlice ? ` | Likely pre-sold in slice: ${state.meta.presoldCandidatesInSlice}` : "");
-        const recordViewText = recordView !== "all"
-          ? ` | Map/Records View: ${recordViewLabel(recordView)} (${viewRowsCount})`
+        const recordViewText = slices.filterState.recordView !== "all"
+          ? ` | Map/Records View: ${recordViewLabel(slices.filterState.recordView)} (${slices.recordGeoRows.length})`
           : "";
         document.getElementById("filterSummary").textContent =
-          `Base rows: ${baseRows.length} | Current slice: ${filtered.length + projectedCount + openCount} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${openText}${presoldText}${recordViewText}`;
+          `Base rows: ${closedBase.length} | Closed slice: ${closed.length} | Map/Records displayed: ${slices.recordGeoRows.length} | Public Proxy: ${pub} | MLS Enriched: ${mls}${projectionText}${openText}${presoldText}${recordViewText}`;
+      }
+
+      function renderSliceStatus(slices) {
+        const el = document.getElementById("sliceStatus");
+        if (!el) return;
+        const projectedText = state.flags.projection
+          ? String(slices.projectedRows.length)
+          : `${slices.projectedRows.length} (off)`;
+        const openText = state.flags.includeOpenMls
+          ? String(slices.openRows.length)
+          : `${slices.openRows.length} (hidden)`;
+        el.textContent = `Projected: ${projectedText} | Open/Pending: ${openText} | View: ${recordViewLabel(slices.filterState.recordView)}`;
       }
 
       function renderKpis(rows, stats) {
@@ -3429,7 +3620,7 @@
             west: b.getWest(),
           };
           if (state.geo.viewportFilter) {
-            renderAll();
+            scheduleRender(110);
             return;
           }
           if (state.geo.rows.length) drawGeoLayer(state.geo.rows, state.geo.neighborhoodRows);
@@ -3438,14 +3629,24 @@
         return map;
       }
 
-      function renderGeo(rows) {
+      function renderGeo(rows, options = {}) {
+        const emptyMessage = options.emptyMessage || "No rows for current filters.";
+        const filterState = options.filterState || readFormFilters();
         const mapEl = document.getElementById("geoMap");
         const tbody = document.getElementById("geoRows");
         const mobileInsights = document.getElementById("geoInsightsMobile");
+        const geoStatus = document.getElementById("geoStatus");
         if (!mapEl || !tbody || !mobileInsights) return;
         const vpToggle = document.getElementById("geoViewportFilter");
         if (vpToggle) vpToggle.checked = !!state.geo.viewportFilter;
         renderGeoSelectedRows(rows);
+        if (geoStatus) {
+          if (!rows.length) {
+            geoStatus.textContent = emptyMessage;
+          } else {
+            geoStatus.textContent = `Map rows follow ${recordViewLabel(filterState.recordView)} and current global/cross-filters.`;
+          }
+        }
 
         const built = buildGeoNeighborhoodRows(rows);
         const geoRows = built.geoRows;
@@ -3473,8 +3674,8 @@
         state.geo.neighborhoodRows = geoRows;
         if (!geoRows.length) {
           if (map && state.geo.layer) state.geo.layer.clearLayers();
-          tbody.innerHTML = `<tr><td colspan="5">No rows for current filters.</td></tr>`;
-          mobileInsights.innerHTML = `<div class="note">No neighborhoods for current filters.</div>`;
+          tbody.innerHTML = `<tr><td colspan="5">${esc(emptyMessage)}</td></tr>`;
+          mobileInsights.innerHTML = `<div class="note">${esc(emptyMessage)}</div>`;
           return;
         }
         if (map && state.geo.layer) drawGeoLayer(rows, geoRows);
@@ -3614,12 +3815,20 @@
         renderAll();
       }
 
-      function renderRecordRows(rows) {
+      function renderRecordRows(rows, options = {}) {
+        const emptyMessage = options.emptyMessage || "No rows for current filters.";
+        const filterState = options.filterState || readFormFilters();
         const tbody = document.getElementById("recordRows");
         const mobileList = document.getElementById("recordMobileList");
+        const statusEl = document.getElementById("recordsStatus");
+        if (statusEl) {
+          statusEl.textContent = rows.length
+            ? `Showing ${rows.length} rows in ${recordViewLabel(filterState.recordView)}.`
+            : emptyMessage;
+        }
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="15">No rows for current filters.</td></tr>`;
-          if (mobileList) mobileList.innerHTML = `<div class="note">No rows for current filters.</div>`;
+          tbody.innerHTML = `<tr><td colspan="15">${esc(emptyMessage)}</td></tr>`;
+          if (mobileList) mobileList.innerHTML = `<div class="note">${esc(emptyMessage)}</div>`;
           updateRecordSortHeaderUI();
           return;
         }
@@ -3647,7 +3856,7 @@
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
                 <td>${formatLot(r.lotSize)}</td>
-                <td>${esc(r.saleDate || "n/a")}</td>
+                <td class="date-cell">${esc(r.saleDate || "n/a")}</td>
                 <td>${closeDisplay(r)}</td>
                 <td>${formatMoney(r.listPriceAtPending)}</td>
                 <td>${domLabel(r)}</td>
@@ -3703,34 +3912,26 @@
 
       function renderAll() {
         const filterState = readFormFilters();
-        const baseRows = computeBaseRows();
-        state.baseRows = baseRows;
-        const stats = computeBaseStats(baseRows);
-        const filtered = applyInteractions(baseRows, stats);
-        const projectedRows = computeProjectedPendingRows(filtered, stats);
-        state.meta.projectedRowsInSlice = projectedRows.length;
-        const projectedKeys = new Set(projectedRows.map((r) => r.mapPropertyKey));
-        const openRows = computeOpenMlsRows(stats, projectedKeys);
-        let viewRows = [...filtered, ...projectedRows, ...openRows];
-        if (filterState.recordView === "projOnly") viewRows = [...projectedRows];
-        if (filterState.recordView === "openOnly") viewRows = [...openRows];
-        if (filterState.recordView === "projAndOpen") viewRows = [...projectedRows, ...openRows];
+        const slices = computeSlices(filterState);
+        state.baseRows = slices.closedRows;
+        const viewRows = slices.recordGeoRows;
         if (state.geo.selectedPropertyKeys.length) {
           const validMapKeys = new Set(viewRows.map((r) => r.mapPropertyKey));
           state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
         }
         state.filteredRows = viewRows;
 
-        renderSummary(filtered, baseRows, projectedRows.length, openRows.length, viewRows.length, filterState.recordView);
-        renderChips();
-        renderKpis(filtered, stats);
-        renderInsights(filtered);
-        renderCharts(filtered);
-        renderHotMarket(filtered);
-        renderGeo(viewRows);
-        renderRatioRows(filtered);
-        renderRankRows(filtered);
-        renderRecordRows(viewRows);
+        renderSummary(slices);
+        renderSliceStatus(slices);
+        renderChips(filterState, slices);
+        renderKpis(slices.closedSlice, slices.stats);
+        renderInsights(slices.closedSlice);
+        renderCharts(slices.closedSlice);
+        renderHotMarket(slices.closedSlice);
+        renderGeo(viewRows, { emptyMessage: slices.emptyMessage, filterState });
+        renderRatioRows(slices.closedSlice);
+        renderRankRows(slices.closedSlice);
+        renderRecordRows(viewRows, { emptyMessage: slices.emptyMessage, filterState });
       }
 
       function setInteraction(key, value) {
@@ -3874,7 +4075,6 @@
       function bindEvents() {
         ["fType", "fMlsStatus", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
-          el.addEventListener("input", renderAll);
           el.addEventListener("change", renderAll);
         });
         const recordViewSelect = document.getElementById("fRecordView");
@@ -3923,7 +4123,7 @@
           const el = document.getElementById(id);
           el.addEventListener("input", () => {
             syncPriceSliderPair(id);
-            renderAll();
+            scheduleRender(90);
           });
           el.addEventListener("change", () => {
             syncPriceSliderPair(id);
@@ -4048,12 +4248,22 @@
               state.flags.projection = false;
               const flagEl = document.getElementById("ffProjection");
               if (flagEl) flagEl.checked = false;
+              const viewEl = document.getElementById("fRecordView");
+              if (viewEl) {
+                if (viewEl.value === "projOnly") viewEl.value = "all";
+                if (viewEl.value === "projAndOpen") viewEl.value = state.flags.includeOpenMls ? "openOnly" : "all";
+              }
               renderAll();
             }
             if (key === "includeOpenMls") {
               state.flags.includeOpenMls = false;
               const flagEl = document.getElementById("ffIncludeOpenMls");
               if (flagEl) flagEl.checked = false;
+              const viewEl = document.getElementById("fRecordView");
+              if (viewEl) {
+                if (viewEl.value === "openOnly") viewEl.value = "all";
+                if (viewEl.value === "projAndOpen") viewEl.value = state.flags.projection ? "projOnly" : "all";
+              }
               renderAll();
             }
             if (key === "excludePresold") {
@@ -4086,6 +4296,11 @@
             state.flags.includeOpenMls = !state.flags.includeOpenMls;
             const flagEl = document.getElementById("ffIncludeOpenMls");
             if (flagEl) flagEl.checked = state.flags.includeOpenMls;
+            const viewEl = document.getElementById("fRecordView");
+            if (viewEl && !state.flags.includeOpenMls) {
+              if (viewEl.value === "openOnly") viewEl.value = "all";
+              if (viewEl.value === "projAndOpen") viewEl.value = state.flags.projection ? "projOnly" : "all";
+            }
             renderAll();
             return;
           }
