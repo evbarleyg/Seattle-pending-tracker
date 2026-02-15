@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-02-15T14:37:09.985Z",
+  "source": {
+    "baseFile": "public_sales_proxy_all_prices_last12mo.csv",
+    "realtorDir": "realtor_exports",
+    "realtorFiles": [
+      "Central_South Seattle Sale Stats.csv",
+      "NE Seattle Sale Stats.csv",
+      "NW Seattle Sale Stats.csv",
+      "QA_Magnolia Sale Stats.csv"
+    ]
+  },
+  "counts": {
+    "mlsRowsParsed": 3263,
+    "mlsClosedRows": 2821,
+    "mlsActiveRows": 269,
+    "mlsOpenStatusRows": 442,
+    "baseRows": 16680,
+    "matchedCountyRows": 2560,
+    "mlsOnlySoldRowsAdded": 261,
+    "mlsOnlyOpenRowsAdded": 442,
+    "outputRows": 17383
+  },
+  "outputs": {
+    "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
+  },
+  "validation": {
+    "generatedAt": "2026-02-15T14:44:01.888Z",
+    "status": "pass",
+    "errors": [],
+    "warnings": [],
+    "files": {
+      "public": "public_sales_proxy_all_prices_last12mo.csv",
+      "enriched": "public_sales_proxy_mls_enriched_last12mo.csv",
+      "realtorCsvCount": 4
+    },
+    "counts": {
+      "outputRows": 17383,
+      "modes": {
+        "PUBLIC_PROXY": 14120,
+        "MLS_ENRICHED": 3263
+      },
+      "mlsRows": 3263,
+      "mlsSoldRows": 2821,
+      "mlsOpenRows": 442,
+      "mlsActiveRows": 269
+    }
+  }
+}

@@ -16,7 +16,8 @@ Used when realtor-provided MLS fields are available.
 Recommended extra MLS columns:
 - `mlsListDate`
 - `mlsPendingDate`
-- `mlsListPriceAtPending`
+- `mlsListPriceAtPending` (legacy alias; `mlsListingPrice` is preferred)
+- `mlsListingPrice`
 - `mlsClosePrice`
 - `mlsDOM`
 - `mlsCDOM`
@@ -28,15 +29,49 @@ Recommended extra MLS columns:
 - `isLikelyPresoldNewBuild` (derived boolean for likely pre-sold new-build behavior)
 - `presoldRuleReason` (machine-readable reason tokens, e.g. `dom_le_0|sale_eq_list|year_built_gte_2023`)
 - `mlsJoinMethod` (`APN_PRICE_DATE_WINDOW` for county-matched rows, `MLS_SOLD_NOT_IN_COUNTY` for MLS sold rows not yet in county close exports)
+- `mlsStatus` canonicalized to: `Active`, `Pending`, `Pending Inspection`, `Pending BU Requested`, `Contingent`, `Sold`
 
 Normalization behavior in app:
 - `listDate = mlsListDate || listDate`
 - `pendingDate = mlsPendingDate || pendingDate`
-- `listPriceAtPending = mlsListPriceAtPending || listPriceAtPending`
+- `pendingListPrice = mlsListingPrice || mlsListPriceAtPending || pendingListPrice || listPriceAtPending`
+- `originalListPrice = mlsOriginalPrice || originalListPrice`
+- `listPriceAtPending` retained as compatibility alias to `pendingListPrice`
 - `closePrice = mlsClosePrice || closePrice`
-- `saleToList = saleToListRatio || (closePrice / listPriceAtPending)`
+- `saleToList = saleToListRatio || (closePrice / pendingListPrice)`
+- `saleToOriginalList = saleToOriginalListRatio || (closePrice / originalListPrice)`
 - `map coordinates = lat/lon (if present) || inferred zip/neighborhood anchors`
 - `isLikelyPresoldNewBuild = (MLS_ENRICHED sold row) && (explicit mlsDOM <= 0) && (closePrice ~= listPriceAtPending) && (yearBuilt >= 2023 || mlsStyleCode contains townhouse/new construction/new build)`
+
+## Bid Recommendation Fields (Active MLS)
+
+Bid guidance is produced for rows where:
+- `dataMode = MLS_ENRICHED`
+- `mlsStatus = Active`
+- `closePrice` missing/zero
+- `pendingListPrice > 0`
+
+Default model behavior:
+- comp window: 90 days (sold MLS only)
+- bid anchor: `pendingListPrice`
+- comp hierarchy:
+  - `T1_NEIGHBORHOOD_TYPE`
+  - `T2_ZIP_TYPE`
+  - `T3_CITY_TYPE`
+- minimum comps: 6
+- likely pre-sold new-build comps excluded by default
+
+Output fields:
+- `bidStrategy`
+- `bidSuggested`
+- `bidLow`
+- `bidHigh`
+- `bidRatio`
+- `bidConfidence`
+- `bidConfidenceLabel` (`High` / `Medium` / `Low` / `N/A`)
+- `bidCompCount`
+- `bidCompTier` (`T1_NEIGHBORHOOD_TYPE` | `T2_ZIP_TYPE` | `T3_CITY_TYPE` | `NONE`)
+- `bidStatus` (`SCored` | `InsufficientComps`)
 
 # Build and Run
 
@@ -62,13 +97,26 @@ node scripts/build_public_proxy_csv.js
 node scripts/build_mls_enriched_dataset.js
 ```
 
-4. Serve app locally so auto-load works:
+4. Validate refresh output and write report:
+
+```bash
+node scripts/validate_data_refresh.js
+```
+
+5. Optional one-command rebuild + validate (+ push):
+
+```bash
+node scripts/refresh_data_pipeline.js
+node scripts/refresh_data_pipeline.js --push
+```
+
+6. Serve app locally so auto-load works:
 
 ```bash
 node scripts/serve.js
 ```
 
-5. Open:
+7. Open:
 
 `http://localhost:4173`
 

@@ -466,10 +466,13 @@
         gap: 10px;
       }
       .kpi-grid-overview {
-        grid-template-columns: repeat(7, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
       .kpi-grid-heat {
         grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+      .kpi-grid-bids {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
       .kpi {
         border: 1px solid var(--line);
@@ -504,6 +507,57 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 14px;
+      }
+      .bids-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .bids-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      #view-bids table {
+        font-size: 12px;
+      }
+      #view-bids th,
+      #view-bids td {
+        white-space: nowrap;
+      }
+      #view-bids td:first-child {
+        min-width: 240px;
+        max-width: 320px;
+      }
+      #view-bids td:first-child .address-link {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: top;
+      }
+      .conf-pill {
+        display: inline-block;
+        border-radius: 999px;
+        font-size: 11px;
+        padding: 2px 8px;
+        border: 1px solid #35547a;
+        background: #15253d;
+      }
+      .conf-pill.high {
+        border-color: #2f8c5f;
+        background: rgba(61, 213, 157, 0.2);
+      }
+      .conf-pill.medium {
+        border-color: #7a8d34;
+        background: rgba(190, 210, 88, 0.18);
+      }
+      .conf-pill.low {
+        border-color: #90724a;
+        background: rgba(230, 179, 90, 0.2);
       }
       .geo-layout {
         display: grid;
@@ -1260,6 +1314,23 @@
         border-color: #b9cde5;
         color: #244665;
       }
+      body.light .conf-pill {
+        border-color: #b9cce5;
+        background: #edf4ff;
+        color: #244665;
+      }
+      body.light .conf-pill.high {
+        border-color: #8dcfb0;
+        background: #eaf8f2;
+      }
+      body.light .conf-pill.medium {
+        border-color: #cdd48a;
+        background: #f8f9ea;
+      }
+      body.light .conf-pill.low {
+        border-color: #d8bf98;
+        background: #fff5e8;
+      }
       body.light .plot {
         border-left-color: #c7d5e8;
         border-bottom-color: #c7d5e8;
@@ -1358,6 +1429,7 @@
         .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .kpi-grid-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .kpi-grid-heat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .kpi-grid-bids { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
         .geo-layout { grid-template-columns: 1fr; }
         .geo-main-panel,
@@ -1372,6 +1444,7 @@
         .kpi-grid { grid-template-columns: 1fr 1fr; }
         .kpi-grid-overview { grid-template-columns: 1fr 1fr; }
         .kpi-grid-heat { grid-template-columns: 1fr 1fr; }
+        .kpi-grid-bids { grid-template-columns: 1fr 1fr; }
         .header-controls {
           flex-direction: column;
           align-items: flex-start;
@@ -1434,6 +1507,13 @@
         .panel {
           padding: 10px;
         }
+        .bids-head {
+          align-items: flex-start;
+        }
+        .bids-controls {
+          width: 100%;
+          justify-content: space-between;
+        }
         .flag-toggle {
           width: auto;
           justify-content: flex-start;
@@ -1476,6 +1556,9 @@
         #view-records .table-wrap {
           display: none;
         }
+        #view-bids .table-wrap {
+          display: none;
+        }
         .record-mobile-list {
           display: grid;
         }
@@ -1483,7 +1566,8 @@
       @media (max-width: 520px) {
         .kpi-grid,
         .kpi-grid-overview,
-        .kpi-grid-heat { grid-template-columns: 1fr; }
+        .kpi-grid-heat,
+        .kpi-grid-bids { grid-template-columns: 1fr; }
         .geo-gradient-labels {
           font-size: 10px;
         }
@@ -1499,6 +1583,7 @@
           <button class="tab active" data-view="overview" role="tab">Overview</button>
           <button class="tab" data-view="charts" role="tab">Charts</button>
           <button class="tab" data-view="heat" role="tab">Hot Market</button>
+          <button class="tab" data-view="bids" role="tab">Bids</button>
           <button class="tab" data-view="geo" role="tab">Geo</button>
           <button class="tab" data-view="records" role="tab">Records</button>
           <button class="tab" data-view="data" role="tab">Data</button>
@@ -1604,7 +1689,7 @@
                     Exclude likely pre-sold new builds
                   </label>
                 </div>
-                <div class="flag-help">Projections show in Geo/Records with <strong>PROJ</strong>. To isolate them, set <strong>Map/Records View = Projected Only</strong>.</div>
+                <div class="flag-help">Projections show in Geo/Records with <strong>PROJ</strong>. Use the <strong>Bids</strong> tab for Active-listing offer guidance.</div>
               </div>
               <div class="actions">
                 <button class="btn" id="exportCsvBtn" type="button">Export CSV</button>
@@ -1627,8 +1712,10 @@
             <li>Start with price/date filters to define your buy box, then click chart rows or table rows to drill down.</li>
             <li>Every interactive metric and chart item applies a cross-filter across all tabs.</li>
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
+            <li><strong>Projection</strong> estimates likely close for pending/open rows. <strong>Bids</strong> gives suggested offer targets for <strong>Active</strong> listings only.</li>
             <li>To inspect projections only, enable <strong>Pending Projection</strong> and set <strong>Map/Records View = Projected Only</strong>.</li>
             <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior, including MLS sold records not yet posted in county sales exports.</li>
+            <li><strong>Original List</strong> is the first go-live asking price. <strong>List@Pending</strong> is the ask when the home went under contract. Bid-up metrics use <strong>List@Pending</strong>.</li>
             <li>Hot Market is tagged where market DOM is <strong>&le; 10 days</strong> (CDOM preferred, then DOM, then MLS list-to-pending), and Ultra Hot is <strong>&le; 5 days</strong>.</li>
           </ul>
         </section>
@@ -1648,6 +1735,11 @@
             <div class="label">Median Sale / List@Pending</div>
             <div class="value" id="kMedianSA">0.00x</div>
             <button class="kbtn" data-kpi-action="ratioMid">Filter 1.00x - 1.05x</button>
+          </article>
+          <article class="kpi">
+            <div class="label">Median Sale / Original (MLS)</div>
+            <div class="value" id="kMedianSO">n/a</div>
+            <div class="note">MLS rows only.</div>
           </article>
           <article class="kpi">
             <div class="label">Share Above List@Pending</div>
@@ -1756,6 +1848,65 @@
         </section>
       </section>
 
+      <section id="view-bids" class="view">
+        <section class="panel">
+          <div class="bids-head">
+            <h3>Active Listing Bid Recommender</h3>
+            <div class="bids-controls">
+              <div class="scope-toggle" aria-label="Bid strategy toggle">
+                <button type="button" class="scope-pill" data-bid-strategy="conservative">Conservative</button>
+                <button type="button" class="scope-pill active" data-bid-strategy="balanced">Balanced</button>
+                <button type="button" class="scope-pill" data-bid-strategy="aggressive">Aggressive</button>
+              </div>
+              <label class="geo-vp-toggle"><input type="checkbox" id="bidHighConfidenceOnly" /> High confidence only</label>
+            </div>
+          </div>
+          <div class="note compact">
+            Active MLS listings only. Suggestions are advisory and based on 90-day sold comps, anchored to List@Pending.
+          </div>
+          <div class="kpi-grid kpi-grid-bids">
+            <article class="kpi">
+              <div class="label">Active Listings In Slice</div>
+              <div class="value" id="bActiveCount">0</div>
+            </article>
+            <article class="kpi">
+              <div class="label">Median Suggested Over Ask</div>
+              <div class="value" id="bMedianOverAsk">0.0%</div>
+            </article>
+            <article class="kpi">
+              <div class="label">High-Confidence Bids</div>
+              <div class="value" id="bHighConfidenceCount">0</div>
+            </article>
+            <article class="kpi">
+              <div class="label">No Recommendation</div>
+              <div class="value" id="bInsufficientCount">0</div>
+            </article>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th>Neighborhood</th>
+                  <th>Type</th>
+                  <th>Original List</th>
+                  <th>List@Pending</th>
+                  <th>DOM/CDOM</th>
+                  <th>Suggested Bid</th>
+                  <th>Bid Range</th>
+                  <th>Suggested S/List</th>
+                  <th>Confidence</th>
+                  <th>Comp Count</th>
+                  <th>Comp Tier</th>
+                </tr>
+              </thead>
+              <tbody id="bidRows"></tbody>
+            </table>
+          </div>
+          <div class="record-mobile-list" id="bidMobileList"></div>
+        </section>
+      </section>
+
       <section id="view-records" class="view">
         <section class="panel">
           <h3>Row-Level Summary</h3>
@@ -1773,7 +1924,8 @@
                   <th><button class="th-sort" type="button" data-record-sort="lotSize">Lot Size <span class="sort-ind" data-sort-ind="lotSize">&#8597;</span></button></th>
                   <th class="col-date"><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="listPriceAtPending">List@Pending <span class="sort-ind" data-sort-ind="listPriceAtPending">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="originalListPrice">Original List <span class="sort-ind" data-sort-ind="originalListPrice">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="pendingListPrice">List@Pending <span class="sort-ind" data-sort-ind="pendingListPrice">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="domMetric">DOM <span class="sort-ind" data-sort-ind="domMetric">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="hotCategory">Hot Category <span class="sort-ind" data-sort-ind="hotCategory">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="saleToList">S/List <span class="sort-ind" data-sort-ind="saleToList">&#8597;</span></button></th>
@@ -1852,7 +2004,7 @@
               <div class="table-wrap geo-selected-table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Address</th><th>Neighborhood</th><th>Lot</th><th>List</th><th>Sale</th><th>DOM</th><th>Hot</th><th>Date</th></tr>
+                    <tr><th>Address</th><th>Neighborhood</th><th>Lot</th><th>Orig</th><th>Pending</th><th>Sale</th><th>DOM</th><th>Hot</th><th>Date</th></tr>
                   </thead>
                   <tbody id="geoSelectedRows"></tbody>
                 </table>
@@ -1876,7 +2028,7 @@
           <div class="mono">id,address,type,closePrice</div>
 
           <p class="note">Recommended columns:</p>
-          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsListDate,mlsPendingDate,mlsListPriceAtPending,mlsClosePrice,mlsDOM,mlsCDOM,mlsStyleCode,hotMarketTag,saleToListRatio,bidUpAmount,bidUpPct,isLikelyPresoldNewBuild,presoldRuleReason</div>
+          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,originalListPrice,pendingListPrice,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsStatus,mlsListingPrice,mlsOriginalPrice,mlsDOM,mlsCDOM,mlsStyleCode,hotMarketTag,saleToListRatio,saleToOriginalListRatio,bidUpAmount,bidUpPct,bidStrategy,bidSuggested,bidLow,bidHigh,bidRatio,bidConfidence,bidConfidenceLabel,bidCompCount,bidCompTier,bidStatus,isLikelyPresoldNewBuild,presoldRuleReason</div>
 
           <p class="note">Intended use:</p>
           <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details when available.</div>
@@ -1900,6 +2052,16 @@
       const SA_COLOR_MIN = 0.9;
       const SA_COLOR_MAX = 1.2;
       const PRESOLD_NEW_BUILD_YEAR_MIN = 2023;
+      const BID_COMP_WINDOW_DAYS = 90;
+      const BID_HALFLIFE_DAYS = 30;
+      const BID_MIN_COMPS = 6;
+      const BID_RATIO_MIN = 0.9;
+      const BID_RATIO_MAX = 1.25;
+      const BID_STRATEGIES = {
+        conservative: { point: 0.5, low: 0.4, high: 0.6, label: "Conservative" },
+        balanced: { point: 0.6, low: 0.5, high: 0.7, label: "Balanced" },
+        aggressive: { point: 0.7, low: 0.6, high: 0.8, label: "Aggressive" },
+      };
 
       const TYPE_LABELS = {
         "11": "Single Family",
@@ -2012,6 +2174,10 @@
           excludeLikelyPresoldNewBuild: false,
           includeOpenMls: false,
         },
+        bid: {
+          strategy: "balanced",
+          highConfidenceOnly: false,
+        },
         interactions: {
           month: null,
           neighborhood: null,
@@ -2060,6 +2226,11 @@
           currency: "USD",
           maximumFractionDigits: 0,
         });
+      }
+
+      function formatMoneyOrNa(v) {
+        const n = Number(v || 0);
+        return n > 0 ? formatMoney(n) : "n/a";
       }
 
       function formatMoneyCompact(v, digits = 2) {
@@ -2120,7 +2291,7 @@
       }
 
       function deltaDisplay(row) {
-        if (row.listPriceAtPending <= 0) return "n/a";
+        if (row.pendingListPrice <= 0) return "n/a";
         if (row.delta || row.delta === 0) return formatMoney(row.delta);
         return "n/a";
       }
@@ -2142,6 +2313,48 @@
           return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
         }
         return sorted[base];
+      }
+
+      function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+      }
+
+      function roundToNearest(value, step = 1000) {
+        if (!Number.isFinite(value)) return 0;
+        const s = Math.max(1, Number(step || 1));
+        return Math.round(value / s) * s;
+      }
+
+      function daysAgo(isoDate) {
+        const d = toDate(isoDate);
+        if (!d) return null;
+        const now = new Date();
+        return Math.max(0, Math.round((now - d) / (1000 * 60 * 60 * 24)));
+      }
+
+      function weightedQuantile(values, weights, q) {
+        if (!values.length) return 0;
+        const pairs = values.map((v, i) => ({
+          v: Number(v || 0),
+          w: Number(weights[i] || 0),
+        })).filter((p) => Number.isFinite(p.v) && Number.isFinite(p.w) && p.w > 0);
+        if (!pairs.length) return quantile(values, q);
+        pairs.sort((a, b) => a.v - b.v);
+        const total = pairs.reduce((sum, p) => sum + p.w, 0);
+        const target = total * clamp(q, 0, 1);
+        let acc = 0;
+        for (let i = 0; i < pairs.length; i += 1) {
+          acc += pairs[i].w;
+          if (acc >= target) return pairs[i].v;
+        }
+        return pairs[pairs.length - 1].v;
+      }
+
+      function bidConfidenceLabel(score) {
+        if (!Number.isFinite(score) || score <= 0) return "N/A";
+        if (score >= 75) return "High";
+        if (score >= 55) return "Medium";
+        return "Low";
       }
 
       function monthKey(isoDate) {
@@ -2212,6 +2425,13 @@
         return lines.slice(1).filter((line) => line.trim()).map((line, rowIndex) => {
           const cols = parseCsvLine(line);
           const pick = (name) => (idx[name] !== undefined ? (cols[idx[name]] || "").trim() : "");
+          const pickAny = (...names) => {
+            for (let i = 0; i < names.length; i += 1) {
+              const value = pick(names[i]);
+              if (value !== "") return value;
+            }
+            return "";
+          };
           const latVal = num(pick("lat"));
           const lonVal = num(pick("lon"));
           const lat = Math.abs(latVal) > 1 ? latVal : null;
@@ -2230,6 +2450,8 @@
             listDate: pick("listDate"),
             pendingDate: pick("pendingDate"),
             saleDate: pick("saleDate"),
+            originalListPrice: num(pick("originalListPrice")),
+            pendingListPrice: num(pick("pendingListPrice")),
             listPriceAtPending: num(pick("listPriceAtPending")),
             closePrice: num(pick("closePrice")),
             assessedValue: num(pick("assessedValue")),
@@ -2242,10 +2464,12 @@
             lat,
             lon,
             sourceRowIndex: rowIndex + 1,
-            mlsListDate: pick("mlsListDate"),
-            mlsPendingDate: pick("mlsPendingDate"),
-            mlsListPriceAtPending: num(pick("mlsListPriceAtPending")),
-            mlsClosePrice: num(pick("mlsClosePrice")),
+            mlsListDate: pickAny("mlsListDate", "mlsListingDate"),
+            mlsPendingDate: pickAny("mlsPendingDate", "mlsContractualDate"),
+            mlsListPriceAtPending: num(pickAny("mlsListPriceAtPending", "mlsListingPrice")),
+            mlsListingPrice: num(pickAny("mlsListingPrice", "mlsListPriceAtPending")),
+            mlsOriginalPrice: num(pick("mlsOriginalPrice")),
+            mlsClosePrice: num(pickAny("mlsClosePrice", "mlsSellingPrice")),
             mlsStyleCode: pick("mlsStyleCode"),
             mlsDOMRaw: pick("mlsDOM"),
             mlsStatus: pick("mlsStatus"),
@@ -2257,6 +2481,16 @@
             saleToOriginalListRatio: num(pick("saleToOriginalListRatio")),
             bidUpAmount: num(pick("bidUpAmount")),
             bidUpPct: num(pick("bidUpPct")),
+            bidStrategy: pick("bidStrategy"),
+            bidSuggested: num(pick("bidSuggested")),
+            bidLow: num(pick("bidLow")),
+            bidHigh: num(pick("bidHigh")),
+            bidRatio: num(pick("bidRatio")),
+            bidConfidence: num(pick("bidConfidence")),
+            bidConfidenceLabel: pick("bidConfidenceLabel"),
+            bidCompCount: num(pick("bidCompCount")),
+            bidCompTier: pick("bidCompTier"),
+            bidStatus: pick("bidStatus"),
           };
         });
       }
@@ -2356,12 +2590,19 @@
         state.flags.projection = false;
         state.flags.excludeLikelyPresoldNewBuild = false;
         state.flags.includeOpenMls = false;
+        state.bid.strategy = "balanced";
+        state.bid.highConfidenceOnly = false;
         const projectionToggle = document.getElementById("ffProjection");
         if (projectionToggle) projectionToggle.checked = false;
         const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
         if (includeOpenToggle) includeOpenToggle.checked = false;
         const excludePresoldToggle = document.getElementById("ffExcludePresold");
         if (excludePresoldToggle) excludePresoldToggle.checked = false;
+        const highConfToggle = document.getElementById("bidHighConfidenceOnly");
+        if (highConfToggle) highConfToggle.checked = false;
+        document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
+          btn.classList.toggle("active", btn.getAttribute("data-bid-strategy") === "balanced");
+        });
       }
 
       function normalizeRow(source) {
@@ -2372,7 +2613,16 @@
 
         const closePrice = num(source.mlsClosePrice || source.closePrice);
         const assessedValue = num(source.assessedValue);
-        const listPriceAtPending = num(source.mlsListPriceAtPending || source.listPriceAtPending || closePrice);
+        const pendingListPrice = num(
+          source.mlsListingPrice
+          || source.mlsListPriceAtPending
+          || source.pendingListPrice
+          || source.listPriceAtPending
+          || closePrice
+        );
+        const originalListPriceRaw = num(source.mlsOriginalPrice || source.originalListPrice);
+        const originalListPrice = originalListPriceRaw > 0 ? originalListPriceRaw : 0;
+        const listPriceAtPending = pendingListPrice;
 
         const daysToPendingRaw = daysBetween(listDate, pendingDate);
         const daysToPending = dataMode === "MLS_ENRICHED" ? daysToPendingRaw : null;
@@ -2385,7 +2635,8 @@
         const marketDomDays = hasMlsCdomValue
           ? mlsCDOM
           : (hasMlsDomValue ? mlsDOM : daysToPending);
-        const saleToList = num(source.saleToListRatio) || (listPriceAtPending > 0 ? (closePrice / listPriceAtPending) : 0);
+        const saleToList = num(source.saleToListRatio) || (pendingListPrice > 0 ? (closePrice / pendingListPrice) : 0);
+        const saleToOriginalList = num(source.saleToOriginalListRatio) || (originalListPrice > 0 ? (closePrice / originalListPrice) : 0);
         const delta = num(source.bidUpAmount) || (closePrice - listPriceAtPending);
         const deltaPct = num(source.bidUpPct) || (listPriceAtPending > 0 ? delta / listPriceAtPending : 0);
         const tagRaw = String(source.hotMarketTag || "").toUpperCase();
@@ -2442,6 +2693,8 @@
           projectionBasisCount: 0,
           closePrice,
           assessedValue,
+          pendingListPrice,
+          originalListPrice,
           listPriceAtPending,
           mlsDOM,
           mlsCDOM,
@@ -2454,8 +2707,19 @@
           yearBuilt: num(source.yearBuilt),
           daysToPending,
           saleToList,
+          saleToOriginalList,
           delta,
           deltaPct,
+          bidStrategy: source.bidStrategy || "",
+          bidSuggested: num(source.bidSuggested),
+          bidLow: num(source.bidLow),
+          bidHigh: num(source.bidHigh),
+          bidRatio: num(source.bidRatio),
+          bidConfidence: num(source.bidConfidence),
+          bidConfidenceLabel: source.bidConfidenceLabel || "N/A",
+          bidCompCount: num(source.bidCompCount),
+          bidCompTier: source.bidCompTier || "NONE",
+          bidStatus: source.bidStatus || "",
           hotMarketTag: isUltraHot ? "ULTRA_HOT_<=5D" : (isHotMarket ? "HOT_MARKET_<=10D" : ""),
           isUltraHot,
           isHotMarket,
@@ -2677,6 +2941,176 @@
         return rows;
       }
 
+      function matchesSharedGlobalFilters(row, filterState, opts = {}) {
+        const f = filterState;
+        const priceField = opts.priceField || "closePrice";
+        const dateField = opts.dateField || "saleDate";
+        const price = Number(row[priceField] || 0);
+        const date = String(row[dateField] || "");
+
+        if (f.neighborhoods.length && !f.neighborhoods.includes(row.neighborhoodLabel)) return false;
+        if (f.type !== "All" && row.typeLabel !== f.type) return false;
+        if (f.mode !== "All" && row.dataMode !== f.mode) return false;
+        if (f.minClose && price < f.minClose) return false;
+        if (f.maxClose !== null && price > f.maxClose) return false;
+        if (f.dateFrom && (!date || date < f.dateFrom)) return false;
+        if (f.dateTo && (!date || date > f.dateTo)) return false;
+        if (f.scope === "hot10" && !row.isHotMarket) return false;
+        if (f.scope === "ultra5" && !row.isUltraHot) return false;
+        return true;
+      }
+
+      function applyBidViewInteractions(rows) {
+        const i = state.interactions;
+        const selectedMapKeys = state.geo.selectedPropertyKeys;
+        const viewportFilterActive = state.geo.viewportFilter && !!state.geo.mapBounds;
+        return rows.filter((r) => {
+          if (selectedMapKeys.length && !selectedMapKeys.includes(r.mapPropertyKey)) return false;
+          if (viewportFilterActive && !rowInViewport(r, state.geo.mapBounds)) return false;
+          if (i.neighborhood && r.neighborhoodLabel !== i.neighborhood) return false;
+          if (i.type && r.typeLabel !== i.type) return false;
+          if (i.mode && r.dataMode !== i.mode) return false;
+          if (i.hotMarket === "hot" && !r.isHotMarket) return false;
+          if (i.hotMarket === "ultra" && !r.isUltraHot) return false;
+          return true;
+        });
+      }
+
+      function computeBidCompTiers(targetRow, compPool) {
+        const zip = zip5(targetRow.zip);
+        const byType = compPool.filter((c) => c.typeLabel === targetRow.typeLabel);
+        const tier1 = byType.filter((c) => c.neighborhoodLabel === targetRow.neighborhoodLabel);
+        if (tier1.length >= BID_MIN_COMPS) return { tier: "T1_NEIGHBORHOOD_TYPE", rows: tier1 };
+        const tier2 = byType.filter((c) => zip && zip5(c.zip) === zip);
+        if (tier2.length >= BID_MIN_COMPS) return { tier: "T2_ZIP_TYPE", rows: tier2 };
+        if (byType.length >= BID_MIN_COMPS) return { tier: "T3_CITY_TYPE", rows: byType };
+        return { tier: "NONE", rows: byType };
+      }
+
+      function computeActiveBidSuggestions(filterState, normalizedRows, strategy = "balanced") {
+        const strat = BID_STRATEGIES[strategy] || BID_STRATEGIES.balanced;
+        const windowStart = new Date();
+        windowStart.setDate(windowStart.getDate() - BID_COMP_WINDOW_DAYS);
+        const windowStartIso = toIso(windowStart);
+
+        const activeRowsBase = normalizedRows
+          .filter((r) => r.dataMode === "MLS_ENRICHED")
+          .filter((r) => r.mlsStatusNorm === "ACTIVE")
+          .filter((r) => !r.hasActualClose && r.pendingListPrice > 0)
+          .filter((r) => matchesSharedGlobalFilters(r, filterState, { priceField: "pendingListPrice", dateField: "effectiveDate" }));
+
+        if (filterState.mlsStatus !== "All" && String(filterState.mlsStatus || "").toUpperCase() !== "ACTIVE") {
+          return {
+            rows: [],
+            byKey: new Map(),
+            stats: {
+              activeCount: 0,
+              scoredCount: 0,
+              highConfidenceCount: 0,
+              insufficientCount: 0,
+              medianOverAskPct: 0,
+            },
+          };
+        }
+
+        const compPool = normalizedRows
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && r.hasActualClose && r.pendingListPrice > 0 && r.saleToList > 0)
+          .filter((r) => !r.isLikelyPresoldNewBuild)
+          .filter((r) => !!r.saleDate && r.saleDate >= windowStartIso)
+          .filter((r) => matchesSharedGlobalFilters(r, filterState, { priceField: "closePrice", dateField: "saleDate" }));
+
+        const scoredRows = activeRowsBase.map((row) => {
+          const tier = computeBidCompTiers(row, compPool);
+          const compRows = tier.rows;
+          if (tier.tier === "NONE" || compRows.length < BID_MIN_COMPS) {
+            return {
+              ...row,
+              bidStrategy: strat.label,
+              bidSuggested: 0,
+              bidLow: 0,
+              bidHigh: 0,
+              bidRatio: 0,
+              bidConfidence: 0,
+              bidConfidenceLabel: "N/A",
+              bidCompCount: compRows.length,
+              bidCompTier: "NONE",
+              bidStatus: "InsufficientComps",
+            };
+          }
+
+          const ratios = compRows.map((c) => c.saleToList);
+          const recencies = compRows.map((c) => daysAgo(c.saleDate)).filter((d) => d !== null);
+          const weights = compRows.map((c) => {
+            const d = daysAgo(c.saleDate);
+            const age = d === null ? BID_COMP_WINDOW_DAYS : d;
+            return Math.pow(0.5, age / BID_HALFLIFE_DAYS);
+          });
+
+          let pointRatio = weightedQuantile(ratios, weights, strat.point);
+          let lowRatio = weightedQuantile(ratios, weights, strat.low);
+          let highRatio = weightedQuantile(ratios, weights, strat.high);
+
+          let heatAdj = 0;
+          if (row.isUltraHot) heatAdj += 0.01;
+          else if (row.isHotMarket) heatAdj += 0.005;
+          const marketDom = domMetric(row);
+          if (marketDom !== null && marketDom >= 30) heatAdj -= 0.005;
+
+          pointRatio = clamp(pointRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
+          lowRatio = clamp(lowRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
+          highRatio = clamp(highRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
+
+          if (lowRatio > pointRatio) lowRatio = pointRatio;
+          if (highRatio < pointRatio) highRatio = pointRatio;
+
+          const suggestedBid = roundToNearest(row.pendingListPrice * pointRatio, 1000);
+          const bidLow = roundToNearest(row.pendingListPrice * lowRatio, 1000);
+          const bidHigh = roundToNearest(row.pendingListPrice * highRatio, 1000);
+          const bidRatio = row.pendingListPrice > 0 ? (suggestedBid / row.pendingListPrice) : 0;
+
+          const countScore = clamp((compRows.length / 20) * 45, 0, 45);
+          const tierScore = tier.tier === "T1_NEIGHBORHOOD_TYPE"
+            ? 35
+            : (tier.tier === "T2_ZIP_TYPE" ? 25 : 15);
+          const medianRecency = recencies.length ? median(recencies) : BID_COMP_WINDOW_DAYS;
+          const recencyScore = clamp((1 - (medianRecency / BID_COMP_WINDOW_DAYS)) * 20, 0, 20);
+          const bidConfidence = Math.round(clamp(countScore + tierScore + recencyScore, 0, 100));
+
+          return {
+            ...row,
+            bidStrategy: strat.label,
+            bidSuggested: suggestedBid,
+            bidLow,
+            bidHigh,
+            bidRatio,
+            bidConfidence,
+            bidConfidenceLabel: bidConfidenceLabel(bidConfidence),
+            bidCompCount: compRows.length,
+            bidCompTier: tier.tier,
+            bidStatus: "SCored",
+          };
+        });
+
+        const scored = scoredRows.filter((r) => r.bidStatus === "SCored");
+        const highConfidenceCount = scoredRows.filter((r) => r.bidConfidence >= 75).length;
+        const medianOverAskPct = scored.length
+          ? median(scored.map((r) => ((r.bidSuggested - r.pendingListPrice) / r.pendingListPrice) * 100))
+          : 0;
+        const byKey = new Map(scoredRows.map((r) => [r.mapPropertyKey, r]));
+
+        return {
+          rows: scoredRows,
+          byKey,
+          stats: {
+            activeCount: scoredRows.length,
+            scoredCount: scored.length,
+            highConfidenceCount,
+            insufficientCount: scoredRows.length - scored.length,
+            medianOverAskPct,
+          },
+        };
+      }
+
       function computeProjectedPendingRows(referenceRows, stats, filterState = readFormFilters()) {
         const f = filterState;
         const result = {
@@ -2695,21 +3129,21 @@
         }
 
         const compSource = referenceRows
-          .filter((r) => r.hasActualClose && r.listPriceAtPending > 0 && r.saleToList > 0);
+          .filter((r) => r.hasActualClose && r.pendingListPrice > 0 && r.saleToList > 0);
         result.compSourceCount = compSource.length;
 
         const existing = new Set(referenceRows.map((r) => r.mapPropertyKey));
         let pendingRows = state.rows
           .map(normalizeRow)
-          .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.listPriceAtPending > 0)
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.pendingListPrice > 0)
           .filter((r) => !existing.has(r.mapPropertyKey));
 
         if (f.neighborhoods.length) pendingRows = pendingRows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
         if (f.type !== "All") pendingRows = pendingRows.filter((r) => r.typeLabel === f.type);
         if (f.mode !== "All") pendingRows = pendingRows.filter((r) => r.dataMode === f.mode);
         if (f.mlsStatus !== "All") pendingRows = pendingRows.filter((r) => r.mlsStatusNorm === String(f.mlsStatus || "").toUpperCase());
-        if (f.minClose) pendingRows = pendingRows.filter((r) => r.listPriceAtPending >= f.minClose);
-        if (f.maxClose !== null) pendingRows = pendingRows.filter((r) => r.listPriceAtPending <= f.maxClose);
+        if (f.minClose) pendingRows = pendingRows.filter((r) => r.pendingListPrice >= f.minClose);
+        if (f.maxClose !== null) pendingRows = pendingRows.filter((r) => r.pendingListPrice <= f.maxClose);
         if (f.dateFrom) pendingRows = pendingRows.filter((r) => r.effectiveDate >= f.dateFrom);
         if (f.dateTo) pendingRows = pendingRows.filter((r) => r.effectiveDate <= f.dateTo);
         if (f.scope === "hot10") pendingRows = pendingRows.filter((r) => r.isHotMarket);
@@ -2733,10 +3167,10 @@
           const ratioMed = ratios.length ? median(ratios) : 1;
           const ratioLow = ratios.length ? quantile(ratios, 0.25) : ratioMed;
           const ratioHigh = ratios.length ? quantile(ratios, 0.75) : ratioMed;
-          const projectedClosePrice = Math.round(r.listPriceAtPending * ratioMed);
-          const projectedCloseLow = Math.round(r.listPriceAtPending * ratioLow);
-          const projectedCloseHigh = Math.round(r.listPriceAtPending * ratioHigh);
-          const projectedDelta = projectedClosePrice - r.listPriceAtPending;
+          const projectedClosePrice = Math.round(r.pendingListPrice * ratioMed);
+          const projectedCloseLow = Math.round(r.pendingListPrice * ratioLow);
+          const projectedCloseHigh = Math.round(r.pendingListPrice * ratioHigh);
+          const projectedDelta = projectedClosePrice - r.pendingListPrice;
           const projectedPsf = r.sqft > 0 ? projectedClosePrice / r.sqft : 0;
 
           return {
@@ -2750,8 +3184,9 @@
             projectedCloseHigh,
             projectionBasisCount: localComps.length,
             saleToList: ratioMed,
+            saleToOriginalList: r.originalListPrice > 0 ? (projectedClosePrice / r.originalListPrice) : 0,
             delta: projectedDelta,
-            deltaPct: r.listPriceAtPending > 0 ? (projectedDelta / r.listPriceAtPending) : 0,
+            deltaPct: r.pendingListPrice > 0 ? (projectedDelta / r.pendingListPrice) : 0,
             pricePerSqft: projectedPsf,
           };
         });
@@ -2779,13 +3214,13 @@
 
         let openRows = state.rows
           .map(normalizeRow)
-          .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.listPriceAtPending > 0);
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.pendingListPrice > 0);
 
         if (f.neighborhoods.length) openRows = openRows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
         if (f.type !== "All") openRows = openRows.filter((r) => r.typeLabel === f.type);
         if (f.mlsStatus !== "All") openRows = openRows.filter((r) => r.mlsStatusNorm === String(f.mlsStatus || "").toUpperCase());
-        if (f.minClose) openRows = openRows.filter((r) => r.listPriceAtPending >= f.minClose);
-        if (f.maxClose !== null) openRows = openRows.filter((r) => r.listPriceAtPending <= f.maxClose);
+        if (f.minClose) openRows = openRows.filter((r) => r.pendingListPrice >= f.minClose);
+        if (f.maxClose !== null) openRows = openRows.filter((r) => r.pendingListPrice <= f.maxClose);
         if (f.dateFrom) openRows = openRows.filter((r) => r.effectiveDate >= f.dateFrom);
         if (f.dateTo) openRows = openRows.filter((r) => r.effectiveDate <= f.dateTo);
         if (f.scope === "hot10") openRows = openRows.filter((r) => r.isHotMarket);
@@ -2953,7 +3388,9 @@
         const includeOpenChip = state.flags.includeOpenMls;
         const presoldFlagChip = state.flags.excludeLikelyPresoldNewBuild;
         const customRecordView = filterState.recordView !== "all";
-        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip && !customRecordView) {
+        const bidStrategyChip = state.bid.strategy !== "balanced";
+        const bidHighConfChip = state.bid.highConfidenceOnly;
+        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip && !customRecordView && !bidStrategyChip && !bidHighConfChip) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -2979,6 +3416,12 @@
         }
         if (customRecordView) {
           chips.push(`<span class="chip">Map/Records: ${recordViewLabel(filterState.recordView)}<button type="button" data-clear-record-view="1">x</button></span>`);
+        }
+        if (bidStrategyChip) {
+          chips.push(`<span class="chip">Bid Strategy: ${esc(BID_STRATEGIES[state.bid.strategy]?.label || state.bid.strategy)}<button type="button" data-clear-bid-strategy="1">x</button></span>`);
+        }
+        if (bidHighConfChip) {
+          chips.push(`<span class="chip">Bids: High Confidence Only<button type="button" data-clear-bid-highconf="1">x</button></span>`);
         }
         el.innerHTML = chips.join("");
       }
@@ -3014,6 +3457,9 @@
 
       function renderKpis(rows, stats) {
         const ratios = rows.filter((r) => r.saleToList > 0).map((r) => r.saleToList);
+        const originalRatios = rows
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && r.saleToOriginalList > 0)
+          .map((r) => r.saleToOriginalList);
         const psf = rows.filter((r) => r.pricePerSqft > 0).map((r) => r.pricePerSqft);
         const mlsMarketDom = rows
           .filter((r) => r.dataMode === "MLS_ENRICHED")
@@ -3023,6 +3469,7 @@
         document.getElementById("kSales").textContent = rows.length;
         document.getElementById("kMedianClose").textContent = formatMoney(median(rows.map((r) => r.closePrice)));
         document.getElementById("kMedianSA").textContent = `${median(ratios).toFixed(2)}x`;
+        document.getElementById("kMedianSO").textContent = originalRatios.length ? `${median(originalRatios).toFixed(2)}x` : "n/a";
         const above = ratios.length ? (ratios.filter((v) => v > 1).length / ratios.length) * 100 : 0;
         document.getElementById("kAboveAssessed").textContent = `${above.toFixed(1)}%`;
         document.getElementById("kPsf").textContent = formatMoney(median(psf));
@@ -3063,10 +3510,19 @@
 
         const lines = [
           `Median close price is ${formatMoney(median(rows.map((r) => r.closePrice)))} across ${rows.length} homes in this slice.`,
-          `${overShare.toFixed(1)}% of homes closed above list-at-pending (median Sale/List ${median(ratios).toFixed(2)}x).`,
+          `${overShare.toFixed(1)}% of homes closed above List@Pending (median Sale/List@Pending ${median(ratios).toFixed(2)}x).`,
           `Highest activity is ${topNeighborhood ? topNeighborhood[0] : "n/a"} (${topNeighborhood ? topNeighborhood[1] : 0} sales).`,
           `Most active month is ${topMonth ? monthLabel(topMonth[0]) : "n/a"} (${topMonth ? topMonth[1] : 0} sales).`,
         ];
+
+        const mlsOriginalRatios = rows
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && r.saleToOriginalList > 0)
+          .map((r) => r.saleToOriginalList);
+        if (mlsOriginalRatios.length) {
+          lines.push(`MLS rows median Sale/Original List is ${median(mlsOriginalRatios).toFixed(2)}x (context only; bid-up metrics stay anchored to List@Pending).`);
+        } else {
+          lines.push("Original List is unavailable for this slice; bid-up metrics still use List@Pending.");
+        }
 
         const mlsDomRows = rows
           .filter((r) => r.dataMode === "MLS_ENRICHED")
@@ -3309,6 +3765,109 @@
         `).join("");
       }
 
+      function bidTierLabel(value) {
+        if (value === "T1_NEIGHBORHOOD_TYPE") return "Neighborhood + Type";
+        if (value === "T2_ZIP_TYPE") return "Zip + Type";
+        if (value === "T3_CITY_TYPE") return "Seattle Type";
+        return "Insufficient comps";
+      }
+
+      function renderBidStrategyUI() {
+        document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
+          const active = btn.getAttribute("data-bid-strategy") === state.bid.strategy;
+          btn.classList.toggle("active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        const highConfEl = document.getElementById("bidHighConfidenceOnly");
+        if (highConfEl) highConfEl.checked = !!state.bid.highConfidenceOnly;
+      }
+
+      function renderBids(bidRows, bidStats) {
+        const tbody = document.getElementById("bidRows");
+        const mobileList = document.getElementById("bidMobileList");
+        if (!tbody || !mobileList) return;
+
+        const activeCount = Number(bidStats.activeCount || 0);
+        const scoredCount = Number(bidStats.scoredCount || 0);
+        const highCount = Number(bidStats.highConfidenceCount || 0);
+        const insuffCount = Number(bidStats.insufficientCount || 0);
+        const medianOver = Number(bidStats.medianOverAskPct || 0);
+        document.getElementById("bActiveCount").textContent = String(activeCount);
+        document.getElementById("bMedianOverAsk").textContent = `${medianOver.toFixed(1)}%`;
+        document.getElementById("bHighConfidenceCount").textContent = String(highCount);
+        document.getElementById("bInsufficientCount").textContent = String(insuffCount);
+
+        if (!bidRows.length) {
+          tbody.innerHTML = `<tr><td colspan="12">No active MLS listings in current filter scope.</td></tr>`;
+          mobileList.innerHTML = `<div class="note">No active MLS listings in current filter scope.</div>`;
+          return;
+        }
+
+        const sorted = bidRows
+          .slice()
+          .sort((a, b) => {
+            const aScore = a.bidStatus === "SCored" ? 1 : 0;
+            const bScore = b.bidStatus === "SCored" ? 1 : 0;
+            if (bScore !== aScore) return bScore - aScore;
+            if (b.bidConfidence !== a.bidConfidence) return b.bidConfidence - a.bidConfidence;
+            return String(a.address || "").localeCompare(String(b.address || ""));
+          });
+
+        tbody.innerHTML = sorted.map((r) => {
+          const confClass = r.bidConfidenceLabel === "High"
+            ? "high"
+            : (r.bidConfidenceLabel === "Medium" ? "medium" : (r.bidConfidenceLabel === "Low" ? "low" : ""));
+          const suggested = r.bidStatus === "SCored" ? formatMoney(r.bidSuggested) : "n/a";
+          const range = r.bidStatus === "SCored"
+            ? `${formatMoney(r.bidLow)} - ${formatMoney(r.bidHigh)}`
+            : "n/a";
+          const ratio = r.bidStatus === "SCored" && r.bidRatio > 0 ? `${r.bidRatio.toFixed(2)}x` : "n/a";
+          return `
+            <tr>
+              <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
+              <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
+              <td>${esc(r.typeLabel || "Unknown")}</td>
+              <td>${formatMoneyOrNa(r.originalListPrice)}</td>
+              <td>${formatMoneyOrNa(r.pendingListPrice)}</td>
+              <td>${domLabel(r)}</td>
+              <td>${suggested}</td>
+              <td>${range}</td>
+              <td>${ratio}</td>
+              <td><span class="conf-pill ${confClass}">${esc(r.bidConfidenceLabel)} (${r.bidConfidence || 0})</span></td>
+              <td>${r.bidCompCount || 0}</td>
+              <td>${esc(bidTierLabel(r.bidCompTier))}</td>
+            </tr>
+          `;
+        }).join("");
+
+        mobileList.innerHTML = sorted.map((r) => {
+          const suggested = r.bidStatus === "SCored" ? formatMoney(r.bidSuggested) : "n/a";
+          const range = r.bidStatus === "SCored"
+            ? `${formatMoney(r.bidLow)} - ${formatMoney(r.bidHigh)}`
+            : "n/a";
+          const ratio = r.bidStatus === "SCored" && r.bidRatio > 0 ? `${r.bidRatio.toFixed(2)}x` : "n/a";
+          return `
+            <article class="mrow">
+              <div class="mrow-head" style="cursor:default;">
+                <span class="mrow-address"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></span>
+                <span class="mrow-price">${suggested}</span>
+                <span class="mrow-date">${esc(r.neighborhoodLabel || "Seattle")}</span>
+              </div>
+              <div class="mrow-detail" style="display:block;">
+                <div class="mrow-grid">
+                  <div class="mrow-item"><div class="k">Original / Pending</div><div class="v">${formatMoneyOrNa(r.originalListPrice)} / ${formatMoneyOrNa(r.pendingListPrice)}</div></div>
+                  <div class="mrow-item"><div class="k">DOM/CDOM</div><div class="v">${domLabel(r)}</div></div>
+                  <div class="mrow-item"><div class="k">Suggested Bid</div><div class="v">${suggested}</div></div>
+                  <div class="mrow-item"><div class="k">Bid Range</div><div class="v">${range}</div></div>
+                  <div class="mrow-item"><div class="k">Suggested S/List</div><div class="v">${ratio}</div></div>
+                  <div class="mrow-item"><div class="k">Confidence</div><div class="v">${esc(r.bidConfidenceLabel)} (${r.bidConfidence || 0})</div></div>
+                </div>
+              </div>
+            </article>
+          `;
+        }).join("");
+      }
+
       function zip5(zip) {
         return (String(zip || "").match(/[0-9]{5}/) || [])[0] || "";
       }
@@ -3339,7 +3898,7 @@
           const g = grouped[name];
           g.count += 1;
           g.prices.push(r.closePrice || 0);
-          if (r.listPriceAtPending > 0) g.listPrices.push(r.listPriceAtPending);
+          if (r.pendingListPrice > 0) g.listPrices.push(r.pendingListPrice);
           if (r.lotSize > 0) g.lotSizes.push(r.lotSize);
           if (r.saleToList > 0) {
             g.ratios.push(r.saleToList);
@@ -3460,7 +4019,7 @@
           const marker = L.marker([p.lat, p.lon], { icon, keyboard: false });
           marker.on("click", () => toggleNeighborhoodFilter(p.name));
           marker.bindTooltip(
-            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list<br>${formatMoney(p.medianClose)} median sale<br>${formatLot(p.medianLot)} median lot<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List<br><span style="font-size:11px;color:#335d86;">Click to add/remove neighborhood filter</span>`,
+            `<b>${esc(p.name)}</b><br>${p.count} sales<br>${p.medianList > 0 ? formatMoney(p.medianList) : "n/a"} median list@pending<br>${formatMoney(p.medianClose)} median sale<br>${formatLot(p.medianLot)} median lot<br>${p.medianDom > 0 ? `${p.medianDom.toFixed(0)}d` : "n/a"} median DOM<br>${formatPct(p.hotShare)} hot (${formatPct(p.ultraShare)} ultra)<br>${p.medianRatio > 0 ? `${p.medianRatio.toFixed(2)}x` : "n/a"} median S/List<br><span style="font-size:11px;color:#335d86;">Click to add/remove neighborhood filter</span>`,
             { direction: "top", className: "geo-tip", pane: "geoTooltipPane", offset: [0, -8], opacity: 0.98, sticky: true }
           );
           marker.addTo(layer);
@@ -3472,15 +4031,27 @@
         const presoldRow = presoldBadge
           ? `<div class="geo-tip-row"><span class="k">Tag</span><span class="v">${presoldBadge}</span></div>`
           : "";
+        const isActive = row.dataMode === "MLS_ENRICHED" && row.mlsStatusNorm === "ACTIVE" && !row.hasActualClose;
+        const bidRows = isActive
+          ? `
+            <div class="geo-tip-row"><span class="k">Suggested Bid</span><span class="v">${row.bidStatus === "SCored" ? formatMoney(row.bidSuggested) : "n/a"}</span></div>
+            <div class="geo-tip-row"><span class="k">Bid Range</span><span class="v">${row.bidStatus === "SCored" ? `${formatMoney(row.bidLow)} - ${formatMoney(row.bidHigh)}` : "n/a"}</span></div>
+            <div class="geo-tip-row"><span class="k">Confidence</span><span class="v">${row.bidStatus === "SCored" ? `${row.bidConfidenceLabel} (${row.bidConfidence})` : "Insufficient comps"}</span></div>
+            <div class="geo-tip-row"><span class="k">Comp Tier</span><span class="v">${esc(bidTierLabel(row.bidCompTier))}</span></div>
+          `
+          : "";
         return `
           <div class="geo-tip-card">
             <div class="geo-tip-title">${esc(row.address || "Address unavailable")}</div>
-            <div class="geo-tip-row"><span class="k">List@Pending</span><span class="v">${formatMoney(row.listPriceAtPending)}</span></div>
+            <div class="geo-tip-row"><span class="k">Original List</span><span class="v">${formatMoneyOrNa(row.originalListPrice)}</span></div>
+            <div class="geo-tip-row"><span class="k">List@Pending</span><span class="v">${formatMoneyOrNa(row.pendingListPrice)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale Price</span><span class="v">${closeDisplay(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Lot Size</span><span class="v">${formatLot(row.lotSize)}</span></div>
             <div class="geo-tip-row"><span class="k">DOM</span><span class="v">${domLabel(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Heat</span><span class="v">${hotCategory(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale/List</span><span class="v">${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x` : "n/a"}</span></div>
+            <div class="geo-tip-row"><span class="k">Sale/Original</span><span class="v">${row.saleToOriginalList > 0 ? `${row.saleToOriginalList.toFixed(2)}x` : "n/a"}</span></div>
+            ${bidRows}
             ${presoldRow}
           </div>
         `;
@@ -3490,17 +4061,28 @@
         const projectionLine = row.isProjectionRow && row.projectedCloseLow > 0 && row.projectedCloseHigh > 0
           ? `<br>Projected range: ${formatMoney(row.projectedCloseLow)} - ${formatMoney(row.projectedCloseHigh)}`
           : "";
+        const isActive = row.dataMode === "MLS_ENRICHED" && row.mlsStatusNorm === "ACTIVE" && !row.hasActualClose;
+        const bidLine = isActive
+          ? (
+            row.bidStatus === "SCored"
+              ? `<br>Suggested Bid: ${formatMoney(row.bidSuggested)} (${formatMoney(row.bidLow)} - ${formatMoney(row.bidHigh)})<br>Confidence: ${row.bidConfidenceLabel} (${row.bidConfidence}) | ${bidTierLabel(row.bidCompTier)}`
+              : `<br>Suggested Bid: n/a (insufficient comps)`
+          )
+          : "";
         const presoldBadge = presoldBadgeHtml(row);
         const presoldLine = presoldBadge
           ? `<br>${presoldBadge}`
           : "";
         return `
           <b>${esc(row.address || "Address unavailable")}</b><br>
-          List@Pending: ${formatMoney(row.listPriceAtPending)}<br>
+          Original List: ${formatMoneyOrNa(row.originalListPrice)}<br>
+          List@Pending: ${formatMoneyOrNa(row.pendingListPrice)}<br>
           Sale: ${closeDisplay(row)}${projectionLine}<br>
           Lot Size: ${formatLot(row.lotSize)}<br>
           DOM: ${domLabel(row)} | ${hotCategory(row)}<br>
           ${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x Sale/List` : "n/a Sale/List"}<br>
+          ${row.saleToOriginalList > 0 ? `${row.saleToOriginalList.toFixed(2)}x Sale/Original` : "n/a Sale/Original"}<br>
+          ${bidLine}
           ${presoldLine}
           ${esc(row.neighborhoodLabel || "Seattle")} | ${esc(row.saleDate || row.pendingDate || "n/a")}<br>
           <a href="${esc(zUrl)}" target="_blank" rel="noopener noreferrer">Open Zillow &#8599;</a>${countyUrl ? ` | <a href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}<br>
@@ -3539,7 +4121,7 @@
 
         if (!state.geo.selectedPropertyKeys.length) {
           countEl.textContent = "0 selected";
-          tbody.innerHTML = `<tr><td colspan="8">Click map dots to filter to specific properties.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9">Click map dots to filter to specific properties.</td></tr>`;
           mobile.innerHTML = `<div class="note">Click map dots to filter to specific properties.</div>`;
           return;
         }
@@ -3548,7 +4130,7 @@
         const selectedRows = rows.filter((r) => selectedSet.has(r.mapPropertyKey));
         countEl.textContent = `${selectedRows.length} selected`;
         if (!selectedRows.length) {
-          tbody.innerHTML = `<tr><td colspan="8">No selected properties in current filter scope.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9">No selected properties in current filter scope.</td></tr>`;
           mobile.innerHTML = `<div class="note">No selected properties in current filter scope.</div>`;
           return;
         }
@@ -3562,7 +4144,8 @@
             <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
             <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
             <td>${formatLot(r.lotSize)}</td>
-            <td>${formatMoney(r.listPriceAtPending)}</td>
+            <td>${formatMoneyOrNa(r.originalListPrice)}</td>
+            <td>${formatMoneyOrNa(r.pendingListPrice)}</td>
             <td>${closeDisplay(r)}</td>
             <td>${domLabel(r)}</td>
             <td>${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</td>
@@ -3573,7 +4156,8 @@
           <article class="geo-mobile-card">
             <div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></div>
             <div class="k">${esc(r.neighborhoodLabel || "Seattle")} | ${esc(r.saleDate || r.pendingDate || "n/a")}</div>
-            <div class="v">List ${formatMoney(r.listPriceAtPending)} | Sale ${closeDisplay(r)}</div>
+            <div class="v">Orig ${formatMoneyOrNa(r.originalListPrice)} | Pending ${formatMoneyOrNa(r.pendingListPrice)}</div>
+            <div class="v">Sale ${closeDisplay(r)}</div>
             <div class="k">Lot ${formatLot(r.lotSize)} | ${domLabel(r)} | ${hotCategory(r)}${presoldBadgeHtml(r) ? " | Likely Pre-Sold New Build" : ""}</div>
           </article>
         `).join("");
@@ -3825,7 +4409,8 @@
         if (key === "lotSize") return Number(row.lotSize || 0);
         if (key === "saleDate") return String(row.saleDate || "");
         if (key === "closePrice") return Number(row.closePrice || 0);
-        if (key === "listPriceAtPending") return Number(row.listPriceAtPending || 0);
+        if (key === "originalListPrice") return Number(row.originalListPrice || 0);
+        if (key === "pendingListPrice") return Number(row.pendingListPrice || 0);
         if (key === "domMetric") return Number(domMetric(row) ?? -1);
         if (key === "hotCategory") return String(hotCategory(row));
         if (key === "saleToList") return Number(row.saleToList || 0);
@@ -3882,7 +4467,7 @@
             : emptyMessage;
         }
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="15">${esc(emptyMessage)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="16">${esc(emptyMessage)}</td></tr>`;
           if (mobileList) mobileList.innerHTML = `<div class="note">${esc(emptyMessage)}</div>`;
           updateRecordSortHeaderUI();
           return;
@@ -3913,7 +4498,8 @@
                 <td>${formatLot(r.lotSize)}</td>
                 <td class="date-cell">${esc(r.saleDate || "n/a")}</td>
                 <td>${closeDisplay(r)}</td>
-                <td>${formatMoney(r.listPriceAtPending)}</td>
+                <td>${formatMoneyOrNa(r.originalListPrice)}</td>
+                <td>${formatMoneyOrNa(r.pendingListPrice)}</td>
                 <td>${domLabel(r)}</td>
                 <td>${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToList > 0 ? ratioNorm(r.saleToList) : 0, "rgba(61,213,157,0.33)")}">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</span></td>
@@ -3947,9 +4533,11 @@
                     <div class="mrow-item"><div class="k">SqFt</div><div class="v">${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</div></div>
                     <div class="mrow-item"><div class="k">Lot Size</div><div class="v">${formatLot(r.lotSize)}</div></div>
                     <div class="mrow-item"><div class="k">Sale Price</div><div class="v">${closeDisplay(r)}</div></div>
-                    <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoney(r.listPriceAtPending)}</div></div>
+                    <div class="mrow-item"><div class="k">Original List</div><div class="v">${formatMoneyOrNa(r.originalListPrice)}</div></div>
+                    <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoneyOrNa(r.pendingListPrice)}</div></div>
                     <div class="mrow-item"><div class="k">DOM</div><div class="v">${domLabel(r)}</div></div>
                     <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
+                    <div class="mrow-item"><div class="k">Sale / Original</div><div class="v">${r.saleToOriginalList > 0 ? `${r.saleToOriginalList.toFixed(2)}x` : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${deltaDisplay(r)}</div></div>
                     <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</div></div>
                     <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></div></div>
@@ -3965,12 +4553,61 @@
         updateRecordSortHeaderUI();
       }
 
+      function mergeBidFields(row, bidByKey) {
+        const bid = bidByKey.get(row.mapPropertyKey);
+        if (!bid) {
+          return {
+            ...row,
+            bidStrategy: "",
+            bidSuggested: 0,
+            bidLow: 0,
+            bidHigh: 0,
+            bidRatio: 0,
+            bidConfidence: 0,
+            bidConfidenceLabel: "N/A",
+            bidCompCount: 0,
+            bidCompTier: "NONE",
+            bidStatus: "",
+          };
+        }
+        return {
+          ...row,
+          bidStrategy: bid.bidStrategy || "",
+          bidSuggested: bid.bidSuggested || 0,
+          bidLow: bid.bidLow || 0,
+          bidHigh: bid.bidHigh || 0,
+          bidRatio: bid.bidRatio || 0,
+          bidConfidence: bid.bidConfidence || 0,
+          bidConfidenceLabel: bid.bidConfidenceLabel || "N/A",
+          bidCompCount: bid.bidCompCount || 0,
+          bidCompTier: bid.bidCompTier || "NONE",
+          bidStatus: bid.bidStatus || "",
+        };
+      }
+
       function renderAll() {
         const filterState = readFormFilters();
         updateScopeToggleUI(filterState.scope);
         const slices = computeSlices(filterState);
+        const normalizedAll = state.rows.map(normalizeRow);
+        const bidResult = computeActiveBidSuggestions(filterState, normalizedAll, state.bid.strategy);
+        let bidRowsView = applyBidViewInteractions(bidResult.rows);
+        if (state.bid.highConfidenceOnly) {
+          bidRowsView = bidRowsView.filter((r) => r.bidStatus === "SCored" && r.bidConfidence >= 75);
+        }
+        const bidScoredView = bidRowsView.filter((r) => r.bidStatus === "SCored");
+        const bidStatsView = {
+          activeCount: bidRowsView.length,
+          scoredCount: bidScoredView.length,
+          highConfidenceCount: bidRowsView.filter((r) => r.bidConfidence >= 75).length,
+          insufficientCount: bidRowsView.filter((r) => r.bidStatus !== "SCored").length,
+          medianOverAskPct: bidScoredView.length
+            ? median(bidScoredView.map((r) => ((r.bidSuggested - r.pendingListPrice) / r.pendingListPrice) * 100))
+            : 0,
+        };
+        const bidByKey = bidResult.byKey;
         state.baseRows = slices.closedRows;
-        const viewRows = slices.recordGeoRows;
+        const viewRows = slices.recordGeoRows.map((r) => mergeBidFields(r, bidByKey));
         if (state.geo.selectedPropertyKeys.length) {
           const validMapKeys = new Set(viewRows.map((r) => r.mapPropertyKey));
           state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((k) => validMapKeys.has(k));
@@ -3988,6 +4625,8 @@
         renderRatioRows(slices.closedSlice);
         renderRankRows(slices.closedSlice);
         renderRecordRows(viewRows, { emptyMessage: slices.emptyMessage, filterState });
+        renderBidStrategyUI();
+        renderBids(bidRowsView, bidStatsView);
       }
 
       function setInteraction(key, value) {
@@ -4016,12 +4655,14 @@
         if (!state.filteredRows.length) return;
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
-          "closePrice","listPriceAtPending","saleToList","delta","deltaPct","isHotMarket","isUltraHot",
+          "closePrice","originalListPrice","pendingListPrice","listPriceAtPending","saleToList","saleToOriginalList","delta","deltaPct","isHotMarket","isUltraHot",
+          "bidStrategy","bidSuggested","bidLow","bidHigh","bidRatio","bidConfidence","bidConfidenceLabel","bidCompCount","bidCompTier","bidStatus",
           "hotCategory","domDays","isLikelyPresoldNewBuild","presoldRuleReason","isProjectionRow","projectedClosePrice","projectedCloseLow","projectedCloseHigh","projectionBasisCount",
           "beds","baths","sqft","lotSize","yearBuilt","zip"
         ];
         const lines = [headers.join(",")];
         state.filteredRows.forEach((r) => {
+          const activeBidEligible = r.dataMode === "MLS_ENRICHED" && r.mlsStatusNorm === "ACTIVE" && !r.hasActualClose;
           lines.push([
             r.id,
             r.address,
@@ -4032,12 +4673,25 @@
             r.listDate,
             r.pendingDate,
             r.closePrice,
+            r.originalListPrice || "",
+            r.pendingListPrice || "",
             r.listPriceAtPending,
             r.saleToList,
+            r.saleToOriginalList,
             r.delta,
             r.deltaPct,
             r.isHotMarket ? "true" : "false",
             r.isUltraHot ? "true" : "false",
+            activeBidEligible ? (r.bidStrategy || "") : "",
+            activeBidEligible && r.bidStatus === "SCored" ? r.bidSuggested : "",
+            activeBidEligible && r.bidStatus === "SCored" ? r.bidLow : "",
+            activeBidEligible && r.bidStatus === "SCored" ? r.bidHigh : "",
+            activeBidEligible && r.bidStatus === "SCored" ? r.bidRatio : "",
+            activeBidEligible && r.bidStatus === "SCored" ? r.bidConfidence : "",
+            activeBidEligible ? (r.bidConfidenceLabel || "") : "",
+            activeBidEligible ? (r.bidCompCount || "") : "",
+            activeBidEligible ? (r.bidCompTier || "") : "",
+            activeBidEligible ? (r.bidStatus || "") : "",
             hotCategory(r),
             domMetric(r) ?? "",
             r.isLikelyPresoldNewBuild ? "true" : "false",
@@ -4180,6 +4834,22 @@
           excludePresoldToggle.checked = !!state.flags.excludeLikelyPresoldNewBuild;
           excludePresoldToggle.addEventListener("change", (evt) => {
             state.flags.excludeLikelyPresoldNewBuild = !!evt.target.checked;
+            renderAll();
+          });
+        }
+        document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const value = btn.getAttribute("data-bid-strategy");
+            if (!BID_STRATEGIES[value]) return;
+            state.bid.strategy = value;
+            renderAll();
+          });
+        });
+        const bidHighConfToggle = document.getElementById("bidHighConfidenceOnly");
+        if (bidHighConfToggle) {
+          bidHighConfToggle.checked = !!state.bid.highConfidenceOnly;
+          bidHighConfToggle.addEventListener("change", (evt) => {
+            state.bid.highConfidenceOnly = !!evt.target.checked;
             renderAll();
           });
         }
@@ -4344,6 +5014,22 @@
           if (clearRecordView) {
             const viewEl = document.getElementById("fRecordView");
             if (viewEl) viewEl.value = "all";
+            renderAll();
+            return;
+          }
+
+          const clearBidStrategy = evt.target.closest("[data-clear-bid-strategy]");
+          if (clearBidStrategy) {
+            state.bid.strategy = "balanced";
+            renderAll();
+            return;
+          }
+
+          const clearBidHighConf = evt.target.closest("[data-clear-bid-highconf]");
+          if (clearBidHighConf) {
+            state.bid.highConfidenceOnly = false;
+            const chk = document.getElementById("bidHighConfidenceOnly");
+            if (chk) chk.checked = false;
             renderAll();
             return;
           }

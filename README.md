@@ -27,6 +27,7 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 ## Buyer-Focused Flags
 
 - `Pending Price Projection (Experimental)`: projects close price ranges for pending MLS rows using filtered comp ratios.
+- `Bids` tab: active-listing offer guidance using recent sold MLS comps (default 90 days), with suggested bid point/range and confidence.
 - `Exclude likely pre-sold new builds` (off by default): removes rows matching:
   - `dataMode = MLS_ENRICHED`
   - `closePrice > 0` and `listPriceAtPending > 0`
@@ -56,15 +57,61 @@ node scripts/build_public_proxy_csv.js
 node scripts/build_mls_enriched_dataset.js
 ```
 
-4. Start the local server:
+4. Validate refresh output:
+
+```bash
+node scripts/validate_data_refresh.js
+```
+
+5. Start the local server:
 
 ```bash
 node scripts/serve.js
 ```
 
-5. Open:
+6. Open:
 
 `http://localhost:4173`
+
+## Automated Refresh
+
+One command rebuild + validate:
+
+```bash
+node scripts/refresh_data_pipeline.js
+```
+
+Rebuild + validate + commit/push to `main` (triggers GitHub Pages deploy):
+
+```bash
+node scripts/refresh_data_pipeline.js --push
+```
+
+Optional flags:
+
+- `--skip-public` skips county proxy rebuild.
+- `--skip-mls` skips MLS enrichment rebuild.
+- `--report-only` runs validation/report only.
+
+Refresh summary is saved to:
+
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/data_refresh_report.json`
+
+## Bid Recommendations (Active MLS)
+
+- Scope: `MLS_ENRICHED` rows where `mlsStatus = Active` and no close price.
+- Bid anchor: `List@Pending` (`pendingListPrice`).
+- Default strategy: `Balanced`.
+- Output per listing:
+  - Suggested bid
+  - Bid range
+  - Suggested Sale/List ratio
+  - Confidence score/label
+  - Comp count and comp tier
+- Comp model defaults:
+  - sold MLS comps in the last 90 days
+  - hierarchical tiers: neighborhood+type, zip+type, city+type
+  - likely pre-sold new-build comps excluded by default
 
 ## Deployment
 
@@ -102,4 +149,6 @@ git push -u origin main
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_parcel_coord_lookup.js` - Normalize GIS export to `major,minor,lat,lon` join file
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_mls_enriched_last12mo.csv` - Default loaded dataset
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_mls_enriched_dataset.js` - MLS merge/enrichment builder
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/validate_data_refresh.js` - Refresh validator + report writer
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/refresh_data_pipeline.js` - End-to-end local refresh orchestrator
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/DATA_SCHEMA.md` - Field notes and normalization behavior

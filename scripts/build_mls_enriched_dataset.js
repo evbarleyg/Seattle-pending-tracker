@@ -8,12 +8,20 @@ const PROJECT_DIR = path.resolve(__dirname, "..");
 const BASE_FILE = path.join(PROJECT_DIR, "public_sales_proxy_all_prices_last12mo.csv");
 const REALTOR_DIR = path.join(PROJECT_DIR, "realtor_exports");
 const OUTPUT_FILE = path.join(PROJECT_DIR, "public_sales_proxy_mls_enriched_last12mo.csv");
-
-const REALTOR_FILES = [
-  { file: "Central_South Seattle Sale Stats.csv", region: "Central / South Seattle" },
-  { file: "NE Seattle Sale Stats.csv", region: "NE Seattle" },
-  { file: "NW Seattle Sale Stats.csv", region: "NW Seattle" },
-  { file: "QA_Magnolia Sale Stats.csv", region: "Queen Anne / Magnolia" },
+const REPORT_FILE = path.join(PROJECT_DIR, "data_refresh_report.json");
+const REALTOR_FILE_PATTERN = /\.csv$/i;
+const REQUIRED_REALTOR_COLUMNS = [
+  "APN",
+  "Status",
+  "Listing Date",
+  "Pending Date",
+  "Contractual Date",
+  "Selling Date",
+  "Listing Price",
+  "Original Price",
+  "Selling Price",
+  "DOM",
+  "CDOM",
 ];
 
 const MAX_DATE_LAG_DAYS = 45;
@@ -183,6 +191,51 @@ function normalizeHeaderNames(headers) {
   });
 }
 
+function regionFromFilename(file) {
+  const stem = String(file || "")
+    .replace(/\.csv$/i, "")
+    .replace(/sale stats/ig, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stem || "Seattle";
+}
+
+function normalizeMlsStatus(raw) {
+  const up = String(raw || "").trim().toUpperCase();
+  if (!up) return "";
+  if (up === "SOLD") return "Sold";
+  if (up === "ACTIVE") return "Active";
+  if (up === "PENDING") return "Pending";
+  if (up === "PENDING INSPECTION") return "Pending Inspection";
+  if (up === "PENDING BU REQUESTED") return "Pending BU Requested";
+  if (up === "CONTINGENT") return "Contingent";
+  return up
+    .toLowerCase()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function discoverRealtorFiles() {
+  if (!fs.existsSync(REALTOR_DIR)) return [];
+  return fs.readdirSync(REALTOR_DIR)
+    .filter((name) => REALTOR_FILE_PATTERN.test(name))
+    .filter((name) => !name.startsWith("."))
+    .sort((a, b) => a.localeCompare(b))
+    .map((file) => ({
+      file,
+      region: regionFromFilename(file),
+      full: path.join(REALTOR_DIR, file),
+    }));
+}
+
+function findHeaderIndex(lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const cols = parseCsvLine(lines[i]).map((c) => String(c || "").trim());
+    if (cols.includes("APN") && cols.includes("Status")) return i;
+  }
+  return -1;
+}
+
 function mlsAddressFromParts(row) {
   const street = [
     row["Street Number"],
@@ -218,22 +271,35 @@ function readBaseRows() {
   return { headers, rows };
 }
 
-function readRealtorRows() {
+function readRealtorRows(discoveredFiles) {
   const out = [];
-  REALTOR_FILES.forEach(({ file, region }) => {
-    const full = path.join(REALTOR_DIR, file);
-    if (!fs.existsSync(full)) return;
+  const discovered = discoveredFiles || discoverRealtorFiles();
+  if (!discovered.length) {
+    throw new Error(`No realtor CSV files found in ${REALTOR_DIR}`);
+  }
+
+  discovered.forEach(({ file, region, full }) => {
     const text = fs.readFileSync(full, "utf8");
     const lines = text.split(/\r?\n/).filter((line) => line.trim());
-    if (lines.length < 3) return;
+    if (lines.length < 2) return;
 
-    const headers = normalizeHeaderNames(parseCsvLine(lines[1]));
-    lines.slice(2).forEach((line, rowIndex) => {
+    const headerIndex = findHeaderIndex(lines);
+    if (headerIndex < 0 || headerIndex >= lines.length - 1) {
+      throw new Error(`Could not find header row with APN/Status in realtor file: ${file}`);
+    }
+
+    const headers = normalizeHeaderNames(parseCsvLine(lines[headerIndex]));
+    const missingRequired = REQUIRED_REALTOR_COLUMNS.filter((h) => !headers.includes(h));
+    if (missingRequired.length) {
+      throw new Error(`Realtor file ${file} missing required columns: ${missingRequired.join(", ")}`);
+    }
+
+    lines.slice(headerIndex + 1).forEach((line, rowIndex) => {
       const cols = parseCsvLine(line);
       const row = {};
       headers.forEach((h, i) => { row[h] = (cols[i] || "").trim(); });
 
-      const status = String(row.Status || "").trim();
+      const status = normalizeMlsStatus(row.Status);
       const sellingDate = toIsoDate(row["Selling Date"]);
       const sellingPrice = Math.round(num(row["Selling Price"]));
 
@@ -321,14 +387,21 @@ function chooseBestMatch(baseRow, candidates, usedIds) {
   return best;
 }
 
+function writeRefreshReport(report) {
+  fs.writeFileSync(REPORT_FILE, `${JSON.stringify(report, null, 2)}\n`);
+}
+
 function main() {
   if (!fs.existsSync(BASE_FILE)) throw new Error(`Missing base dataset: ${BASE_FILE}`);
   if (!fs.existsSync(REALTOR_DIR)) throw new Error(`Missing realtor directory: ${REALTOR_DIR}`);
 
+  const realtorFiles = discoverRealtorFiles();
+  if (!realtorFiles.length) throw new Error(`No realtor CSV files found in ${REALTOR_DIR}`);
   const { headers, rows } = readBaseRows();
-  const mlsRows = readRealtorRows();
+  const mlsRows = readRealtorRows(realtorFiles);
   const mlsClosedRows = mlsRows.filter((r) => r.isClosed && r.sellingDate && r.sellingPrice > 0);
   const mlsOpenRows = mlsRows.filter((r) => !r.isClosed);
+  const mlsActiveRows = mlsRows.filter((r) => r.status === "Active" && !r.isClosed);
   const parcelSnapshotByApn = buildParcelSnapshotByApn(rows);
   const knownCountySaleSignatures = new Set(
     rows
@@ -622,10 +695,38 @@ function main() {
   });
   fs.writeFileSync(OUTPUT_FILE, `${lines.join("\n")}\n`);
 
+  const report = {
+    generatedAt: new Date().toISOString(),
+    source: {
+      baseFile: path.basename(BASE_FILE),
+      realtorDir: path.basename(REALTOR_DIR),
+      realtorFiles: realtorFiles.map((f) => f.file),
+    },
+    counts: {
+      mlsRowsParsed: mlsRows.length,
+      mlsClosedRows: mlsClosedRows.length,
+      mlsActiveRows: mlsActiveRows.length,
+      mlsOpenStatusRows: mlsOpenRows.length,
+      baseRows: rows.length,
+      matchedCountyRows: matched,
+      mlsOnlySoldRowsAdded: mlsOnlyAdded,
+      mlsOnlyOpenRowsAdded: mlsOpenAdded,
+      outputRows: finalRows.length,
+    },
+    outputs: {
+      enrichedCsv: path.basename(OUTPUT_FILE),
+    },
+  };
+  writeRefreshReport(report);
+
+  // eslint-disable-next-line no-console
+  console.log(`Realtor files loaded: ${realtorFiles.length}`);
   // eslint-disable-next-line no-console
   console.log(`MLS rows parsed: ${mlsRows.length}`);
   // eslint-disable-next-line no-console
   console.log(`MLS closed rows: ${mlsClosedRows.length}`);
+  // eslint-disable-next-line no-console
+  console.log(`MLS active rows: ${mlsActiveRows.length}`);
   // eslint-disable-next-line no-console
   console.log(`MLS open-status rows: ${mlsOpenRows.length}`);
   // eslint-disable-next-line no-console
@@ -640,6 +741,8 @@ function main() {
   console.log(`Total output rows: ${finalRows.length}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${OUTPUT_FILE}`);
+  // eslint-disable-next-line no-console
+  console.log(`Refresh report: ${REPORT_FILE}`);
 }
 
 main();
