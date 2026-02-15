@@ -521,6 +521,75 @@
         gap: 10px;
         flex-wrap: wrap;
       }
+      .manual-bid-wrap {
+        margin-top: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: var(--panel-soft);
+        display: grid;
+        gap: 10px;
+      }
+      .manual-bid-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .manual-bid-form {
+        display: grid;
+        grid-template-columns: 1.2fr repeat(6, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .manual-bid-form .field {
+        margin: 0;
+      }
+      .manual-bid-actions {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .manual-bid-actions .btn {
+        min-width: 92px;
+      }
+      .manual-bid-result {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .manual-kpi {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: linear-gradient(180deg, #122440, #0f1d33);
+      }
+      .manual-kpi .label {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .manual-kpi .value {
+        margin-top: 3px;
+        font-size: 19px;
+        font-weight: 650;
+      }
+      .manual-bid-table th,
+      .manual-bid-table td {
+        white-space: nowrap;
+        font-size: 12px;
+      }
+      .manual-bid-table td:first-child {
+        min-width: 220px;
+        max-width: 280px;
+      }
+      .manual-bid-table td:first-child .address-link {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: top;
+      }
       #view-bids table {
         font-size: 12px;
       }
@@ -1309,6 +1378,10 @@
         background: linear-gradient(180deg, #f7fbff, #edf5ff);
         border-color: #c8d7eb;
       }
+      body.light .manual-kpi {
+        background: linear-gradient(180deg, #f8fbff, #edf3fb);
+        border-color: #c8d7eb;
+      }
       body.light .kpi .kbtn {
         background: #eaf3ff;
         border-color: #b9cde5;
@@ -1430,6 +1503,8 @@
         .kpi-grid-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .kpi-grid-heat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .kpi-grid-bids { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .manual-bid-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .manual-bid-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
         .geo-layout { grid-template-columns: 1fr; }
         .geo-main-panel,
@@ -1514,6 +1589,15 @@
           width: 100%;
           justify-content: space-between;
         }
+        .manual-bid-form {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .manual-bid-result {
+          grid-template-columns: 1fr;
+        }
+        .manual-bid-actions {
+          align-items: center;
+        }
         .flag-toggle {
           width: auto;
           justify-content: flex-start;
@@ -1559,6 +1643,9 @@
         #view-bids .table-wrap {
           display: none;
         }
+        .manual-bid-wrap .table-wrap {
+          display: none;
+        }
         .record-mobile-list {
           display: grid;
         }
@@ -1568,6 +1655,7 @@
         .kpi-grid-overview,
         .kpi-grid-heat,
         .kpi-grid-bids { grid-template-columns: 1fr; }
+        .manual-bid-form { grid-template-columns: 1fr; }
         .geo-gradient-labels {
           font-size: 10px;
         }
@@ -1864,6 +1952,65 @@
           <div class="note compact">
             Active MLS listings only. Suggestions are advisory and based on 90-day sold comps, anchored to List@Pending.
           </div>
+          <section class="manual-bid-wrap">
+            <div class="manual-bid-head">
+              <strong>Try A Listing (Manual Scenario)</strong>
+              <span class="note compact">Enter a listing to generate comps + suggested bid using the same model.</span>
+            </div>
+            <div class="manual-bid-form">
+              <div class="field">
+                <label for="manualBidAddress">Address (optional)</label>
+                <input id="manualBidAddress" type="text" placeholder="123 Example St, Seattle WA" />
+              </div>
+              <div class="field">
+                <label for="manualBidListPrice">Ask Price</label>
+                <input id="manualBidListPrice" type="number" min="0" step="1000" placeholder="1250000" />
+              </div>
+              <div class="field">
+                <label for="manualBidNeighborhood">Neighborhood</label>
+                <select id="manualBidNeighborhood"></select>
+              </div>
+              <div class="field">
+                <label for="manualBidType">Property Type</label>
+                <select id="manualBidType"></select>
+              </div>
+              <div class="field">
+                <label for="manualBidZip">ZIP</label>
+                <input id="manualBidZip" type="text" maxlength="5" placeholder="98112" />
+              </div>
+              <div class="field">
+                <label for="manualBidDom">DOM</label>
+                <input id="manualBidDom" type="number" min="0" step="1" placeholder="7" />
+              </div>
+              <div class="field">
+                <label for="manualBidCdom">CDOM</label>
+                <input id="manualBidCdom" type="number" min="0" step="1" placeholder="9" />
+              </div>
+            </div>
+            <div class="manual-bid-actions">
+              <button class="btn" id="manualBidRun" type="button">Estimate Bid</button>
+              <button class="btn alt" id="manualBidClear" type="button">Clear</button>
+              <div class="note compact" id="manualBidStatus">No manual scenario yet.</div>
+            </div>
+            <div class="manual-bid-result" id="manualBidResult"></div>
+            <div class="table-wrap manual-bid-table-wrap">
+              <table class="manual-bid-table">
+                <thead>
+                  <tr>
+                    <th>Comp Address</th>
+                    <th>Sale Date</th>
+                    <th>Neighborhood</th>
+                    <th>Type</th>
+                    <th>List@Pending</th>
+                    <th>Close</th>
+                    <th>S/List</th>
+                    <th>DOM/CDOM</th>
+                  </tr>
+                </thead>
+                <tbody id="manualBidCompRows"></tbody>
+              </table>
+            </div>
+          </section>
           <div class="kpi-grid kpi-grid-bids">
             <article class="kpi">
               <div class="label">Active Listings In Slice</div>
@@ -2177,6 +2324,7 @@
         bid: {
           strategy: "balanced",
           highConfidenceOnly: false,
+          manualEnabled: false,
         },
         interactions: {
           month: null,
@@ -2592,6 +2740,7 @@
         state.flags.includeOpenMls = false;
         state.bid.strategy = "balanced";
         state.bid.highConfidenceOnly = false;
+        state.bid.manualEnabled = false;
         const projectionToggle = document.getElementById("ffProjection");
         if (projectionToggle) projectionToggle.checked = false;
         const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
@@ -2600,6 +2749,12 @@
         if (excludePresoldToggle) excludePresoldToggle.checked = false;
         const highConfToggle = document.getElementById("bidHighConfidenceOnly");
         if (highConfToggle) highConfToggle.checked = false;
+        const manualStatus = document.getElementById("manualBidStatus");
+        const manualResult = document.getElementById("manualBidResult");
+        const manualComps = document.getElementById("manualBidCompRows");
+        if (manualStatus) manualStatus.textContent = "No manual scenario yet.";
+        if (manualResult) manualResult.innerHTML = "";
+        if (manualComps) manualComps.innerHTML = "";
         document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
           btn.classList.toggle("active", btn.getAttribute("data-bid-strategy") === "balanced");
         });
@@ -2832,6 +2987,8 @@
         const nWrap = document.getElementById("fNeighborhoodOptions");
         const tSelect = document.getElementById("fType");
         const sSelect = document.getElementById("fMlsStatus");
+        const manualN = document.getElementById("manualBidNeighborhood");
+        const manualT = document.getElementById("manualBidType");
 
         const currentN = new Set(getSelectedNeighborhoods());
         const currentT = tSelect.value || "All";
@@ -2848,6 +3005,26 @@
 
         tSelect.value = types.includes(currentT) ? currentT : "All";
         sSelect.value = mlsStatuses.includes(currentS) ? currentS : "All";
+        if (manualN) {
+          const currentManualN = manualN.value || "";
+          const manualNeighborhoods = ["", ...neighborhoods];
+          manualN.innerHTML = manualNeighborhoods
+            .map((v) => `<option value="${esc(v)}">${esc(v || "Auto (from ZIP / Seattle)")}</option>`)
+            .join("");
+          manualN.value = manualNeighborhoods.includes(currentManualN) ? currentManualN : "";
+        }
+        if (manualT) {
+          const currentManualT = manualT.value || findDefaultSingleFamilyLabel();
+          const manualTypes = types.filter((v) => v !== "All");
+          manualT.innerHTML = manualTypes
+            .map((v) => `<option value="${esc(v)}">${esc(v)}</option>`)
+            .join("");
+          if (manualTypes.length) {
+            manualT.value = manualTypes.includes(currentManualT)
+              ? currentManualT
+              : (manualTypes.includes(findDefaultSingleFamilyLabel()) ? findDefaultSingleFamilyLabel() : manualTypes[0]);
+          }
+        }
         updateNeighborhoodSummary();
         configurePriceSliders();
       }
@@ -2987,12 +3164,94 @@
         return { tier: "NONE", rows: byType };
       }
 
-      function computeActiveBidSuggestions(filterState, normalizedRows, strategy = "balanced") {
-        const strat = BID_STRATEGIES[strategy] || BID_STRATEGIES.balanced;
+      function buildBidCompPool(filterState, normalizedRows) {
         const windowStart = new Date();
         windowStart.setDate(windowStart.getDate() - BID_COMP_WINDOW_DAYS);
         const windowStartIso = toIso(windowStart);
+        return normalizedRows
+          .filter((r) => r.dataMode === "MLS_ENRICHED" && r.hasActualClose && r.pendingListPrice > 0 && r.saleToList > 0)
+          .filter((r) => !r.isLikelyPresoldNewBuild)
+          .filter((r) => !!r.saleDate && r.saleDate >= windowStartIso)
+          .filter((r) => matchesSharedGlobalFilters(r, filterState, { priceField: "closePrice", dateField: "saleDate" }));
+      }
 
+      function scoreBidForRow(row, compPool, strategy = "balanced", includeCompRows = false) {
+        const strat = BID_STRATEGIES[strategy] || BID_STRATEGIES.balanced;
+        const tier = computeBidCompTiers(row, compPool);
+        const compRows = tier.rows;
+        const compRowsSorted = compRows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || "")));
+        if (tier.tier === "NONE" || compRows.length < BID_MIN_COMPS) {
+          return {
+            ...row,
+            bidStrategy: strat.label,
+            bidSuggested: 0,
+            bidLow: 0,
+            bidHigh: 0,
+            bidRatio: 0,
+            bidConfidence: 0,
+            bidConfidenceLabel: "N/A",
+            bidCompCount: compRows.length,
+            bidCompTier: "NONE",
+            bidStatus: "InsufficientComps",
+            bidCompRows: includeCompRows ? compRowsSorted.slice(0, 12) : [],
+          };
+        }
+
+        const ratios = compRows.map((c) => c.saleToList);
+        const recencies = compRows.map((c) => daysAgo(c.saleDate)).filter((d) => d !== null);
+        const weights = compRows.map((c) => {
+          const d = daysAgo(c.saleDate);
+          const age = d === null ? BID_COMP_WINDOW_DAYS : d;
+          return Math.pow(0.5, age / BID_HALFLIFE_DAYS);
+        });
+
+        let pointRatio = weightedQuantile(ratios, weights, strat.point);
+        let lowRatio = weightedQuantile(ratios, weights, strat.low);
+        let highRatio = weightedQuantile(ratios, weights, strat.high);
+
+        let heatAdj = 0;
+        if (row.isUltraHot) heatAdj += 0.01;
+        else if (row.isHotMarket) heatAdj += 0.005;
+        const marketDom = domMetric(row);
+        if (marketDom !== null && marketDom >= 30) heatAdj -= 0.005;
+
+        pointRatio = clamp(pointRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
+        lowRatio = clamp(lowRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
+        highRatio = clamp(highRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
+
+        if (lowRatio > pointRatio) lowRatio = pointRatio;
+        if (highRatio < pointRatio) highRatio = pointRatio;
+
+        const suggestedBid = roundToNearest(row.pendingListPrice * pointRatio, 1000);
+        const bidLow = roundToNearest(row.pendingListPrice * lowRatio, 1000);
+        const bidHigh = roundToNearest(row.pendingListPrice * highRatio, 1000);
+        const bidRatio = row.pendingListPrice > 0 ? (suggestedBid / row.pendingListPrice) : 0;
+
+        const countScore = clamp((compRows.length / 20) * 45, 0, 45);
+        const tierScore = tier.tier === "T1_NEIGHBORHOOD_TYPE"
+          ? 35
+          : (tier.tier === "T2_ZIP_TYPE" ? 25 : 15);
+        const medianRecency = recencies.length ? median(recencies) : BID_COMP_WINDOW_DAYS;
+        const recencyScore = clamp((1 - (medianRecency / BID_COMP_WINDOW_DAYS)) * 20, 0, 20);
+        const bidConfidence = Math.round(clamp(countScore + tierScore + recencyScore, 0, 100));
+
+        return {
+          ...row,
+          bidStrategy: strat.label,
+          bidSuggested: suggestedBid,
+          bidLow,
+          bidHigh,
+          bidRatio,
+          bidConfidence,
+          bidConfidenceLabel: bidConfidenceLabel(bidConfidence),
+          bidCompCount: compRows.length,
+          bidCompTier: tier.tier,
+          bidStatus: "SCored",
+          bidCompRows: includeCompRows ? compRowsSorted.slice(0, 12) : [],
+        };
+      }
+
+      function computeActiveBidSuggestions(filterState, normalizedRows, strategy = "balanced") {
         const activeRowsBase = normalizedRows
           .filter((r) => r.dataMode === "MLS_ENRICHED")
           .filter((r) => r.mlsStatusNorm === "ACTIVE")
@@ -3010,86 +3269,12 @@
               insufficientCount: 0,
               medianOverAskPct: 0,
             },
+            compPool: [],
           };
         }
 
-        const compPool = normalizedRows
-          .filter((r) => r.dataMode === "MLS_ENRICHED" && r.hasActualClose && r.pendingListPrice > 0 && r.saleToList > 0)
-          .filter((r) => !r.isLikelyPresoldNewBuild)
-          .filter((r) => !!r.saleDate && r.saleDate >= windowStartIso)
-          .filter((r) => matchesSharedGlobalFilters(r, filterState, { priceField: "closePrice", dateField: "saleDate" }));
-
-        const scoredRows = activeRowsBase.map((row) => {
-          const tier = computeBidCompTiers(row, compPool);
-          const compRows = tier.rows;
-          if (tier.tier === "NONE" || compRows.length < BID_MIN_COMPS) {
-            return {
-              ...row,
-              bidStrategy: strat.label,
-              bidSuggested: 0,
-              bidLow: 0,
-              bidHigh: 0,
-              bidRatio: 0,
-              bidConfidence: 0,
-              bidConfidenceLabel: "N/A",
-              bidCompCount: compRows.length,
-              bidCompTier: "NONE",
-              bidStatus: "InsufficientComps",
-            };
-          }
-
-          const ratios = compRows.map((c) => c.saleToList);
-          const recencies = compRows.map((c) => daysAgo(c.saleDate)).filter((d) => d !== null);
-          const weights = compRows.map((c) => {
-            const d = daysAgo(c.saleDate);
-            const age = d === null ? BID_COMP_WINDOW_DAYS : d;
-            return Math.pow(0.5, age / BID_HALFLIFE_DAYS);
-          });
-
-          let pointRatio = weightedQuantile(ratios, weights, strat.point);
-          let lowRatio = weightedQuantile(ratios, weights, strat.low);
-          let highRatio = weightedQuantile(ratios, weights, strat.high);
-
-          let heatAdj = 0;
-          if (row.isUltraHot) heatAdj += 0.01;
-          else if (row.isHotMarket) heatAdj += 0.005;
-          const marketDom = domMetric(row);
-          if (marketDom !== null && marketDom >= 30) heatAdj -= 0.005;
-
-          pointRatio = clamp(pointRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
-          lowRatio = clamp(lowRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
-          highRatio = clamp(highRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
-
-          if (lowRatio > pointRatio) lowRatio = pointRatio;
-          if (highRatio < pointRatio) highRatio = pointRatio;
-
-          const suggestedBid = roundToNearest(row.pendingListPrice * pointRatio, 1000);
-          const bidLow = roundToNearest(row.pendingListPrice * lowRatio, 1000);
-          const bidHigh = roundToNearest(row.pendingListPrice * highRatio, 1000);
-          const bidRatio = row.pendingListPrice > 0 ? (suggestedBid / row.pendingListPrice) : 0;
-
-          const countScore = clamp((compRows.length / 20) * 45, 0, 45);
-          const tierScore = tier.tier === "T1_NEIGHBORHOOD_TYPE"
-            ? 35
-            : (tier.tier === "T2_ZIP_TYPE" ? 25 : 15);
-          const medianRecency = recencies.length ? median(recencies) : BID_COMP_WINDOW_DAYS;
-          const recencyScore = clamp((1 - (medianRecency / BID_COMP_WINDOW_DAYS)) * 20, 0, 20);
-          const bidConfidence = Math.round(clamp(countScore + tierScore + recencyScore, 0, 100));
-
-          return {
-            ...row,
-            bidStrategy: strat.label,
-            bidSuggested: suggestedBid,
-            bidLow,
-            bidHigh,
-            bidRatio,
-            bidConfidence,
-            bidConfidenceLabel: bidConfidenceLabel(bidConfidence),
-            bidCompCount: compRows.length,
-            bidCompTier: tier.tier,
-            bidStatus: "SCored",
-          };
-        });
+        const compPool = buildBidCompPool(filterState, normalizedRows);
+        const scoredRows = activeRowsBase.map((row) => scoreBidForRow(row, compPool, strategy));
 
         const scored = scoredRows.filter((r) => r.bidStatus === "SCored");
         const highConfidenceCount = scoredRows.filter((r) => r.bidConfidence >= 75).length;
@@ -3108,7 +3293,120 @@
             insufficientCount: scoredRows.length - scored.length,
             medianOverAskPct,
           },
+          compPool,
         };
+      }
+
+      function readManualBidInput() {
+        return {
+          address: String(document.getElementById("manualBidAddress")?.value || "").trim(),
+          pendingListPrice: num(document.getElementById("manualBidListPrice")?.value || 0),
+          neighborhoodLabel: String(document.getElementById("manualBidNeighborhood")?.value || "").trim(),
+          typeLabel: String(document.getElementById("manualBidType")?.value || "").trim(),
+          zip: zip5(document.getElementById("manualBidZip")?.value || ""),
+          dom: num(document.getElementById("manualBidDom")?.value || 0),
+          cdom: num(document.getElementById("manualBidCdom")?.value || 0),
+        };
+      }
+
+      function renderManualBid(normalizedRows, filterState, compPool = null) {
+        const statusEl = document.getElementById("manualBidStatus");
+        const resultEl = document.getElementById("manualBidResult");
+        const compRowsEl = document.getElementById("manualBidCompRows");
+        if (!statusEl || !resultEl || !compRowsEl) return;
+
+        if (!state.bid.manualEnabled) {
+          statusEl.textContent = "No manual scenario yet.";
+          resultEl.innerHTML = "";
+          compRowsEl.innerHTML = "";
+          return;
+        }
+
+        const input = readManualBidInput();
+        if (input.pendingListPrice <= 0) {
+          statusEl.textContent = "Enter Ask Price to estimate bid.";
+          resultEl.innerHTML = "";
+          compRowsEl.innerHTML = "";
+          return;
+        }
+
+        const inferredNeighborhood = input.neighborhoodLabel || (input.zip ? (ZIP_NEIGHBORHOOD[input.zip] || "") : "") || "Seattle (Other)";
+        const typeLabel = input.typeLabel || findDefaultSingleFamilyLabel() || "Single Family";
+        const marketDom = input.cdom > 0 ? input.cdom : (input.dom > 0 ? input.dom : null);
+        const row = {
+          id: "manual-listing-scenario",
+          address: input.address || "Manual Listing Scenario",
+          neighborhoodLabel: inferredNeighborhood,
+          typeLabel,
+          zip: input.zip,
+          pendingListPrice: input.pendingListPrice,
+          originalListPrice: 0,
+          mlsDOM: input.dom > 0 ? input.dom : 0,
+          mlsCDOM: input.cdom > 0 ? input.cdom : 0,
+          isHotMarket: marketDom !== null && marketDom <= 10,
+          isUltraHot: marketDom !== null && marketDom <= 5,
+        };
+
+        const pool = Array.isArray(compPool) ? compPool : buildBidCompPool(filterState, normalizedRows);
+        const scored = scoreBidForRow(row, pool, state.bid.strategy, true);
+        const tierLabel = bidTierLabel(scored.bidCompTier);
+
+        if (scored.bidStatus !== "SCored") {
+          statusEl.textContent = `Insufficient comps (${scored.bidCompCount}) for ${tierLabel}. Need at least ${BID_MIN_COMPS}.`;
+          resultEl.innerHTML = `
+            <article class="manual-kpi">
+              <div class="label">Suggested Bid</div>
+              <div class="value">n/a</div>
+            </article>
+            <article class="manual-kpi">
+              <div class="label">Comp Tier</div>
+              <div class="value">${esc(tierLabel)}</div>
+            </article>
+            <article class="manual-kpi">
+              <div class="label">Comp Count</div>
+              <div class="value">${scored.bidCompCount || 0}</div>
+            </article>
+            <article class="manual-kpi">
+              <div class="label">Confidence</div>
+              <div class="value">N/A</div>
+            </article>
+          `;
+          compRowsEl.innerHTML = `<tr><td colspan="8">No recommended comp set for this scenario.</td></tr>`;
+          return;
+        }
+
+        statusEl.textContent = `Estimated using ${scored.bidCompCount} comps (${tierLabel}, ${BID_COMP_WINDOW_DAYS}-day window, ${state.bid.strategy} strategy).`;
+        resultEl.innerHTML = `
+          <article class="manual-kpi">
+            <div class="label">Suggested Bid</div>
+            <div class="value">${formatMoney(scored.bidSuggested)}</div>
+          </article>
+          <article class="manual-kpi">
+            <div class="label">Bid Range</div>
+            <div class="value">${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}</div>
+          </article>
+          <article class="manual-kpi">
+            <div class="label">Suggested S/List</div>
+            <div class="value">${scored.bidRatio.toFixed(2)}x</div>
+          </article>
+          <article class="manual-kpi">
+            <div class="label">Confidence</div>
+            <div class="value">${esc(scored.bidConfidenceLabel)} (${scored.bidConfidence})</div>
+          </article>
+        `;
+
+        compRowsEl.innerHTML = (scored.bidCompRows || []).map((r) => `
+          <tr>
+            <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
+            <td>${esc(r.saleDate || "n/a")}</td>
+            <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
+            <td>${esc(r.typeLabel || "Unknown")}</td>
+            <td>${formatMoneyOrNa(r.pendingListPrice)}</td>
+            <td>${formatMoneyOrNa(r.closePrice)}</td>
+            <td>${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</td>
+            <td>${domLabel(r)}</td>
+          </tr>
+        `).join("");
       }
 
       function computeProjectedPendingRows(referenceRows, stats, filterState = readFormFilters()) {
@@ -4590,6 +4888,7 @@
         updateScopeToggleUI(filterState.scope);
         const slices = computeSlices(filterState);
         const normalizedAll = state.rows.map(normalizeRow);
+        const bidCompPool = buildBidCompPool(filterState, normalizedAll);
         const bidResult = computeActiveBidSuggestions(filterState, normalizedAll, state.bid.strategy);
         let bidRowsView = applyBidViewInteractions(bidResult.rows);
         if (state.bid.highConfidenceOnly) {
@@ -4627,6 +4926,7 @@
         renderRecordRows(viewRows, { emptyMessage: slices.emptyMessage, filterState });
         renderBidStrategyUI();
         renderBids(bidRowsView, bidStatsView);
+        renderManualBid(normalizedAll, filterState, bidCompPool);
       }
 
       function setInteraction(key, value) {
@@ -4853,6 +5153,57 @@
             renderAll();
           });
         }
+        const manualBidRun = document.getElementById("manualBidRun");
+        if (manualBidRun) {
+          manualBidRun.addEventListener("click", () => {
+            state.bid.manualEnabled = true;
+            renderAll();
+          });
+        }
+        const manualBidClear = document.getElementById("manualBidClear");
+        if (manualBidClear) {
+          manualBidClear.addEventListener("click", () => {
+            state.bid.manualEnabled = false;
+            ["manualBidAddress", "manualBidListPrice", "manualBidZip", "manualBidDom", "manualBidCdom"]
+              .forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.value = "";
+              });
+            const manualN = document.getElementById("manualBidNeighborhood");
+            if (manualN) manualN.value = "";
+            const manualT = document.getElementById("manualBidType");
+            if (manualT && manualT.options.length) {
+              const preferred = findDefaultSingleFamilyLabel();
+              manualT.value = [...manualT.options].some((opt) => opt.value === preferred)
+                ? preferred
+                : manualT.options[0].value;
+            }
+            renderAll();
+          });
+        }
+        [
+          "manualBidAddress",
+          "manualBidListPrice",
+          "manualBidNeighborhood",
+          "manualBidType",
+          "manualBidZip",
+          "manualBidDom",
+          "manualBidCdom",
+        ].forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("change", () => {
+            if (state.bid.manualEnabled) renderAll();
+          });
+          if (el.tagName === "INPUT") {
+            el.addEventListener("keydown", (evt) => {
+              if (evt.key !== "Enter") return;
+              evt.preventDefault();
+              state.bid.manualEnabled = true;
+              renderAll();
+            });
+          }
+        });
         lockDateInputsToPicker();
         ["fMinClose", "fMaxClose"].forEach((id) => {
           const el = document.getElementById(id);

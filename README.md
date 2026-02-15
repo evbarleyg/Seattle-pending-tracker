@@ -108,6 +108,9 @@ Refresh summary is saved to:
   - Suggested Sale/List ratio
   - Confidence score/label
   - Comp count and comp tier
+- Manual scenario support:
+  - In the `Bids` tab, `Try A Listing (Manual Scenario)` lets you enter ask + neighborhood/type/ZIP + DOM/CDOM.
+  - The app returns a suggested bid and shows the comp rows used.
 - Comp model defaults:
   - sold MLS comps in the last 90 days
   - hierarchical tiers: neighborhood+type, zip+type, city+type
