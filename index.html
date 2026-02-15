@@ -906,9 +906,8 @@
       .chart-scroll {
         height: 100%;
         min-width: 0;
-        overflow-x: auto;
+        overflow-x: hidden;
         overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
       }
       .y-axis {
         display: flex;
@@ -922,13 +921,13 @@
       .plot {
         border-left: 1px solid #2d4363;
         border-bottom: 1px solid #2d4363;
-        padding: 6px 6px 0 8px;
+        padding: var(--plot-pad, 6px 6px 0 8px);
         display: grid;
-        grid-template-columns: repeat(var(--cols, 1), minmax(var(--bar-min-width, 64px), 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: var(--plot-gap, 8px);
         align-items: stretch;
         height: 100%;
-        width: max(100%, var(--plot-min-width, 0px));
+        width: 100%;
         min-width: 0;
       }
       .vbar {
@@ -939,7 +938,7 @@
         cursor: pointer;
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto auto;
-        padding: 6px 4px 4px;
+        padding: var(--bar-pad, 6px 4px 4px);
         min-height: 0;
         height: 100%;
       }
@@ -969,14 +968,14 @@
       .vbar-month {
         margin-top: 6px;
         text-align: center;
-        font-size: 11px;
+        font-size: var(--month-font, 11px);
         color: #dce8ff;
         line-height: 1.1;
       }
       .vbar-value {
         margin-top: 2px;
         text-align: center;
-        font-size: 11px;
+        font-size: var(--value-font, 11px);
         color: #b8cae4;
         white-space: nowrap;
         font-weight: 600;
@@ -3857,8 +3856,24 @@
         const lowLabel = axisLabelFn({ v: low, raw: minVal, kind: "low" });
         const compactPointLabel = pointLabelFn || ((raw) => axisLabelFn({ v: raw, raw, kind: "point" }));
         const isMobile = window.matchMedia("(max-width: 680px)").matches;
-        const barMinWidth = isMobile ? 68 : 62;
-        const plotMinWidth = Math.max(items.length * barMinWidth, isMobile ? 420 : 620);
+        const count = Math.max(items.length, 1);
+        let gap = isMobile ? 4 : 8;
+        let plotPad = isMobile ? "4px 4px 0 6px" : "6px 6px 0 8px";
+        let barPad = isMobile ? "4px 2px 2px" : "6px 4px 4px";
+        let monthFont = isMobile ? 10 : 11;
+        let valueFont = isMobile ? 10 : 11;
+        if (count >= 12) {
+          gap = isMobile ? 2 : 5;
+          plotPad = isMobile ? "3px 3px 0 5px" : "5px 5px 0 6px";
+          barPad = isMobile ? "3px 1px 2px" : "5px 3px 3px";
+          monthFont = isMobile ? 9 : 10;
+          valueFont = isMobile ? 9 : 10;
+        }
+        if (count >= 16) {
+          gap = isMobile ? 1 : 3;
+          monthFont = 9;
+          valueFont = 9;
+        }
 
         const bars = items.map((item) => {
           const raw = valueFn(item);
@@ -3886,7 +3901,10 @@
               <span>${esc(lowLabel)}</span>
             </div>
             <div class="chart-scroll">
-              <div class="plot" style="--cols:${items.length};--bar-min-width:${barMinWidth}px;--plot-min-width:${plotMinWidth}px">${bars}</div>
+              <div
+                class="plot"
+                style="--cols:${items.length};--plot-gap:${gap}px;--plot-pad:${plotPad};--bar-pad:${barPad};--month-font:${monthFont}px;--value-font:${valueFont}px"
+              >${bars}</div>
             </div>
           </div>
         `;
