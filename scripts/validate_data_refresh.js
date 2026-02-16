@@ -202,6 +202,18 @@ function main() {
     console.error(`Errors:\n- ${errors.join("\n- ")}`);
     process.exitCode = 1;
   }
+  return summary;
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  main,
+  parseCsvLine,
+  hasColumns,
+  num,
+  readHeader,
+  readRows,
+};

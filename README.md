@@ -37,6 +37,12 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 
 ## Local Run
 
+Install local tooling (for checks/tests/CI parity):
+
+```bash
+npm ci
+```
+
 1. Optional but recommended for exact map pins: normalize a King County GIS parcel-point export to `major+minor+lat+lon`:
 
 ```bash
@@ -72,6 +78,23 @@ node scripts/serve.js
 6. Open:
 
 `http://localhost:4173`
+
+## Quality Checks
+
+Run the same gates used in CI/deploy:
+
+```bash
+npm run check
+```
+
+Individual commands:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
 
 ## Automated Refresh
 
@@ -119,6 +142,8 @@ Refresh summary is saved to:
 ## Deployment
 
 - GitHub Pages deploys automatically from `main` via `.github/workflows/deploy-pages.yml`.
+- Deployment now runs a quality gate first (`npm run check`).
+- Separate CI workflow runs on push/PR via `.github/workflows/ci.yml`.
 - Push updates with:
 
 ```bash

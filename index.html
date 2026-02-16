@@ -1156,6 +1156,30 @@
         line-height: 1.1;
         text-align: center;
       }
+      #view-records .inline-filter-link {
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 11px;
+        padding: 0;
+        cursor: pointer;
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      #view-records .inline-filter-link.active {
+        color: #4eb2ff;
+      }
+      body.light #view-records .inline-filter-link.active {
+        color: #1f5ea8;
+      }
       #view-records .mode,
       #view-records .hot-pill {
         font-size: 10px;
@@ -1166,8 +1190,8 @@
         vertical-align: middle;
       }
       #view-records .heat {
-        min-width: 58px;
-        padding: 2px 5px;
+        min-width: 50px;
+        padding: 1px 4px;
       }
       .money-compact {
         cursor: pointer;
@@ -1747,18 +1771,18 @@
       <h1>Seattle Housing Buyer Lens</h1>
       <div class="subtitle">Buyer-focused market view for Seattle. Built on public-record sales, with optional MLS fields when available. Every chart and metric can filter the entire dashboard.</div>
       <div class="header-controls">
-        <div class="tabs" role="tablist">
-          <button class="tab active" data-view="overview" role="tab">Overview</button>
-          <button class="tab" data-view="charts" role="tab">Charts</button>
-          <button class="tab" data-view="heat" role="tab">Hot Market</button>
-          <button class="tab" data-view="bids" role="tab">Bids</button>
-          <button class="tab" data-view="geo" role="tab">Geo</button>
-          <button class="tab" data-view="records" role="tab">Records</button>
-          <button class="tab" data-view="data" role="tab">Data</button>
+        <div class="tabs" role="tablist" aria-label="Dashboard sections">
+          <button class="tab active" id="tab-overview" data-view="overview" type="button" role="tab" aria-selected="true" aria-controls="view-overview" tabindex="0">Overview</button>
+          <button class="tab" id="tab-charts" data-view="charts" type="button" role="tab" aria-selected="false" aria-controls="view-charts" tabindex="-1">Charts</button>
+          <button class="tab" id="tab-heat" data-view="heat" type="button" role="tab" aria-selected="false" aria-controls="view-heat" tabindex="-1">Hot Market</button>
+          <button class="tab" id="tab-bids" data-view="bids" type="button" role="tab" aria-selected="false" aria-controls="view-bids" tabindex="-1">Bids</button>
+          <button class="tab" id="tab-geo" data-view="geo" type="button" role="tab" aria-selected="false" aria-controls="view-geo" tabindex="-1">Geo</button>
+          <button class="tab" id="tab-records" data-view="records" type="button" role="tab" aria-selected="false" aria-controls="view-records" tabindex="-1">Records</button>
+          <button class="tab" id="tab-data" data-view="data" type="button" role="tab" aria-selected="false" aria-controls="view-data" tabindex="-1">Data</button>
         </div>
         <button class="theme-toggle" id="themeToggle" type="button">Switch To Dark Mode</button>
       </div>
-      <div class="status" id="datasetStatus">Initializing dataset...</div>
+      <div class="status" id="datasetStatus" aria-live="polite">Initializing dataset...</div>
     </header>
 
     <main class="app">
@@ -1865,14 +1889,14 @@
                 <button class="btn alt" id="clearCrossBtn" type="button">Clear Cross-Filters</button>
               </div>
             </div>
-            <div class="summary" id="filterSummary">No data loaded.</div>
-            <div class="slice-status" id="sliceStatus">Projected: 0 | Open/Pending: 0 | View: All Visible Rows</div>
+            <div class="summary" id="filterSummary" aria-live="polite">No data loaded.</div>
+            <div class="slice-status" id="sliceStatus" aria-live="polite">Projected: 0 | Open/Pending: 0 | View: All Visible Rows</div>
             <div class="chips" id="activeChips"></div>
           </div>
         </details>
       </section>
 
-      <section id="view-overview" class="view active">
+      <section id="view-overview" class="view active" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
         <section class="panel">
           <h3>How To Use This Dashboard</h3>
           <ul class="guide">
@@ -1937,7 +1961,7 @@
         </section>
       </section>
 
-      <section id="view-charts" class="view">
+      <section id="view-charts" class="view" role="tabpanel" aria-labelledby="tab-charts" tabindex="0">
         <div class="two-col">
           <section class="panel">
             <h3>Monthly Sales Volume</h3>
@@ -1974,7 +1998,7 @@
         </div>
       </section>
 
-      <section id="view-heat" class="view">
+      <section id="view-heat" class="view" role="tabpanel" aria-labelledby="tab-heat" tabindex="0">
         <section class="panel">
           <h3>Hot Market Sample (<= 10 Days, Ultra <= 5 Days)</h3>
           <div class="kpi-grid kpi-grid-heat">
@@ -2016,7 +2040,7 @@
         </section>
       </section>
 
-      <section id="view-bids" class="view">
+      <section id="view-bids" class="view" role="tabpanel" aria-labelledby="tab-bids" tabindex="0">
         <section class="panel">
           <div class="bids-head">
             <h3>Active Listing Bid Recommender</h3>
@@ -2077,7 +2101,7 @@
             <div class="manual-bid-actions">
               <button class="btn" id="manualBidRun" type="button">Estimate Bid</button>
               <button class="btn alt" id="manualBidClear" type="button">Clear</button>
-              <div class="note compact" id="manualBidStatus">No manual scenario yet.</div>
+              <div class="note compact" id="manualBidStatus" aria-live="polite">No manual scenario yet.</div>
             </div>
             <div class="manual-bid-result" id="manualBidResult"></div>
             <div class="table-wrap manual-bid-table-wrap">
@@ -2159,11 +2183,11 @@
         </section>
       </section>
 
-      <section id="view-records" class="view">
+      <section id="view-records" class="view" role="tabpanel" aria-labelledby="tab-records" tabindex="0">
         <section class="panel">
           <h3>Row-Level Summary</h3>
           <div class="records-toolbar">
-            <div class="note compact" id="recordsStatus">Showing closed rows by default. Use Map/Records View for projected/open rows.</div>
+            <div class="note compact" id="recordsStatus" aria-live="polite">Showing closed rows by default. Use Map/Records View for projected/open rows.</div>
             <div class="records-density-wrap">
               <span class="label">Density</span>
               <div class="scope-toggle" aria-label="Records density toggle">
@@ -2175,19 +2199,19 @@
           <div class="table-wrap">
             <table>
               <colgroup>
-                <col style="width:20%" />
-                <col style="width:10%" />
-                <col style="width:8%" />
+                <col style="width:17%" />
+                <col style="width:11%" />
+                <col style="width:7%" />
                 <col style="width:3%" />
                 <col style="width:4%" />
+                <col style="width:4.5%" />
                 <col style="width:5%" />
-                <col style="width:5%" />
-                <col style="width:5%" />
-                <col style="width:7%" />
-                <col style="width:7%" />
-                <col style="width:7%" />
-                <col style="width:3%" />
+                <col style="width:4.5%" />
                 <col style="width:6%" />
+                <col style="width:6%" />
+                <col style="width:6%" />
+                <col style="width:3%" />
+                <col style="width:7%" />
                 <col style="width:4%" />
                 <col style="width:6%" />
               </colgroup>
@@ -2218,7 +2242,7 @@
         </section>
       </section>
 
-      <section id="view-geo" class="view">
+      <section id="view-geo" class="view" role="tabpanel" aria-labelledby="tab-geo" tabindex="0">
         <div class="geo-layout">
           <section class="panel geo-main-panel">
             <h3>Seattle Neighborhood Map</h3>
@@ -2293,7 +2317,7 @@
         </div>
       </section>
 
-      <section id="view-data" class="view">
+      <section id="view-data" class="view" role="tabpanel" aria-labelledby="tab-data" tabindex="0">
         <section class="panel">
           <h3>Data Source</h3>
           <div class="note" id="uploadStatus">Auto-load enabled for the default dataset.</div>
@@ -2423,6 +2447,7 @@
 
       const state = {
         rows: [],
+        normalizedRows: [],
         baseRows: [],
         filteredRows: [],
         meta: {
@@ -3095,6 +3120,10 @@
         };
       }
 
+      function refreshNormalizedRows() {
+        state.normalizedRows = state.rows.map(normalizeRow);
+      }
+
       function getSelectedNeighborhoods() {
         return [...document.querySelectorAll("#fNeighborhoodOptions input[type='checkbox']:checked")]
           .map((cb) => cb.value);
@@ -3184,7 +3213,7 @@
       }
 
       function refreshSelectOptions() {
-        const normalized = state.rows.map(normalizeRow);
+        const normalized = state.normalizedRows;
         const neighborhoods = Array.from(new Set(normalized.map((r) => r.neighborhoodLabel).filter(Boolean))).sort();
         const types = uniqueValues(normalized, "typeLabel");
         const mlsStatuses = ["All", ...Array.from(new Set(
@@ -3296,9 +3325,9 @@
         }, delay);
       }
 
-      function computeBaseRows(filterState = readFormFilters()) {
+      function computeBaseRows(filterState = readFormFilters(), normalizedRows = state.normalizedRows) {
         const f = filterState;
-        let rows = state.rows.map(normalizeRow).filter((r) => r.closePrice > 0 && !!r.saleDate);
+        let rows = normalizedRows.filter((r) => r.closePrice > 0 && !!r.saleDate);
 
         if (f.neighborhoods.length) rows = rows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
         if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
@@ -3618,7 +3647,7 @@
         `).join("");
       }
 
-      function computeProjectedPendingRows(referenceRows, stats, filterState = readFormFilters()) {
+      function computeProjectedPendingRows(referenceRows, stats, filterState = readFormFilters(), normalizedRows = state.normalizedRows) {
         const f = filterState;
         const result = {
           rows: [],
@@ -3640,8 +3669,7 @@
         result.compSourceCount = compSource.length;
 
         const existing = new Set(referenceRows.map((r) => r.mapPropertyKey));
-        let pendingRows = state.rows
-          .map(normalizeRow)
+        let pendingRows = normalizedRows
           .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.pendingListPrice > 0)
           .filter((r) => !existing.has(r.mapPropertyKey));
 
@@ -3705,7 +3733,7 @@
         return result;
       }
 
-      function computeOpenMlsRows(stats, projectedKeys = new Set(), filterState = readFormFilters()) {
+      function computeOpenMlsRows(stats, projectedKeys = new Set(), filterState = readFormFilters(), normalizedRows = state.normalizedRows) {
         const f = filterState;
         const result = {
           rows: [],
@@ -3719,8 +3747,7 @@
           return result;
         }
 
-        let openRows = state.rows
-          .map(normalizeRow)
+        let openRows = normalizedRows
           .filter((r) => r.dataMode === "MLS_ENRICHED" && !r.hasActualClose && r.pendingListPrice > 0);
 
         if (f.neighborhoods.length) openRows = openRows.filter((r) => f.neighborhoods.includes(r.neighborhoodLabel));
@@ -3790,15 +3817,15 @@
         return "No rows for current filters.";
       }
 
-      function computeSlices(filterState = readFormFilters()) {
-        const closedRows = computeBaseRows(filterState);
+      function computeSlices(filterState = readFormFilters(), normalizedRows = state.normalizedRows) {
+        const closedRows = computeBaseRows(filterState, normalizedRows);
         const stats = computeBaseStats(closedRows);
         const closedSlice = applyInteractions(closedRows, stats);
-        const projectionResult = computeProjectedPendingRows(closedSlice, stats, filterState);
+        const projectionResult = computeProjectedPendingRows(closedSlice, stats, filterState, normalizedRows);
         const projectedRows = projectionResult.rows;
         state.meta.projectedRowsInSlice = projectedRows.length;
         const projectedKeys = new Set(projectedRows.map((r) => r.mapPropertyKey));
-        const openResult = computeOpenMlsRows(stats, projectedKeys, filterState);
+        const openResult = computeOpenMlsRows(stats, projectedKeys, filterState, normalizedRows);
         const openRows = openResult.rows;
         const recordGeoRows = buildRecordGeoRows(filterState, closedSlice, projectedRows, openRows);
         const emptyMessage = buildRecordGeoEmptyMessage(filterState, projectionResult, openResult);
@@ -4053,12 +4080,10 @@
         }
 
         const vals = items.map((i) => valueFn(i));
-        const qLow = quantile(vals, 0.05);
-        const qHigh = quantile(vals, 0.95);
         const minVal = Math.min(...vals);
         const maxVal = Math.max(...vals);
-        const low = Number.isFinite(qLow) ? qLow : minVal;
-        const high = Number.isFinite(qHigh) ? qHigh : maxVal;
+        const low = Number.isFinite(minVal) ? minVal : 0;
+        const high = Number.isFinite(maxVal) ? maxVal : 0;
         const span = Math.max(high - low, 1);
 
         const topLabel = axisLabelFn({ v: high, raw: maxVal, kind: "top" });
@@ -4072,24 +4097,24 @@
         let barPad = isMobile ? "4px 2px 2px" : "6px 4px 4px";
         let monthFont = isMobile ? 10 : 11;
         let valueFont = isMobile ? 10 : 11;
-        if (count >= 12) {
+        if (count >= 10) {
           gap = isMobile ? 2 : 5;
           plotPad = isMobile ? "3px 3px 0 5px" : "5px 5px 0 6px";
           barPad = isMobile ? "3px 1px 2px" : "5px 3px 3px";
           monthFont = isMobile ? 9 : 10;
           valueFont = isMobile ? 9 : 10;
         }
-        if (count >= 16) {
+        if (count >= 14) {
           gap = isMobile ? 1 : 3;
-          monthFont = 9;
-          valueFont = 9;
+          monthFont = isMobile ? 8 : 9;
+          valueFont = isMobile ? 8 : 9;
         }
 
         const bars = items.map((item) => {
           const raw = valueFn(item);
           const clamped = Math.max(low, Math.min(high, raw));
           const norm = (clamped - low) / span;
-          const height = 12 + (norm * 88);
+          const height = Math.max(4, norm * 100);
           const active = state.interactions.month === item.month;
           const fullLabel = axisLabelFn({ v: raw, raw, kind: "point" });
           const displayLabel = compactPointLabel(raw);
@@ -4625,6 +4650,11 @@
 
       function geoTooltipHtml(row) {
         const presoldBadge = presoldBadgeHtml(row);
+        const tooltipDateRaw = row.saleDate || row.pendingDate || row.listDate || "";
+        const tooltipDateLabel = row.hasActualClose
+          ? "Sale Date"
+          : (row.pendingDate ? "Pending Date" : "List Date");
+        const tooltipDateValue = tooltipDateRaw ? formatDateShort(tooltipDateRaw) : "n/a";
         const presoldRow = presoldBadge
           ? `<div class="geo-tip-row"><span class="k">Tag</span><span class="v">${presoldBadge}</span></div>`
           : "";
@@ -4644,6 +4674,7 @@
             <div class="geo-tip-row"><span class="k">List@Pending</span><span class="v">${formatMoneyOrNa(row.pendingListPrice)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale Price</span><span class="v">${closeDisplay(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Lot Size</span><span class="v">${formatLot(row.lotSize)}</span></div>
+            <div class="geo-tip-row"><span class="k">${esc(tooltipDateLabel)}</span><span class="v">${esc(tooltipDateValue)}</span></div>
             <div class="geo-tip-row"><span class="k">DOM</span><span class="v">${domLabel(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Heat</span><span class="v">${hotCategory(row)}</span></div>
             <div class="geo-tip-row"><span class="k">Sale/List</span><span class="v">${row.saleToList > 0 ? `${row.saleToList.toFixed(2)}x` : "n/a"}</span></div>
@@ -5031,11 +5062,18 @@
         document.querySelectorAll(".th-sort").forEach((btn) => {
           btn.classList.remove("active");
         });
+        document.querySelectorAll("#view-records th").forEach((th) => {
+          th.removeAttribute("aria-sort");
+        });
         document.querySelectorAll("[data-sort-ind]").forEach((el) => {
           el.textContent = "↕";
         });
         const active = document.querySelector(`.th-sort[data-record-sort="${state.recordSort.key}"]`);
         if (active) active.classList.add("active");
+        const activeHeader = active ? active.closest("th") : null;
+        if (activeHeader) {
+          activeHeader.setAttribute("aria-sort", state.recordSort.dir === "asc" ? "ascending" : "descending");
+        }
         const ind = document.querySelector(`[data-sort-ind="${state.recordSort.key}"]`);
         if (ind) ind.textContent = state.recordSort.dir === "asc" ? "↑" : "↓";
       }
@@ -5087,8 +5125,8 @@
                   ${countyUrl ? `<a class="addr-sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}
                   ${addrBadge}
                 </td>
-                <td><button class="mini-btn wide-chip ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
-                <td><button class="mini-btn wide-chip ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
+                <td><button class="inline-filter-link ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}" title="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
+                <td><button class="inline-filter-link ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}" title="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
                 <td>${r.beds || 0}</td>
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
@@ -5108,6 +5146,7 @@
         if (mobileList) {
           mobileList.innerHTML = sortedRows.map((r, idx) => {
             const key = `${r.id || "row"}|${r.saleDate || "date"}|${idx}`;
+            const detailId = `record-mobile-detail-${idx}`;
             const expanded = state.recordMobileExpanded === key;
             const nActive = state.interactions.neighborhood === r.neighborhoodLabel;
             const tActive = state.interactions.type === r.typeLabel;
@@ -5115,12 +5154,12 @@
             const addrBadge = addressSourceBadgeHtml(r.addressSource);
             return `
               <article class="mrow ${expanded ? "expanded" : ""}">
-                <button class="mrow-head" type="button" data-mobile-expand="${esc(key)}">
+                <button class="mrow-head" type="button" data-mobile-expand="${esc(key)}" aria-expanded="${expanded ? "true" : "false"}" aria-controls="${detailId}">
                   <span class="mrow-address">${esc(r.address)} ${addrBadge}</span>
                   <span class="mrow-price">${closeDisplayCompact(r)}</span>
                   <span class="mrow-date">${formatDateShort(r.saleDate || r.pendingDate)} <span class="mrow-toggle">${expanded ? "Hide" : "More"}</span></span>
                 </button>
-                <div class="mrow-detail">
+                <div class="mrow-detail" id="${detailId}">
                   <div class="mrow-grid">
                     <div class="mrow-item"><div class="k">Links</div><div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">Zillow<span class="ext-icon" aria-hidden="true">&#8599;</span></a>${countyUrl ? `<a class="addr-sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}</div></div>
                     <div class="mrow-item"><div class="k">Neighborhood</div><div class="v"><button class="mini-btn wide-chip ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></div></div>
@@ -5183,8 +5222,11 @@
       function renderAll() {
         const filterState = readFormFilters();
         updateScopeToggleUI(filterState.scope);
-        const slices = computeSlices(filterState);
-        const normalizedAll = state.rows.map(normalizeRow);
+        if (state.normalizedRows.length !== state.rows.length) {
+          refreshNormalizedRows();
+        }
+        const normalizedAll = state.normalizedRows;
+        const slices = computeSlices(filterState, normalizedAll);
         const bidCompPool = buildBidCompPool(filterState, normalizedAll);
         const bidResult = computeActiveBidSuggestions(filterState, normalizedAll, state.bid.strategy);
         let bidRowsView = applyBidViewInteractions(bidResult.rows);
@@ -5613,17 +5655,45 @@
           if (!document.getElementById("globalFilters").open) dd.removeAttribute("open");
         });
 
-        document.querySelectorAll(".tab").forEach((btn) => {
+        const tabs = [...document.querySelectorAll(".tab")];
+        const activateTab = (targetView, moveFocus = false) => {
+          tabs.forEach((tab) => {
+            const isTarget = tab.getAttribute("data-view") === targetView;
+            tab.classList.toggle("active", isTarget);
+            tab.setAttribute("aria-selected", isTarget ? "true" : "false");
+            tab.setAttribute("tabindex", isTarget ? "0" : "-1");
+            if (moveFocus && isTarget) tab.focus();
+          });
+          document.querySelectorAll(".view").forEach((v) => {
+            const isTarget = v.id === `view-${targetView}`;
+            v.classList.toggle("active", isTarget);
+            v.setAttribute("aria-hidden", isTarget ? "false" : "true");
+          });
+          if (targetView === "geo" && state.geo.map) {
+            setTimeout(() => state.geo.map.invalidateSize(), 40);
+          }
+        };
+        tabs.forEach((btn, idx) => {
           btn.addEventListener("click", () => {
-            document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
-            btn.classList.add("active");
-            const target = btn.getAttribute("data-view");
-            document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${target}`));
-            if (target === "geo" && state.geo.map) {
-              setTimeout(() => state.geo.map.invalidateSize(), 40);
-            }
+            activateTab(btn.getAttribute("data-view"), false);
+          });
+          btn.addEventListener("keydown", (evt) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(evt.key)) return;
+            evt.preventDefault();
+            let nextIdx = idx;
+            if (evt.key === "ArrowLeft") nextIdx = (idx - 1 + tabs.length) % tabs.length;
+            if (evt.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
+            if (evt.key === "Home") nextIdx = 0;
+            if (evt.key === "End") nextIdx = tabs.length - 1;
+            const next = tabs[nextIdx];
+            if (!next) return;
+            activateTab(next.getAttribute("data-view"), true);
           });
         });
+        const initialTab = tabs.find((tab) => tab.classList.contains("active")) || tabs[0];
+        if (initialTab) {
+          activateTab(initialTab.getAttribute("data-view"), false);
+        }
 
         document.addEventListener("click", (evt) => {
           const useActiveBid = evt.target.closest("[data-use-active-bid]");
@@ -5790,6 +5860,7 @@
             reader.onload = () => {
               try {
                 state.rows = parseCsv(reader.result);
+                refreshNormalizedRows();
                 refreshSelectOptions();
                 applyDefaultFormFilters();
                 clearCrossFilters();
@@ -5811,6 +5882,7 @@
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const text = await response.text();
           state.rows = parseCsv(text);
+          refreshNormalizedRows();
           refreshSelectOptions();
           applyDefaultFormFilters();
           clearCrossFilters();
@@ -5818,6 +5890,7 @@
           status.textContent = `Auto-loaded ${DEFAULT_DATASET} (${state.rows.length} rows).`;
         } catch (err) {
           state.rows = [];
+          refreshNormalizedRows();
           refreshSelectOptions();
           renderAll();
           status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) so the default dataset can load.";
