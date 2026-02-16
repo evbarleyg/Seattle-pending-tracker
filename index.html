@@ -999,6 +999,22 @@
         display: none;
         gap: 8px;
       }
+      .records-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .records-density-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .records-density-wrap .label {
+        color: var(--muted);
+        font-size: 11px;
+      }
       .mrow {
         border: 1px solid var(--line);
         border-radius: 10px;
@@ -1150,6 +1166,19 @@
       }
       #view-records td:nth-child(13) {
         white-space: normal;
+      }
+      #view-records[data-density="comfortable"] table {
+        font-size: 12.5px;
+      }
+      #view-records[data-density="comfortable"] th,
+      #view-records[data-density="comfortable"] td {
+        padding: 7px 6px;
+      }
+      #view-records[data-density="comfortable"] .mini-btn,
+      #view-records[data-density="comfortable"] .mode,
+      #view-records[data-density="comfortable"] .hot-pill {
+        font-size: 11px;
+        padding: 2px 8px;
       }
       th {
         color: var(--muted);
@@ -1613,6 +1642,9 @@
           padding: 10px;
         }
         .bids-head {
+          align-items: flex-start;
+        }
+        .records-toolbar {
           align-items: flex-start;
         }
         .bids-controls {
@@ -2105,7 +2137,16 @@
       <section id="view-records" class="view">
         <section class="panel">
           <h3>Row-Level Summary</h3>
-          <div class="note compact" id="recordsStatus">Showing closed rows by default. Use Map/Records View for projected/open rows.</div>
+          <div class="records-toolbar">
+            <div class="note compact" id="recordsStatus">Showing closed rows by default. Use Map/Records View for projected/open rows.</div>
+            <div class="records-density-wrap">
+              <span class="label">Density</span>
+              <div class="scope-toggle" aria-label="Records density toggle">
+                <button type="button" class="scope-pill active" data-record-density="compact">Compact</button>
+                <button type="button" class="scope-pill" data-record-density="comfortable">Comfortable</button>
+              </div>
+            </div>
+          </div>
           <div class="table-wrap">
             <table>
               <colgroup>
@@ -2378,6 +2419,7 @@
           key: "saleDate",
           dir: "desc",
         },
+        recordDensity: "compact",
         recordMobileExpanded: null,
         renderDebounce: null,
         flags: {
@@ -2455,6 +2497,14 @@
         return `${sign}$${Math.round(abs)}`;
       }
 
+      function formatMoneyCompactHtml(v, digits = 2) {
+        const n = Number(v || 0);
+        if (!Number.isFinite(n) || n === 0) return "n/a";
+        const compact = formatMoneyCompact(n, digits);
+        const full = formatMoney(n);
+        return `<span title="${esc(full)}">${esc(compact)}</span>`;
+      }
+
       function formatDateShort(value) {
         const d = toDate(value);
         if (!d) return "n/a";
@@ -2514,6 +2564,20 @@
         return "Pending";
       }
 
+      function closeDisplayCompactHtml(row) {
+        if (row.closePrice > 0 && !row.isProjectionRow) {
+          const compact = formatMoneyCompact(row.closePrice);
+          const full = formatMoney(row.closePrice);
+          return `<span title="${esc(full)}">${esc(compact)}</span>`;
+        }
+        if (row.projectedClosePrice > 0) {
+          const compact = `~${formatMoneyCompact(row.projectedClosePrice)} proj`;
+          const full = `~${formatMoney(row.projectedClosePrice)} proj`;
+          return `<span title="${esc(full)}">${esc(compact)}</span>`;
+        }
+        return "Pending";
+      }
+
       function deltaDisplay(row) {
         if (row.pendingListPrice <= 0) return "n/a";
         if (row.delta || row.delta === 0) return formatMoney(row.delta);
@@ -2523,6 +2587,16 @@
       function deltaDisplayCompact(row) {
         if (row.pendingListPrice <= 0) return "n/a";
         if (row.delta || row.delta === 0) return formatMoneyCompact(row.delta);
+        return "n/a";
+      }
+
+      function deltaDisplayCompactHtml(row) {
+        if (row.pendingListPrice <= 0) return "n/a";
+        if (row.delta || row.delta === 0) {
+          const compact = formatMoneyCompact(row.delta);
+          const full = formatMoney(row.delta);
+          return `<span title="${esc(full)}">${esc(compact)}</span>`;
+        }
         return "n/a";
       }
 
@@ -4181,6 +4255,17 @@
         if (highConfEl) highConfEl.checked = !!state.bid.highConfidenceOnly;
       }
 
+      function renderRecordDensityUI() {
+        const recordsView = document.getElementById("view-records");
+        if (recordsView) recordsView.setAttribute("data-density", state.recordDensity || "compact");
+        document.querySelectorAll("[data-record-density]").forEach((btn) => {
+          const value = btn.getAttribute("data-record-density");
+          const active = value === state.recordDensity;
+          btn.classList.toggle("active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+      }
+
       function renderBids(bidRows, bidStats) {
         const tbody = document.getElementById("bidRows");
         const mobileList = document.getElementById("bidMobileList");
@@ -4903,13 +4988,13 @@
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
                 <td>${formatLot(r.lotSize)}</td>
                 <td class="date-cell">${formatDateShort(r.saleDate)}</td>
-                <td>${closeDisplayCompact(r)}</td>
-                <td>${r.originalListPrice > 0 ? formatMoneyCompact(r.originalListPrice) : "n/a"}</td>
-                <td>${r.pendingListPrice > 0 ? formatMoneyCompact(r.pendingListPrice) : "n/a"}</td>
+                <td>${closeDisplayCompactHtml(r)}</td>
+                <td>${formatMoneyCompactHtml(r.originalListPrice)}</td>
+                <td>${formatMoneyCompactHtml(r.pendingListPrice)}</td>
                 <td>${domLabel(r)}</td>
                 <td>${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToList > 0 ? ratioNorm(r.saleToList) : 0, "rgba(61,213,157,0.33)")}">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</span></td>
-                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${deltaDisplayCompact(r)}</span></td>
+                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${deltaDisplayCompactHtml(r)}</span></td>
               </tr>
             `;
           })
@@ -5022,6 +5107,7 @@
         renderSummary(slices);
         renderSliceStatus(slices);
         renderChips(filterState, slices);
+        renderRecordDensityUI();
         renderKpis(slices.closedSlice, slices.stats);
         renderInsights(slices.closedSlice);
         renderCharts(slices.closedSlice);
@@ -5248,6 +5334,14 @@
             const value = btn.getAttribute("data-bid-strategy");
             if (!BID_STRATEGIES[value]) return;
             state.bid.strategy = value;
+            renderAll();
+          });
+        });
+        document.querySelectorAll("[data-record-density]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const value = btn.getAttribute("data-record-density");
+            if (value !== "compact" && value !== "comfortable") return;
+            state.recordDensity = value;
             renderAll();
           });
         });
