@@ -753,11 +753,9 @@
         border: 1px solid rgba(210, 230, 255, 0.35);
         background: linear-gradient(
           90deg,
-          hsl(220 74% 56%) 0%,
-          hsl(178 74% 56%) 25%,
-          hsl(137 74% 56%) 50%,
-          hsl(96 74% 56%) 75%,
-          hsl(55 74% 56%) 100%
+          hsl(145 72% 45%) 0%,
+          hsl(58 84% 56%) 33.33%,
+          hsl(8 83% 53%) 100%
         );
       }
       .geo-gradient-labels {
@@ -787,9 +785,9 @@
         background: #5fd89c;
         border: 1px solid #103520;
       }
-      .geo-dot.sa-low { background: hsl(220 74% 56%); border: 1px solid #123b62; }
-      .geo-dot.sa-mid { background: hsl(168 74% 56%); border: 1px solid #0f4a44; }
-      .geo-dot.sa-high { background: hsl(95 74% 56%); border: 1px solid #2b4d11; }
+      .geo-dot.sa-low { background: hsl(145 72% 45%); border: 1px solid #1f5a38; }
+      .geo-dot.sa-mid { background: hsl(58 84% 56%); border: 1px solid #6e6317; }
+      .geo-dot.sa-high { background: hsl(8 83% 53%); border: 1px solid #6a2018; }
       .geo-dot.selected { background: transparent; border: 2px solid #f9d26b; }
       .geo-selected-wrap {
         margin-top: 10px;
@@ -2141,14 +2139,14 @@
             </div>
             <div class="geo-gradient-legend">
               <div class="geo-gradient-head">Sale/List color scale (fixed and capped)</div>
-              <div class="geo-gradient-track" aria-label="Sale-to-list color legend from 0.90x (blue) to 1.20x (yellow-green)"></div>
+              <div class="geo-gradient-track" aria-label="Sale-to-list color legend from 0.90x under ask (green) to 1.20x over ask (red)"></div>
               <div class="geo-gradient-labels">
                 <span>0.90x</span>
                 <span>1.00x</span>
                 <span>1.10x</span>
                 <span>1.20x</span>
               </div>
-              <div class="geo-gradient-note">Pin colors stay on this absolute scale, regardless of current selection.</div>
+              <div class="geo-gradient-note">Green = below ask, yellow = near ask, red = above ask. Pin colors stay on this absolute scale.</div>
             </div>
           </section>
           <section class="panel geo-side-panel">
@@ -4298,8 +4296,15 @@
 
       function geoRatioColor(norm) {
         const n = Math.max(0, Math.min(1, norm));
-        const hue = Math.round(220 - (n * 165));
-        return `hsl(${hue} 74% 56%)`;
+        const ratio = SA_COLOR_MIN + (n * (SA_COLOR_MAX - SA_COLOR_MIN));
+        if (ratio <= 1) {
+          const t = (ratio - SA_COLOR_MIN) / Math.max(1 - SA_COLOR_MIN, 0.0001);
+          const hue = Math.round(145 - (t * 87)); // green -> yellow
+          return `hsl(${hue} 72% 48%)`;
+        }
+        const t = (ratio - 1) / Math.max(SA_COLOR_MAX - 1, 0.0001);
+        const hue = Math.round(58 - (t * 50)); // yellow -> red
+        return `hsl(${hue} 83% 53%)`;
       }
 
       function fixedSaleToListNorm(value) {
