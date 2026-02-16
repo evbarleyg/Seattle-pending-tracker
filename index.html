@@ -1161,6 +1161,16 @@
         min-width: 58px;
         padding: 2px 5px;
       }
+      .money-compact {
+        cursor: pointer;
+        text-decoration: underline dotted;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+      }
+      .money-compact[data-showing-full="1"] {
+        text-decoration: none;
+        font-variant-numeric: tabular-nums;
+      }
       #view-records td:not(:first-child) {
         white-space: nowrap;
       }
@@ -2189,7 +2199,7 @@
             </table>
           </div>
           <div class="record-mobile-list" id="recordMobileList"></div>
-          <div class="note">Address links open Zillow search results. Use <strong>KC Record</strong> for official King County parcel/sale lookup when Zillow history is incomplete.</div>
+          <div class="note">Address links open Zillow search results. Use <strong>KC Record</strong> for official King County parcel/sale lookup when Zillow history is incomplete. Hover/tap compact dollar values to show full amounts.</div>
         </section>
       </section>
 
@@ -2304,6 +2314,7 @@
       const SA_COLOR_MIN = 0.9;
       const SA_COLOR_MAX = 1.2;
       const PRESOLD_NEW_BUILD_YEAR_MIN = 2023;
+      const RECORD_DENSITY_STORAGE_KEY = "buyer_lens_record_density";
       const BID_COMP_WINDOW_DAYS = 90;
       const BID_HALFLIFE_DAYS = 30;
       const BID_MIN_COMPS = 6;
@@ -2497,12 +2508,16 @@
         return `${sign}$${Math.round(abs)}`;
       }
 
+      function moneyCompactSpan(compact, full) {
+        return `<span class="money-compact" data-money-compact="1" data-compact="${esc(compact)}" data-full="${esc(full)}" data-showing-full="0" role="button" tabindex="0" aria-label="Toggle full dollar value" aria-pressed="false" title="${esc(full)}">${esc(compact)}</span>`;
+      }
+
       function formatMoneyCompactHtml(v, digits = 2) {
         const n = Number(v || 0);
         if (!Number.isFinite(n) || n === 0) return "n/a";
         const compact = formatMoneyCompact(n, digits);
         const full = formatMoney(n);
-        return `<span title="${esc(full)}">${esc(compact)}</span>`;
+        return moneyCompactSpan(compact, full);
       }
 
       function formatDateShort(value) {
@@ -2568,12 +2583,12 @@
         if (row.closePrice > 0 && !row.isProjectionRow) {
           const compact = formatMoneyCompact(row.closePrice);
           const full = formatMoney(row.closePrice);
-          return `<span title="${esc(full)}">${esc(compact)}</span>`;
+          return moneyCompactSpan(compact, full);
         }
         if (row.projectedClosePrice > 0) {
           const compact = `~${formatMoneyCompact(row.projectedClosePrice)} proj`;
           const full = `~${formatMoney(row.projectedClosePrice)} proj`;
-          return `<span title="${esc(full)}">${esc(compact)}</span>`;
+          return moneyCompactSpan(compact, full);
         }
         return "Pending";
       }
@@ -2595,9 +2610,27 @@
         if (row.delta || row.delta === 0) {
           const compact = formatMoneyCompact(row.delta);
           const full = formatMoney(row.delta);
-          return `<span title="${esc(full)}">${esc(compact)}</span>`;
+          return moneyCompactSpan(compact, full);
         }
         return "n/a";
+      }
+
+      function toggleMoneyCompact(el) {
+        if (!el) return;
+        const compact = el.getAttribute("data-compact") || "";
+        const full = el.getAttribute("data-full") || compact;
+        const showingFull = el.getAttribute("data-showing-full") === "1";
+        if (showingFull) {
+          el.textContent = compact;
+          el.setAttribute("data-showing-full", "0");
+          el.setAttribute("aria-pressed", "false");
+          el.setAttribute("title", full);
+        } else {
+          el.textContent = full;
+          el.setAttribute("data-showing-full", "1");
+          el.setAttribute("aria-pressed", "true");
+          el.setAttribute("title", compact);
+        }
       }
 
       function median(values) {
@@ -5238,6 +5271,27 @@
         applyTheme(saved === "dark" ? "dark" : "light");
       }
 
+      function setRecordDensity(value, persist = true) {
+        if (value !== "compact" && value !== "comfortable") return;
+        state.recordDensity = value;
+        if (!persist) return;
+        try {
+          localStorage.setItem(RECORD_DENSITY_STORAGE_KEY, value);
+        } catch (err) {
+          // ignore storage errors
+        }
+      }
+
+      function initRecordDensity() {
+        let saved = "compact";
+        try {
+          saved = localStorage.getItem(RECORD_DENSITY_STORAGE_KEY) || "compact";
+        } catch (err) {
+          saved = "compact";
+        }
+        setRecordDensity(saved === "comfortable" ? "comfortable" : "compact", false);
+      }
+
       function lockDateInputsToPicker() {
         ["fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
@@ -5341,7 +5395,7 @@
           btn.addEventListener("click", () => {
             const value = btn.getAttribute("data-record-density");
             if (value !== "compact" && value !== "comfortable") return;
-            state.recordDensity = value;
+            setRecordDensity(value);
             renderAll();
           });
         });
@@ -5478,6 +5532,12 @@
         });
 
         document.addEventListener("click", (evt) => {
+          const compactMoney = evt.target.closest("[data-money-compact]");
+          if (compactMoney) {
+            toggleMoneyCompact(compactMoney);
+            return;
+          }
+
           const sortBtn = evt.target.closest("[data-record-sort]");
           if (sortBtn) {
             setRecordSort(sortBtn.getAttribute("data-record-sort"));
@@ -5608,6 +5668,14 @@
           }
         });
 
+        document.addEventListener("keydown", (evt) => {
+          if (evt.key !== "Enter" && evt.key !== " ") return;
+          const compactMoney = evt.target.closest("[data-money-compact]");
+          if (!compactMoney) return;
+          evt.preventDefault();
+          toggleMoneyCompact(compactMoney);
+        });
+
         const csvInput = document.getElementById("csvFile");
         if (csvInput) {
           csvInput.addEventListener("change", (evt) => {
@@ -5653,6 +5721,7 @@
 
       function init() {
         initTheme();
+        initRecordDensity();
         bindEvents();
         autoLoadDefault();
       }
