@@ -1122,6 +1122,16 @@
         white-space: nowrap;
         vertical-align: middle;
       }
+      #view-records .mini-btn.wide-chip {
+        display: block;
+        width: 100%;
+        max-width: none;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.1;
+        text-align: center;
+      }
       #view-records .mode,
       #view-records .hot-pill {
         font-size: 10px;
@@ -1132,7 +1142,7 @@
         vertical-align: middle;
       }
       #view-records .heat {
-        min-width: 72px;
+        min-width: 58px;
         padding: 2px 5px;
       }
       #view-records td:not(:first-child) {
@@ -2098,6 +2108,23 @@
           <div class="note compact" id="recordsStatus">Showing closed rows by default. Use Map/Records View for projected/open rows.</div>
           <div class="table-wrap">
             <table>
+              <colgroup>
+                <col style="width:20%" />
+                <col style="width:10%" />
+                <col style="width:8%" />
+                <col style="width:3%" />
+                <col style="width:4%" />
+                <col style="width:5%" />
+                <col style="width:5%" />
+                <col style="width:5%" />
+                <col style="width:7%" />
+                <col style="width:7%" />
+                <col style="width:7%" />
+                <col style="width:3%" />
+                <col style="width:6%" />
+                <col style="width:4%" />
+                <col style="width:6%" />
+              </colgroup>
               <thead>
                 <tr>
                   <th><button class="th-sort" type="button" data-record-sort="address">Address <span class="sort-ind" data-sort-ind="address">&#8597;</span></button></th>
@@ -2107,15 +2134,14 @@
                   <th><button class="th-sort" type="button" data-record-sort="baths">Baths <span class="sort-ind" data-sort-ind="baths">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="sqft">SqFt <span class="sort-ind" data-sort-ind="sqft">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="lotSize">Lot Size <span class="sort-ind" data-sort-ind="lotSize">&#8597;</span></button></th>
-                  <th class="col-date"><button class="th-sort" type="button" data-record-sort="saleDate">Sale Date <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
+                  <th class="col-date"><button class="th-sort" type="button" data-record-sort="saleDate">Sale Dt <span class="sort-ind" data-sort-ind="saleDate">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="closePrice">Close Price <span class="sort-ind" data-sort-ind="closePrice">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="originalListPrice">Original List <span class="sort-ind" data-sort-ind="originalListPrice">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="pendingListPrice">List@Pending <span class="sort-ind" data-sort-ind="pendingListPrice">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="pendingListPrice">Ask (Offer) <span class="sort-ind" data-sort-ind="pendingListPrice">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="domMetric">DOM <span class="sort-ind" data-sort-ind="domMetric">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="hotCategory">Hot Category <span class="sort-ind" data-sort-ind="hotCategory">&#8597;</span></button></th>
                   <th><button class="th-sort" type="button" data-record-sort="saleToList">S/List <span class="sort-ind" data-sort-ind="saleToList">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="delta">Delta vs List@Pending <span class="sort-ind" data-sort-ind="delta">&#8597;</span></button></th>
-                  <th><button class="th-sort" type="button" data-record-sort="dataMode">Data Mode <span class="sort-ind" data-sort-ind="dataMode">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-record-sort="delta">Bid-Up vs Ask <span class="sort-ind" data-sort-ind="delta">&#8597;</span></button></th>
                 </tr>
               </thead>
               <tbody id="recordRows"></tbody>
@@ -2429,6 +2455,12 @@
         return `${sign}$${Math.round(abs)}`;
       }
 
+      function formatDateShort(value) {
+        const d = toDate(value);
+        if (!d) return "n/a";
+        return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+      }
+
       function formatPct(v) {
         return `${(Number(v || 0) * 100).toFixed(1)}%`;
       }
@@ -2476,9 +2508,21 @@
         return "Pending";
       }
 
+      function closeDisplayCompact(row) {
+        if (row.closePrice > 0 && !row.isProjectionRow) return formatMoneyCompact(row.closePrice);
+        if (row.projectedClosePrice > 0) return `~${formatMoneyCompact(row.projectedClosePrice)} proj`;
+        return "Pending";
+      }
+
       function deltaDisplay(row) {
         if (row.pendingListPrice <= 0) return "n/a";
         if (row.delta || row.delta === 0) return formatMoney(row.delta);
+        return "n/a";
+      }
+
+      function deltaDisplayCompact(row) {
+        if (row.pendingListPrice <= 0) return "n/a";
+        if (row.delta || row.delta === 0) return formatMoneyCompact(row.delta);
         return "n/a";
       }
 
@@ -4829,7 +4873,7 @@
             : emptyMessage;
         }
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="16">${esc(emptyMessage)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="15">${esc(emptyMessage)}</td></tr>`;
           if (mobileList) mobileList.innerHTML = `<div class="note">${esc(emptyMessage)}</div>`;
           updateRecordSortHeaderUI();
           return;
@@ -4852,21 +4896,20 @@
                   ${countyUrl ? `<a class="addr-sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}
                   ${addrBadge}
                 </td>
-                <td><button class="mini-btn ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
-                <td><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
+                <td><button class="mini-btn wide-chip ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
+                <td><button class="mini-btn wide-chip ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
                 <td>${r.beds || 0}</td>
                 <td>${r.baths ? r.baths.toFixed(2) : "0.00"}</td>
                 <td>${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</td>
                 <td>${formatLot(r.lotSize)}</td>
-                <td class="date-cell">${esc(r.saleDate || "n/a")}</td>
-                <td>${closeDisplay(r)}</td>
-                <td>${formatMoneyOrNa(r.originalListPrice)}</td>
-                <td>${formatMoneyOrNa(r.pendingListPrice)}</td>
+                <td class="date-cell">${formatDateShort(r.saleDate)}</td>
+                <td>${closeDisplayCompact(r)}</td>
+                <td>${r.originalListPrice > 0 ? formatMoneyCompact(r.originalListPrice) : "n/a"}</td>
+                <td>${r.pendingListPrice > 0 ? formatMoneyCompact(r.pendingListPrice) : "n/a"}</td>
                 <td>${domLabel(r)}</td>
                 <td>${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</td>
                 <td><span class="heat" style="${seqHeat(r.saleToList > 0 ? ratioNorm(r.saleToList) : 0, "rgba(61,213,157,0.33)")}">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</span></td>
-                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${deltaDisplay(r)}</span></td>
-                <td><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></td>
+                <td><span class="heat" style="${divHeat(deltaNorm(r.delta))}">${deltaDisplayCompact(r)}</span></td>
               </tr>
             `;
           })
@@ -4883,28 +4926,27 @@
               <article class="mrow ${expanded ? "expanded" : ""}">
                 <button class="mrow-head" type="button" data-mobile-expand="${esc(key)}">
                   <span class="mrow-address">${esc(r.address)} ${addrBadge}</span>
-                  <span class="mrow-price">${closeDisplay(r)}</span>
-                  <span class="mrow-date">${esc(r.saleDate || r.pendingDate || "n/a")} <span class="mrow-toggle">${expanded ? "Hide" : "More"}</span></span>
+                  <span class="mrow-price">${closeDisplayCompact(r)}</span>
+                  <span class="mrow-date">${formatDateShort(r.saleDate || r.pendingDate)} <span class="mrow-toggle">${expanded ? "Hide" : "More"}</span></span>
                 </button>
                 <div class="mrow-detail">
                   <div class="mrow-grid">
                     <div class="mrow-item"><div class="k">Links</div><div class="v"><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">Zillow<span class="ext-icon" aria-hidden="true">&#8599;</span></a>${countyUrl ? `<a class="addr-sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}</div></div>
-                    <div class="mrow-item"><div class="k">Neighborhood</div><div class="v"><button class="mini-btn ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></div></div>
-                    <div class="mrow-item"><div class="k">Type</div><div class="v"><button class="mini-btn ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></div></div>
+                    <div class="mrow-item"><div class="k">Neighborhood</div><div class="v"><button class="mini-btn wide-chip ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></div></div>
+                    <div class="mrow-item"><div class="k">Type</div><div class="v"><button class="mini-btn wide-chip ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></div></div>
                     <div class="mrow-item"><div class="k">Beds / Baths</div><div class="v">${r.beds || 0} / ${r.baths ? r.baths.toFixed(2) : "0.00"}</div></div>
                     <div class="mrow-item"><div class="k">SqFt</div><div class="v">${r.sqft ? r.sqft.toLocaleString("en-US") : "0"}</div></div>
                     <div class="mrow-item"><div class="k">Lot Size</div><div class="v">${formatLot(r.lotSize)}</div></div>
-                    <div class="mrow-item"><div class="k">Sale Price</div><div class="v">${closeDisplay(r)}</div></div>
-                    <div class="mrow-item"><div class="k">Original List</div><div class="v">${formatMoneyOrNa(r.originalListPrice)}</div></div>
-                    <div class="mrow-item"><div class="k">List@Pending</div><div class="v">${formatMoneyOrNa(r.pendingListPrice)}</div></div>
+                    <div class="mrow-item"><div class="k">Close Price</div><div class="v">${closeDisplayCompact(r)}</div></div>
+                    <div class="mrow-item"><div class="k">Original List</div><div class="v">${r.originalListPrice > 0 ? formatMoneyCompact(r.originalListPrice) : "n/a"}</div></div>
+                    <div class="mrow-item"><div class="k">Ask (Offer)</div><div class="v">${r.pendingListPrice > 0 ? formatMoneyCompact(r.pendingListPrice) : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">DOM</div><div class="v">${domLabel(r)}</div></div>
                     <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">Sale / Original</div><div class="v">${r.saleToOriginalList > 0 ? `${r.saleToOriginalList.toFixed(2)}x` : "n/a"}</div></div>
-                    <div class="mrow-item"><div class="k">Delta vs List@Pending</div><div class="v">${deltaDisplay(r)}</div></div>
+                    <div class="mrow-item"><div class="k">Bid-Up vs Ask</div><div class="v">${deltaDisplayCompact(r)}</div></div>
                     <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</div></div>
-                    <div class="mrow-item"><div class="k">Data Mode</div><div class="v"><span class="mode">${esc(r.dataMode)}${r.isProjectionRow ? " PROJ" : ""}</span></div></div>
                     ${r.isProjectionRow && r.projectedCloseLow > 0 && r.projectedCloseHigh > 0
-                      ? `<div class="mrow-item"><div class="k">Projected Range</div><div class="v">${formatMoney(r.projectedCloseLow)} - ${formatMoney(r.projectedCloseHigh)} (${r.projectionBasisCount} comps)</div></div>`
+                      ? `<div class="mrow-item"><div class="k">Projected Range</div><div class="v">${formatMoneyCompact(r.projectedCloseLow)} - ${formatMoneyCompact(r.projectedCloseHigh)} (${r.projectionBasisCount} comps)</div></div>`
                       : ""}
                   </div>
                 </div>
