@@ -12,3 +12,7 @@ Value History/
 
 # Local realtor exports used to build enrichment (do not commit)
 realtor_exports/
+
+# Local Codex export artifacts
+codex_context_export_sanitized/
+codex_context_export_structured_sanitized/
