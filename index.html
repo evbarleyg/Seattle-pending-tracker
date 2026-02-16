@@ -554,6 +554,14 @@
       .manual-bid-actions .btn {
         min-width: 92px;
       }
+      .manual-source-note {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .use-active-link {
+        margin-left: 6px;
+        vertical-align: middle;
+      }
       .manual-bid-result {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2031,6 +2039,13 @@
             </div>
             <div class="manual-bid-form">
               <div class="field">
+                <label for="manualBidSource">Load Active Listing</label>
+                <select id="manualBidSource">
+                  <option value="">Select from active listings below...</option>
+                </select>
+                <div class="manual-source-note">Use this to pull address/ask/type/DOM from the active listings table.</div>
+              </div>
+              <div class="field">
                 <label for="manualBidAddress">Address (optional)</label>
                 <input id="manualBidAddress" type="text" placeholder="123 Example St, Seattle WA" />
               </div>
@@ -2442,6 +2457,8 @@
           strategy: "balanced",
           highConfidenceOnly: false,
           manualEnabled: false,
+          manualSourceKey: "",
+          activeLookup: new Map(),
         },
         interactions: {
           month: null,
@@ -2930,6 +2947,7 @@
         state.bid.strategy = "balanced";
         state.bid.highConfidenceOnly = false;
         state.bid.manualEnabled = false;
+        state.bid.manualSourceKey = "";
         const projectionToggle = document.getElementById("ffProjection");
         if (projectionToggle) projectionToggle.checked = false;
         const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
@@ -2941,9 +2959,11 @@
         const manualStatus = document.getElementById("manualBidStatus");
         const manualResult = document.getElementById("manualBidResult");
         const manualComps = document.getElementById("manualBidCompRows");
+        const manualSource = document.getElementById("manualBidSource");
         if (manualStatus) manualStatus.textContent = "No manual scenario yet.";
         if (manualResult) manualResult.innerHTML = "";
         if (manualComps) manualComps.innerHTML = "";
+        if (manualSource) manualSource.value = "";
         document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
           btn.classList.toggle("active", btn.getAttribute("data-bid-strategy") === "balanced");
         });
@@ -4299,6 +4319,56 @@
         });
       }
 
+      function applyManualScenarioFromActiveRow(row) {
+        if (!row) return;
+        const setValue = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.value = value;
+        };
+        setValue("manualBidAddress", row.address || "");
+        setValue("manualBidListPrice", row.pendingListPrice > 0 ? String(Math.round(row.pendingListPrice)) : "");
+        setValue("manualBidZip", zip5(row.zip || ""));
+        setValue("manualBidDom", row.hasMlsDomValue ? String(Math.round(row.mlsDOM)) : "");
+        setValue("manualBidCdom", row.hasMlsCdomValue ? String(Math.round(row.mlsCDOM)) : "");
+
+        const neighborhoodEl = document.getElementById("manualBidNeighborhood");
+        if (neighborhoodEl) {
+          const hasNeighborhood = [...neighborhoodEl.options].some((opt) => opt.value === row.neighborhoodLabel);
+          neighborhoodEl.value = hasNeighborhood ? row.neighborhoodLabel : "";
+        }
+        const typeEl = document.getElementById("manualBidType");
+        if (typeEl && typeEl.options.length) {
+          const hasType = [...typeEl.options].some((opt) => opt.value === row.typeLabel);
+          typeEl.value = hasType ? row.typeLabel : typeEl.options[0].value;
+        }
+
+        state.bid.manualEnabled = true;
+        state.bid.manualSourceKey = row.mapPropertyKey || "";
+      }
+
+      function renderManualBidSourceOptions(activeRows) {
+        const select = document.getElementById("manualBidSource");
+        if (!select) return;
+        const rows = Array.isArray(activeRows) ? activeRows : [];
+        state.bid.activeLookup = new Map(rows.map((r) => [r.mapPropertyKey, r]));
+
+        const previous = state.bid.manualSourceKey || "";
+        const options = rows.map((r) => {
+          const price = r.pendingListPrice > 0 ? formatMoneyCompact(r.pendingListPrice) : "n/a";
+          const dom = domLabel(r);
+          const label = `${r.address || "Address unavailable"} | ${price} | ${dom}`;
+          return `<option value="${esc(r.mapPropertyKey)}">${esc(label)}</option>`;
+        });
+        select.innerHTML = `<option value="">Select from active listings below...</option>${options.join("")}`;
+
+        if (previous && state.bid.activeLookup.has(previous)) {
+          select.value = previous;
+        } else {
+          select.value = "";
+          state.bid.manualSourceKey = "";
+        }
+      }
+
       function renderBids(bidRows, bidStats) {
         const tbody = document.getElementById("bidRows");
         const mobileList = document.getElementById("bidMobileList");
@@ -4315,6 +4385,7 @@
         document.getElementById("bInsufficientCount").textContent = String(insuffCount);
 
         if (!bidRows.length) {
+          renderManualBidSourceOptions([]);
           tbody.innerHTML = `<tr><td colspan="12">No active MLS listings in current filter scope.</td></tr>`;
           mobileList.innerHTML = `<div class="note">No active MLS listings in current filter scope.</div>`;
           return;
@@ -4329,6 +4400,7 @@
             if (b.bidConfidence !== a.bidConfidence) return b.bidConfidence - a.bidConfidence;
             return String(a.address || "").localeCompare(String(b.address || ""));
           });
+        renderManualBidSourceOptions(sorted);
 
         tbody.innerHTML = sorted.map((r) => {
           const confClass = r.bidConfidenceLabel === "High"
@@ -4341,7 +4413,7 @@
           const ratio = r.bidStatus === "SCored" && r.bidRatio > 0 ? `${r.bidRatio.toFixed(2)}x` : "n/a";
           return `
             <tr>
-              <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a></td>
+              <td><a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address || "Address unavailable")}<span class="ext-icon" aria-hidden="true">&#8599;</span></a><button type="button" class="mini-link use-active-link" data-use-active-bid="${esc(r.mapPropertyKey)}">Use</button></td>
               <td>${esc(r.neighborhoodLabel || "Seattle")}</td>
               <td>${esc(r.typeLabel || "Unknown")}</td>
               <td>${formatMoneyOrNa(r.originalListPrice)}</td>
@@ -4371,6 +4443,7 @@
                 <span class="mrow-date">${esc(r.neighborhoodLabel || "Seattle")}</span>
               </div>
               <div class="mrow-detail" style="display:block;">
+                <div style="margin-bottom:6px;"><button type="button" class="mini-link" data-use-active-bid="${esc(r.mapPropertyKey)}">Use In Manual Scenario</button></div>
                 <div class="mrow-grid">
                   <div class="mrow-item"><div class="k">Original / Pending</div><div class="v">${formatMoneyOrNa(r.originalListPrice)} / ${formatMoneyOrNa(r.pendingListPrice)}</div></div>
                   <div class="mrow-item"><div class="k">DOM/CDOM</div><div class="v">${domLabel(r)}</div></div>
@@ -5414,15 +5487,36 @@
             renderAll();
           });
         }
+        const manualBidSource = document.getElementById("manualBidSource");
+        if (manualBidSource) {
+          manualBidSource.addEventListener("change", (evt) => {
+            const key = String(evt.target.value || "");
+            state.bid.manualSourceKey = key;
+            if (!key) {
+              renderAll();
+              return;
+            }
+            const row = state.bid.activeLookup.get(key);
+            if (!row) {
+              renderAll();
+              return;
+            }
+            applyManualScenarioFromActiveRow(row);
+            renderAll();
+          });
+        }
         const manualBidClear = document.getElementById("manualBidClear");
         if (manualBidClear) {
           manualBidClear.addEventListener("click", () => {
             state.bid.manualEnabled = false;
+            state.bid.manualSourceKey = "";
             ["manualBidAddress", "manualBidListPrice", "manualBidZip", "manualBidDom", "manualBidCdom"]
               .forEach((id) => {
                 const el = document.getElementById(id);
                 if (el) el.value = "";
               });
+            const manualSource = document.getElementById("manualBidSource");
+            if (manualSource) manualSource.value = "";
             const manualN = document.getElementById("manualBidNeighborhood");
             if (manualN) manualN.value = "";
             const manualT = document.getElementById("manualBidType");
@@ -5532,6 +5626,17 @@
         });
 
         document.addEventListener("click", (evt) => {
+          const useActiveBid = evt.target.closest("[data-use-active-bid]");
+          if (useActiveBid) {
+            const key = useActiveBid.getAttribute("data-use-active-bid");
+            const row = state.bid.activeLookup.get(key);
+            if (row) {
+              applyManualScenarioFromActiveRow(row);
+            }
+            renderAll();
+            return;
+          }
+
           const compactMoney = evt.target.closest("[data-money-compact]");
           if (compactMoney) {
             toggleMoneyCompact(compactMoney);
