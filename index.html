@@ -2162,18 +2162,18 @@
               </colgroup>
               <thead>
                 <tr>
-                  <th>Address</th>
-                  <th>Neighborhood</th>
-                  <th>Type</th>
-                  <th>Original List</th>
-                  <th>List@Pending</th>
-                  <th>DOM/CDOM</th>
-                  <th>Suggested Bid</th>
-                  <th>Bid Range</th>
-                  <th>Suggested S/List</th>
-                  <th>Confidence</th>
-                  <th>Comp Count</th>
-                  <th>Comp Tier</th>
+                  <th><button class="th-sort" type="button" data-bid-sort="address">Address <span class="sort-ind" data-bid-sort-ind="address">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="neighborhood">Neighborhood <span class="sort-ind" data-bid-sort-ind="neighborhood">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="type">Type <span class="sort-ind" data-bid-sort-ind="type">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="originalListPrice">Original List <span class="sort-ind" data-bid-sort-ind="originalListPrice">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="pendingListPrice">List@Pending <span class="sort-ind" data-bid-sort-ind="pendingListPrice">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="dom">DOM/CDOM <span class="sort-ind" data-bid-sort-ind="dom">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="suggestedBid">Suggested Bid <span class="sort-ind" data-bid-sort-ind="suggestedBid">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="bidRange">Bid Range <span class="sort-ind" data-bid-sort-ind="bidRange">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="ratio">Suggested S/List <span class="sort-ind" data-bid-sort-ind="ratio">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="confidence">Confidence <span class="sort-ind" data-bid-sort-ind="confidence">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="compCount">Comp Count <span class="sort-ind" data-bid-sort-ind="compCount">&#8597;</span></button></th>
+                  <th><button class="th-sort" type="button" data-bid-sort="compTier">Comp Tier <span class="sort-ind" data-bid-sort-ind="compTier">&#8597;</span></button></th>
                 </tr>
               </thead>
               <tbody id="bidRows"></tbody>
@@ -2484,6 +2484,10 @@
           manualEnabled: false,
           manualSourceKey: "",
           activeLookup: new Map(),
+        },
+        bidSort: {
+          key: "confidence",
+          dir: "desc",
         },
         interactions: {
           month: null,
@@ -4323,6 +4327,75 @@
         return "Insufficient comps";
       }
 
+      function getBidSortValue(row, key) {
+        if (key === "address") return String(row.address || "");
+        if (key === "neighborhood") return String(row.neighborhoodLabel || "");
+        if (key === "type") return String(row.typeLabel || "");
+        if (key === "originalListPrice") return Number(row.originalListPrice || 0);
+        if (key === "pendingListPrice") return Number(row.pendingListPrice || 0);
+        if (key === "dom") return Number(domMetric(row) ?? -1);
+        if (key === "suggestedBid") return row.bidStatus === "SCored" ? Number(row.bidSuggested || 0) : -1;
+        if (key === "bidRange") return row.bidStatus === "SCored" ? Number(row.bidHigh || row.bidLow || 0) : -1;
+        if (key === "ratio") return row.bidStatus === "SCored" ? Number(row.bidRatio || 0) : 0;
+        if (key === "confidence") return Number(row.bidConfidence || 0);
+        if (key === "compCount") return Number(row.bidCompCount || 0);
+        if (key === "compTier") {
+          if (row.bidCompTier === "T1_NEIGHBORHOOD_TYPE") return 3;
+          if (row.bidCompTier === "T2_ZIP_TYPE") return 2;
+          if (row.bidCompTier === "T3_CITY_TYPE") return 1;
+          return 0;
+        }
+        return "";
+      }
+
+      function applyBidSort(rows) {
+        const { key, dir } = state.bidSort;
+        const factor = dir === "asc" ? 1 : -1;
+        return rows.slice().sort((a, b) => {
+          const av = getBidSortValue(a, key);
+          const bv = getBidSortValue(b, key);
+          if (typeof av === "number" && typeof bv === "number" && Number.isFinite(av) && Number.isFinite(bv)) {
+            const diff = (av - bv) * factor;
+            if (diff !== 0) return diff;
+          } else {
+            const diff = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * factor;
+            if (diff !== 0) return diff;
+          }
+          return String(a.address || "").localeCompare(String(b.address || ""), undefined, { sensitivity: "base" });
+        });
+      }
+
+      function updateBidSortHeaderUI() {
+        document.querySelectorAll(".th-sort[data-bid-sort]").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+        document.querySelectorAll("#view-bids th").forEach((th) => {
+          th.removeAttribute("aria-sort");
+        });
+        document.querySelectorAll("[data-bid-sort-ind]").forEach((el) => {
+          el.textContent = "↕";
+        });
+        const active = document.querySelector(`.th-sort[data-bid-sort="${state.bidSort.key}"]`);
+        if (active) active.classList.add("active");
+        const activeHeader = active ? active.closest("th") : null;
+        if (activeHeader) {
+          activeHeader.setAttribute("aria-sort", state.bidSort.dir === "asc" ? "ascending" : "descending");
+        }
+        const ind = document.querySelector(`[data-bid-sort-ind="${state.bidSort.key}"]`);
+        if (ind) ind.textContent = state.bidSort.dir === "asc" ? "↑" : "↓";
+      }
+
+      function setBidSort(key) {
+        const textKeys = new Set(["address", "neighborhood", "type"]);
+        if (state.bidSort.key === key) {
+          state.bidSort.dir = state.bidSort.dir === "asc" ? "desc" : "asc";
+        } else {
+          state.bidSort.key = key;
+          state.bidSort.dir = textKeys.has(key) ? "asc" : "desc";
+        }
+        renderAll();
+      }
+
       function renderBidStrategyUI() {
         document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
           const active = btn.getAttribute("data-bid-strategy") === state.bid.strategy;
@@ -4413,18 +4486,11 @@
           renderManualBidSourceOptions([]);
           tbody.innerHTML = `<tr><td colspan="12">No active MLS listings in current filter scope.</td></tr>`;
           mobileList.innerHTML = `<div class="note">No active MLS listings in current filter scope.</div>`;
+          updateBidSortHeaderUI();
           return;
         }
 
-        const sorted = bidRows
-          .slice()
-          .sort((a, b) => {
-            const aScore = a.bidStatus === "SCored" ? 1 : 0;
-            const bScore = b.bidStatus === "SCored" ? 1 : 0;
-            if (bScore !== aScore) return bScore - aScore;
-            if (b.bidConfidence !== a.bidConfidence) return b.bidConfidence - a.bidConfidence;
-            return String(a.address || "").localeCompare(String(b.address || ""));
-          });
+        const sorted = applyBidSort(bidRows);
         renderManualBidSourceOptions(sorted);
 
         tbody.innerHTML = sorted.map((r) => {
@@ -4481,6 +4547,7 @@
             </article>
           `;
         }).join("");
+        updateBidSortHeaderUI();
       }
 
       function zip5(zip) {
@@ -5716,6 +5783,12 @@
           const sortBtn = evt.target.closest("[data-record-sort]");
           if (sortBtn) {
             setRecordSort(sortBtn.getAttribute("data-record-sort"));
+            return;
+          }
+
+          const bidSortBtn = evt.target.closest("[data-bid-sort]");
+          if (bidSortBtn) {
+            setBidSort(bidSortBtn.getAttribute("data-bid-sort"));
             return;
           }
 

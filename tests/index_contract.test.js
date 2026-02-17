@@ -43,3 +43,16 @@ test("manual bids can load active listing from bids table", () => {
   assert.match(html, /id=\"manualBidSource\"/);
   assert.match(html, /data-use-active-bid/);
 });
+
+test("bids table headers expose sortable controls", () => {
+  [
+    "address",
+    "neighborhood",
+    "type",
+    "suggestedBid",
+    "confidence",
+    "compCount",
+  ].forEach((key) => {
+    assert.match(html, new RegExp(`data-bid-sort=\\\"${key}\\\"`));
+  });
+});
