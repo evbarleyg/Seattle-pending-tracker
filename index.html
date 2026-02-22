@@ -898,16 +898,16 @@
       }
       .chart {
         display: grid;
-        gap: 8px;
+        gap: 10px;
         min-width: 0;
       }
       .vchart {
-        height: 300px;
-        min-height: 300px;
+        height: 312px;
+        min-height: 312px;
         display: grid;
-        grid-template-columns: 58px minmax(0, 1fr);
+        grid-template-columns: 60px minmax(0, 1fr);
         grid-template-rows: 1fr;
-        gap: 10px;
+        gap: 12px;
       }
       .chart-scroll {
         height: 100%;
@@ -922,12 +922,12 @@
         align-items: flex-end;
         color: var(--muted);
         font-size: 11px;
-        padding: 2px 0 18px;
+        padding: 6px 0 54px;
       }
       .plot {
         border-left: 1px solid #2d4363;
         border-bottom: 1px solid #2d4363;
-        padding: var(--plot-pad, 6px 6px 0 8px);
+        padding: var(--plot-pad, 8px 8px 0 10px);
         display: grid;
         grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
         gap: var(--plot-gap, 8px);
@@ -935,51 +935,88 @@
         height: 100%;
         width: 100%;
         min-width: 0;
+        position: relative;
+        overflow: hidden;
+      }
+      .plot::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(
+            to top,
+            transparent 0,
+            transparent calc(50% - 0.5px),
+            rgba(70, 98, 136, 0.28) calc(50% - 0.5px),
+            rgba(70, 98, 136, 0.28) calc(50% + 0.5px),
+            transparent calc(50% + 0.5px),
+            transparent calc(100% - 0.5px),
+            rgba(70, 98, 136, 0.2) calc(100% - 0.5px),
+            rgba(70, 98, 136, 0.2) 100%
+          );
+      }
+      .plot > * {
+        position: relative;
+        z-index: 1;
       }
       .vbar {
-        border: 1px solid #2d4363;
-        border-radius: 10px 10px 0 0;
-        background: #0f1b2f;
+        border: none;
+        background: transparent;
         color: #dce8ff;
         cursor: pointer;
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto auto;
-        padding: var(--bar-pad, 6px 4px 4px);
+        row-gap: 4px;
+        padding: 0;
         min-height: 0;
         height: 100%;
       }
-      .vbar.active {
-        border-color: #4eb2ff;
+      .vbar:focus-visible {
+        outline: 2px solid #4eb2ff;
+        outline-offset: 2px;
+        border-radius: 8px;
       }
       .vbar-track {
-        align-self: end;
+        align-self: stretch;
         width: 100%;
-        height: 100%;
         min-height: 0;
-        display: flex;
-        align-items: end;
-        justify-content: center;
+        position: relative;
+        border: 1px solid #2d4363;
+        border-bottom: none;
+        border-radius: 10px 10px 0 0;
+        background: linear-gradient(180deg, rgba(15, 27, 47, 0.82), rgba(15, 27, 47, 0.4));
+        overflow: hidden;
+      }
+      .vbar:hover .vbar-track,
+      .vbar.active .vbar-track {
+        border-color: #4eb2ff;
+      }
+      .vbar.active .vbar-track {
+        box-shadow: inset 0 0 0 1px rgba(78, 178, 255, 0.35);
       }
       .vbar-fill {
+        position: absolute;
+        left: 4px;
+        right: 4px;
+        bottom: 0;
         display: block;
-        width: 72%;
         border-radius: 8px 8px 0 0;
         background: linear-gradient(180deg, #56d1ff, #3d93ed);
-        min-height: 4px;
-        max-height: 100%;
+        min-height: 3px;
       }
       .vbar-fill.warm {
         background: linear-gradient(180deg, #f3c366, #cc8536);
       }
       .vbar-month {
-        margin-top: 6px;
+        margin-top: 0;
         text-align: center;
         font-size: var(--month-font, 11px);
         color: #dce8ff;
-        line-height: 1.1;
+        line-height: 1.05;
       }
       .vbar-value {
-        margin-top: 2px;
+        margin-top: 0;
         text-align: center;
         font-size: var(--value-font, 11px);
         color: #b8cae4;
@@ -1509,11 +1546,21 @@
         border-left-color: #c7d5e8;
         border-bottom-color: #c7d5e8;
       }
-      body.light .vbar {
-        background: #ffffff;
-        border-color: #c7d5e8;
-        color: #1f3855;
+      body.light .plot::before {
+        background:
+          linear-gradient(
+            to top,
+            transparent 0,
+            transparent calc(50% - 0.5px),
+            rgba(149, 169, 196, 0.42) calc(50% - 0.5px),
+            rgba(149, 169, 196, 0.42) calc(50% + 0.5px),
+            transparent calc(50% + 0.5px),
+            transparent calc(100% - 0.5px),
+            rgba(149, 169, 196, 0.3) calc(100% - 0.5px),
+            rgba(149, 169, 196, 0.3) 100%
+          );
       }
+      body.light .vbar-track { border-color: #c7d5e8; background: linear-gradient(180deg, #f7fbff, #edf4ff); }
       body.light .vbar-fill { background: linear-gradient(180deg, #42bde7, #2d80d7); }
       body.light .vbar-fill.warm { background: linear-gradient(180deg, #e3b24f, #c07b2f); }
       body.light .vbar-month { color: #1f3855; }
@@ -1648,19 +1695,16 @@
           font-size: 28px;
         }
         .vchart {
-          height: 228px;
-          min-height: 228px;
+          height: 238px;
+          min-height: 238px;
           grid-template-columns: 38px 1fr;
         }
         .chart-scroll {
           padding-bottom: 2px;
         }
         .plot {
-          gap: 6px;
-          padding: 4px 4px 0 6px;
-        }
-        .vbar {
-          padding: 4px 2px 2px;
+          gap: 5px;
+          padding: 4px 5px 0 6px;
         }
         .vbar-month {
           font-size: 10px;
@@ -1671,7 +1715,7 @@
         }
         .y-axis {
           font-size: 10px;
-          padding-bottom: 14px;
+          padding: 4px 0 42px;
         }
         .multi-dd-panel {
           position: fixed;
@@ -3011,6 +3055,7 @@
           || source.mlsListPriceAtPending
           || source.pendingListPrice
           || source.listPriceAtPending
+          || source.assessedValue
           || closePrice
         );
         const originalListPriceRaw = num(source.mlsOriginalPrice || source.originalListPrice);
@@ -4097,14 +4142,12 @@
         const isMobile = window.matchMedia("(max-width: 680px)").matches;
         const count = Math.max(items.length, 1);
         let gap = isMobile ? 4 : 8;
-        let plotPad = isMobile ? "4px 4px 0 6px" : "6px 6px 0 8px";
-        let barPad = isMobile ? "4px 2px 2px" : "6px 4px 4px";
+        let plotPad = isMobile ? "4px 5px 0 6px" : "8px 8px 0 10px";
         let monthFont = isMobile ? 10 : 11;
         let valueFont = isMobile ? 10 : 11;
         if (count >= 10) {
           gap = isMobile ? 2 : 5;
-          plotPad = isMobile ? "3px 3px 0 5px" : "5px 5px 0 6px";
-          barPad = isMobile ? "3px 1px 2px" : "5px 3px 3px";
+          plotPad = isMobile ? "3px 4px 0 5px" : "6px 6px 0 8px";
           monthFont = isMobile ? 9 : 10;
           valueFont = isMobile ? 9 : 10;
         }
@@ -4125,7 +4168,7 @@
           const monthText = labelFn(item);
           return `
             <button class="vbar ${active ? "active" : ""}" data-set-interaction="month" data-set-value="${esc(item.month)}" type="button" title="${esc(`${monthText}: ${fullLabel}`)}" aria-label="${esc(`${monthText}: ${fullLabel}`)}">
-              <span class="vbar-track"><span class="vbar-fill ${warm ? "warm" : ""}" style="height:${height}%"></span></span>
+              <span class="vbar-track"><span class="vbar-fill ${warm ? "warm" : ""}" style="height:${height.toFixed(2)}%"></span></span>
               <span class="vbar-month">${esc(monthText)}</span>
               <span class="vbar-value">${esc(displayLabel)}</span>
             </button>
@@ -4142,7 +4185,7 @@
             <div class="chart-scroll">
               <div
                 class="plot"
-                style="--cols:${items.length};--plot-gap:${gap}px;--plot-pad:${plotPad};--bar-pad:${barPad};--month-font:${monthFont}px;--value-font:${valueFont}px"
+                style="--cols:${items.length};--plot-gap:${gap}px;--plot-pad:${plotPad};--month-font:${monthFont}px;--value-font:${valueFont}px"
               >${bars}</div>
             </div>
           </div>

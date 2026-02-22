@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T17:39:00.998Z",
+  "generatedAt": "2026-02-22T17:50:15.737Z",
   "source": {
     "baseFile": "public_sales_proxy_all_prices_last12mo.csv",
     "realtorDir": "realtor_exports",
@@ -17,15 +17,16 @@
     "mlsOpenStatusRows": 442,
     "baseRows": 16556,
     "matchedCountyRows": 2479,
+    "countyRowsEnrichedWithListingStub": 50,
     "mlsOnlySoldRowsAdded": 342,
-    "mlsOnlyOpenRowsAdded": 442,
-    "outputRows": 17340
+    "mlsOnlyOpenRowsAdded": 392,
+    "outputRows": 17290
   },
   "outputs": {
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-02-21T17:39:17.533Z",
+    "generatedAt": "2026-02-22T18:02:39.063Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
@@ -35,14 +36,14 @@
       "realtorCsvCount": 4
     },
     "counts": {
-      "outputRows": 17340,
+      "outputRows": 17290,
       "modes": {
-        "PUBLIC_PROXY": 14077,
+        "PUBLIC_PROXY": 14027,
         "MLS_ENRICHED": 3263
       },
       "mlsRows": 3263,
-      "mlsSoldRows": 2821,
-      "mlsOpenRows": 442,
+      "mlsSoldRows": 2871,
+      "mlsOpenRows": 392,
       "mlsActiveRows": 269
     }
   }

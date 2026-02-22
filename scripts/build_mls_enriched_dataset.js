@@ -27,6 +27,8 @@ const REQUIRED_REALTOR_COLUMNS = [
 const MAX_DATE_LAG_DAYS = 45;
 const PRICE_TOLERANCE_ABS = 5000;
 const PRICE_TOLERANCE_PCT = 0.005;
+const LISTING_STUB_MAX_DATE_LAG_DAYS = 120;
+const LISTING_STUB_MAX_PRICE_DIFF_PCT = 0.5;
 const HOT_MARKET_DAYS = 10;
 const ULTRA_HOT_DAYS = 5;
 
@@ -387,6 +389,52 @@ function chooseBestMatch(baseRow, candidates, usedIds) {
   return best;
 }
 
+function stubAnchorDate(c) {
+  return c.pendingDate || c.contractualDate || c.listingDate || "";
+}
+
+function statusStubWeight(status) {
+  const s = String(status || "").toUpperCase();
+  if (s === "PENDING") return 0;
+  if (s === "PENDING INSPECTION") return 1;
+  if (s === "PENDING BU REQUESTED") return 2;
+  if (s === "CONTINGENT") return 3;
+  if (s === "ACTIVE") return 4;
+  return 5;
+}
+
+function chooseBestListingStub(baseRow, candidates, usedIds) {
+  const baseDate = toDate(baseRow.__saleDate);
+  const basePrice = baseRow.__closePrice;
+  if (!baseDate || !basePrice) return null;
+
+  let best = null;
+  candidates.forEach((c) => {
+    if (usedIds.has(c.uid)) return;
+    if (c.listingPrice <= 0) return;
+    const anchor = stubAnchorDate(c);
+    if (!anchor) return;
+
+    const lagDays = dayDiff(anchor, baseRow.__saleDate);
+    if (lagDays === null || lagDays < 0 || lagDays > LISTING_STUB_MAX_DATE_LAG_DAYS) return;
+
+    const priceDiff = Math.abs(c.listingPrice - basePrice);
+    const priceDiffPct = basePrice > 0 ? (priceDiff / basePrice) : 1;
+    if (priceDiffPct > LISTING_STUB_MAX_PRICE_DIFF_PCT) return;
+
+    const score = (lagDays * 100000) + (statusStubWeight(c.status) * 10000) + priceDiff;
+    if (!best || score < best.score) {
+      best = {
+        score,
+        lagDays,
+        priceDiff,
+        candidate: c,
+      };
+    }
+  });
+  return best;
+}
+
 function writeRefreshReport(report) {
   fs.writeFileSync(REPORT_FILE, `${JSON.stringify(report, null, 2)}\n`);
 }
@@ -408,16 +456,23 @@ function main() {
       .filter((r) => r.__parcel && r.__saleDate && r.__closePrice > 0)
       .map((r) => `${r.__parcel}|${r.__saleDate}|${r.__closePrice}`)
   );
-  const mlsByApn = new Map();
+  const mlsClosedByApn = new Map();
   mlsClosedRows.forEach((r) => {
-    if (!mlsByApn.has(r.apn)) mlsByApn.set(r.apn, []);
-    mlsByApn.get(r.apn).push(r);
+    if (!mlsClosedByApn.has(r.apn)) mlsClosedByApn.set(r.apn, []);
+    mlsClosedByApn.get(r.apn).push(r);
+  });
+  const mlsStubByApn = new Map();
+  mlsOpenRows.forEach((r) => {
+    if (!r.listingPrice || r.listingPrice <= 0) return;
+    if (!mlsStubByApn.has(r.apn)) mlsStubByApn.set(r.apn, []);
+    mlsStubByApn.get(r.apn).push(r);
   });
 
   const used = new Set();
   let matched = 0;
+  let listingStubbed = 0;
   const merged = rows.map((row) => {
-    const cands = mlsByApn.get(row.__parcel) || [];
+    const cands = mlsClosedByApn.get(row.__parcel) || [];
     const match = chooseBestMatch(row, cands, used);
     const out = { ...row };
 
@@ -479,27 +534,88 @@ function main() {
       out.bidUpAmount = String(Math.round(bidUp));
       out.bidUpPct = list > 0 ? bidUpPct.toFixed(4) : "";
     } else {
-      out.mlsListingNumber = "";
-      out.mlsStatus = "";
-      out.mlsRegion = "";
-      out.mlsSellingDate = "";
-      out.mlsContractualDate = "";
-      out.mlsListingPrice = "";
-      out.mlsSellingPrice = "";
-      out.mlsOriginalPrice = "";
-      out.mlsDOM = "";
-      out.mlsCDOM = "";
-      out.mlsStyleCode = "";
-      out.mlsSubdivision = "";
-      out.mlsDateLagDays = "";
-      out.mlsJoinMethod = "";
-      out.mlsDaysToPending = "";
-      out.mlsDaysPendingToSale = "";
-      out.hotMarketTag = "";
-      out.saleToListRatio = "";
-      out.saleToOriginalListRatio = "";
-      out.bidUpAmount = "";
-      out.bidUpPct = "";
+      const stubCands = mlsStubByApn.get(row.__parcel) || [];
+      const stub = chooseBestListingStub(row, stubCands, used);
+      if (stub) {
+        const c = stub.candidate;
+        used.add(c.uid);
+        listingStubbed += 1;
+
+        out.dataMode = "MLS_ENRICHED";
+        const addressMissing = !out.address || out.addressSource === "PARCEL_FALLBACK" || /address unavailable/i.test(out.address);
+        if (c.mlsAddress && addressMissing) {
+          out.address = c.mlsAddress;
+          out.addressSource = "MLS_ADDRESS";
+        }
+        if (c.listingDate) out.listDate = c.listingDate;
+        if (c.pendingDate) out.pendingDate = c.pendingDate;
+        if (c.listingPrice > 0) out.listPriceAtPending = String(c.listingPrice);
+
+        if (!out.type || out.type === "Unknown") out.type = inferTypeFromMlsStyle(c.styleCode);
+        if (c.beds > 0 && !num(out.beds)) out.beds = String(c.beds);
+        if (c.baths > 0 && !num(out.baths)) out.baths = String(c.baths);
+        if (c.sqft > 0 && !num(out.sqft)) out.sqft = String(c.sqft);
+        if (c.yearBuilt > 0 && !num(out.yearBuilt)) out.yearBuilt = String(c.yearBuilt);
+        if (c.zip && !out.zip) out.zip = c.zip;
+
+        const close = Math.round(num(out.closePrice));
+        const list = c.listingPrice > 0 ? c.listingPrice : Math.round(num(out.listPriceAtPending || out.assessedValue));
+        const original = c.originalPrice > 0 ? c.originalPrice : 0;
+        const daysToPending = dayDiff(c.listingDate, c.pendingDate);
+        const daysPendingToSale = dayDiff(c.pendingDate, out.saleDate);
+        const bidUp = (close > 0 && list > 0) ? (close - list) : 0;
+        const bidUpPct = (list > 0) ? (bidUp / list) : 0;
+        const saleToListRatio = (close > 0 && list > 0) ? (close / list) : 0;
+        const saleToOriginalRatio = (close > 0 && original > 0) ? (close / original) : 0;
+
+        out.mlsListDate = c.listingDate;
+        out.mlsPendingDate = c.pendingDate;
+        out.mlsListPriceAtPending = list > 0 ? String(list) : "";
+        out.mlsClosePrice = close > 0 ? String(close) : "";
+        out.mlsListingNumber = c.listingNumber;
+        out.mlsStatus = c.status;
+        out.mlsRegion = c.region;
+        out.mlsSellingDate = c.sellingDate || "";
+        out.mlsContractualDate = c.contractualDate;
+        out.mlsListingPrice = c.listingPrice > 0 ? String(c.listingPrice) : "";
+        out.mlsSellingPrice = close > 0 ? String(close) : "";
+        out.mlsOriginalPrice = c.originalPrice > 0 ? String(c.originalPrice) : "";
+        out.mlsDOM = c.domRaw !== "" ? String(c.dom) : "";
+        out.mlsCDOM = c.cdomRaw !== "" ? String(c.cdom) : "";
+        out.mlsStyleCode = c.styleCode;
+        out.mlsSubdivision = c.subdivision;
+        out.mlsDateLagDays = String(stub.lagDays);
+        out.mlsJoinMethod = "APN_LISTING_STUB";
+        out.mlsDaysToPending = daysToPending !== null ? String(daysToPending) : "";
+        out.mlsDaysPendingToSale = daysPendingToSale !== null ? String(daysPendingToSale) : "";
+        out.hotMarketTag = buildHotMarketTag(c.dom, daysToPending);
+        out.saleToListRatio = saleToListRatio > 0 ? saleToListRatio.toFixed(4) : "";
+        out.saleToOriginalListRatio = saleToOriginalRatio > 0 ? saleToOriginalRatio.toFixed(4) : "";
+        out.bidUpAmount = String(Math.round(bidUp));
+        out.bidUpPct = list > 0 ? bidUpPct.toFixed(4) : "";
+      } else {
+        out.mlsListingNumber = "";
+        out.mlsStatus = "";
+        out.mlsRegion = "";
+        out.mlsSellingDate = "";
+        out.mlsContractualDate = "";
+        out.mlsListingPrice = "";
+        out.mlsSellingPrice = "";
+        out.mlsOriginalPrice = "";
+        out.mlsDOM = "";
+        out.mlsCDOM = "";
+        out.mlsStyleCode = "";
+        out.mlsSubdivision = "";
+        out.mlsDateLagDays = "";
+        out.mlsJoinMethod = "";
+        out.mlsDaysToPending = "";
+        out.mlsDaysPendingToSale = "";
+        out.hotMarketTag = "";
+        out.saleToListRatio = "";
+        out.saleToOriginalListRatio = "";
+        out.bidUpAmount = "";
+        out.bidUpPct = "";
+      }
     }
 
     return out;
@@ -591,6 +707,7 @@ function main() {
   let mlsOpenAdded = 0;
   const mlsOpenOnlyRows = [];
   mlsOpenRows.forEach((c, index) => {
+    if (used.has(c.uid)) return;
     const snapshot = parcelSnapshotByApn.get(c.apn) || {};
     const row = {};
     headers.forEach((h) => { row[h] = ""; });
@@ -709,6 +826,7 @@ function main() {
       mlsOpenStatusRows: mlsOpenRows.length,
       baseRows: rows.length,
       matchedCountyRows: matched,
+      countyRowsEnrichedWithListingStub: listingStubbed,
       mlsOnlySoldRowsAdded: mlsOnlyAdded,
       mlsOnlyOpenRowsAdded: mlsOpenAdded,
       outputRows: finalRows.length,
@@ -733,6 +851,8 @@ function main() {
   console.log(`Base rows: ${rows.length}`);
   // eslint-disable-next-line no-console
   console.log(`Matched rows: ${matched}`);
+  // eslint-disable-next-line no-console
+  console.log(`County rows enriched via APN listing stub: ${listingStubbed}`);
   // eslint-disable-next-line no-console
   console.log(`MLS-only sold rows added: ${mlsOnlyAdded}`);
   // eslint-disable-next-line no-console
