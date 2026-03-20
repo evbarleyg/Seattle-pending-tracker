@@ -1,50 +1,70 @@
 {
-  "generatedAt": "2026-03-20T00:36:39.254Z",
+  "generatedAt": "2026-03-20T19:52:16.280Z",
   "source": {
     "baseFile": "public_sales_proxy_all_prices_last12mo.csv",
     "realtorDir": "realtor_exports",
     "realtorFiles": [
+      "Central Seattle Rich Snapshot.csv",
       "Central_South Seattle Sale Stats.csv",
+      "NE Seattle Rich Snapshot.csv",
       "NE Seattle Sale Stats.csv",
+      "NW Seattle Rich Snapshot.csv",
       "NW Seattle Sale Stats.csv",
+      "QA_Magnolia Rich Snapshot.csv",
       "QA_Magnolia Sale Stats.csv"
     ]
   },
   "counts": {
-    "mlsRowsParsed": 3263,
-    "mlsClosedRows": 2821,
-    "mlsActiveRows": 269,
-    "mlsOpenStatusRows": 442,
+    "mlsRowsParsed": 4789,
+    "mlsRowsAfterDedupe": 4377,
+    "mlsDuplicateListingsCollapsed": 412,
+    "mlsDuplicateRowsCollapsed": 412,
+    "mlsApnConflictListings": 0,
+    "mlsApnConflictRows": 0,
+    "mlsRowsWithResolvedApn": 4106,
+    "mlsRowsMissingApn": 271,
+    "mlsClosedRows": 3374,
+    "mlsActiveRows": 481,
+    "mlsOpenStatusRows": 732,
     "baseRows": 16156,
-    "matchedCountyRows": 2284,
-    "countyRowsEnrichedWithListingStub": 150,
-    "mlsOnlySoldRowsAdded": 537,
-    "mlsOnlyOpenRowsAdded": 292,
-    "outputRows": 16985
+    "matchedCountyRows": 2695,
+    "countyRowsEnrichedWithListingStub": 22,
+    "mlsOnlySoldRowsAdded": 679,
+    "mlsOnlyOpenRowsAdded": 710,
+    "outputRows": 17545
+  },
+  "apnResolution": {
+    "directApn": 3776,
+    "previousListingNumber": 0,
+    "resBldgExact": 243,
+    "accountExact": 68,
+    "resBldgNoUnit": 11,
+    "accountNoUnit": 8,
+    "unresolved": 271
   },
   "outputs": {
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-03-20T00:36:59.338Z",
+    "generatedAt": "2026-03-20T19:52:19.071Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
     "files": {
       "public": "public_sales_proxy_all_prices_last12mo.csv",
       "enriched": "public_sales_proxy_mls_enriched_last12mo.csv",
-      "realtorCsvCount": 4
+      "realtorCsvCount": 8
     },
     "counts": {
-      "outputRows": 16985,
+      "outputRows": 17545,
       "modes": {
-        "PUBLIC_PROXY": 13722,
-        "MLS_ENRICHED": 3263
+        "PUBLIC_PROXY": 13439,
+        "MLS_ENRICHED": 4106
       },
-      "mlsRows": 3263,
-      "mlsSoldRows": 2971,
-      "mlsOpenRows": 292,
-      "mlsActiveRows": 249
+      "mlsRows": 4106,
+      "mlsSoldRows": 3396,
+      "mlsOpenRows": 710,
+      "mlsActiveRows": 476
     }
   }
 }

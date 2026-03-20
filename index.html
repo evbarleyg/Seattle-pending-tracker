@@ -79,6 +79,12 @@
       .addr-sub-link:hover {
         color: #1d4e84;
       }
+      .record-submeta {
+        margin-top: 5px;
+        font-size: 11px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
       .ext-icon {
         margin-left: 4px;
         font-size: 11px;
@@ -1368,6 +1374,101 @@
         margin-top: 0;
         margin-bottom: 8px;
       }
+      .source-grid {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      .source-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(15, 27, 47, 0.92);
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .source-label {
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .source-value {
+        color: var(--text);
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .source-value.pass { color: #7de0a4; }
+      .source-value.fail { color: #ef8ea1; }
+      .source-value.warn { color: #efc973; }
+      .source-subvalue {
+        color: #dbe9fb;
+        font-size: 13px;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+      .source-pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .source-pill {
+        border: 1px solid #35547a;
+        border-radius: 999px;
+        background: #12233a;
+        color: #dcecff;
+        font-size: 11px;
+        padding: 3px 8px;
+      }
+      .source-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .source-stat {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 8px;
+      }
+      .source-stat-label {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .source-stat-value {
+        display: block;
+        margin-top: 4px;
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .source-code {
+        font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: 12px;
+        background: #0b1526;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+      .source-list {
+        margin: 0;
+        padding-left: 18px;
+        color: #dbe9fb;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .source-note {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
 
       button:focus-visible,
       .tab:focus-visible,
@@ -1602,6 +1703,32 @@
       body.light .mono {
         background: #f7fbff;
         border-color: #c5d4e7;
+      }
+      body.light .source-card {
+        border-color: #c8d7eb;
+        background: linear-gradient(180deg, #f8fbff, #eef5ff);
+      }
+      body.light .source-subvalue,
+      body.light .source-list {
+        color: #244160;
+      }
+      body.light .source-pill {
+        color: #274668;
+        border-color: #bfd1e6;
+        background: #edf4ff;
+      }
+      body.light .source-stat {
+        border-color: #c8d7eb;
+        background: #ffffff;
+      }
+      body.light .source-code {
+        background: #ffffff;
+        border-color: #c5d4e7;
+        color: #1f3552;
+      }
+      body.light .source-note,
+      body.light .source-label {
+        color: #58779c;
       }
       body.light .mrow {
         border-color: #c7d5e8;
@@ -1865,6 +1992,14 @@
                 </select>
               </div>
               <div class="field">
+                <label for="fSpecialSale">MLS Special Sale</label>
+                <select id="fSpecialSale">
+                  <option value="all">All</option>
+                  <option value="only">Special-Sale Only</option>
+                  <option value="exclude">Exclude Special-Sale</option>
+                </select>
+              </div>
+              <div class="field">
                 <label for="fScope">Scope</label>
                 <select id="fScope">
                   <option value="all">All Sales</option>
@@ -1950,7 +2085,7 @@
             <li>Use the chips row to remove individual cross-filters, or click Clear Cross-Filters.</li>
             <li><strong>Projection</strong> estimates likely close for pending/open rows. <strong>Bids</strong> gives suggested offer targets for <strong>Active</strong> listings only.</li>
             <li>To inspect projections only, enable <strong>Pending Projection</strong> and set <strong>Map/Records View = Projected Only</strong>.</li>
-            <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, and bid-up behavior, including MLS sold records not yet posted in county sales exports.</li>
+            <li>Public Proxy mode has county-close data and parcel details; MLS Enriched mode adds listing, pending, DOM, bid-up behavior, and richer MLS attributes when available from the imported neighborhood-scoped exports.</li>
             <li><strong>Original List</strong> is the first go-live asking price. <strong>List@Pending</strong> is the ask when the home went under contract. Bid-up metrics use <strong>List@Pending</strong>.</li>
             <li>Hot Market is tagged where market DOM is <strong>&le; 10 days</strong> (CDOM preferred, then DOM, then MLS list-to-pending), and Ultra Hot is <strong>&le; 5 days</strong>.</li>
           </ul>
@@ -2282,7 +2417,7 @@
             </table>
           </div>
           <div class="record-mobile-list" id="recordMobileList"></div>
-          <div class="note">Address links open Zillow search results. Use <strong>KC Record</strong> for official King County parcel/sale lookup when Zillow history is incomplete. Hover/tap compact dollar values to show full amounts.</div>
+          <div class="note">Address links open Zillow search results. Use <strong>KC Record</strong> for official King County parcel/sale lookup when Zillow history is incomplete. Hover/tap compact dollar values to show full amounts. Rich MLS extras like parking, taxes, view, and special-sale flags are neighborhood-scoped and may stay blank outside covered exports.</div>
         </section>
       </section>
 
@@ -2366,6 +2501,58 @@
           <h3>Data Source</h3>
           <div class="note" id="uploadStatus">Auto-load enabled for the default dataset.</div>
 
+          <div class="source-grid">
+            <article class="source-card">
+              <div class="source-label">Current Dataset</div>
+              <div class="source-code" id="dataDatasetName">public_sales_proxy_mls_enriched_last12mo.csv</div>
+              <div class="source-note" id="dataDatasetRows">Waiting for dataset load.</div>
+              <div class="source-note" id="dataReportScope">Refresh report will describe the repo-generated default dataset when available.</div>
+              <div class="source-pill-row" id="dataModeBadges"></div>
+            </article>
+
+            <article class="source-card">
+              <div class="source-label">Refresh Status</div>
+              <div class="source-value" id="dataValidationStatus">Checking...</div>
+              <div class="source-note" id="dataValidationTime">Waiting for refresh metadata.</div>
+              <div class="source-note" id="dataGeneratedTime"></div>
+              <div class="source-note" id="dataWarningSummary"></div>
+            </article>
+
+            <article class="source-card">
+              <div class="source-label">Coverage</div>
+              <div class="source-stat-grid">
+                <div class="source-stat">
+                  <span class="source-stat-label">Output Rows</span>
+                  <span class="source-stat-value" id="dataOutputRows">n/a</span>
+                </div>
+                <div class="source-stat">
+                  <span class="source-stat-label">MLS Rows</span>
+                  <span class="source-stat-value" id="dataMlsRows">n/a</span>
+                </div>
+                <div class="source-stat">
+                  <span class="source-stat-label">Active MLS</span>
+                  <span class="source-stat-value" id="dataActiveRows">n/a</span>
+                </div>
+                <div class="source-stat">
+                  <span class="source-stat-label">Realtor Files</span>
+                  <span class="source-stat-value" id="dataRealtorFileCount">n/a</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="source-card">
+              <div class="source-label">Inputs</div>
+              <div class="source-subvalue">Base file</div>
+              <div class="source-code" id="dataBaseFile">public_sales_proxy_all_prices_last12mo.csv</div>
+              <div class="source-subvalue">Enriched file</div>
+              <div class="source-code" id="dataEnrichedFile">public_sales_proxy_mls_enriched_last12mo.csv</div>
+              <div class="source-subvalue">Realtor exports</div>
+              <ul class="source-list" id="dataRealtorFiles">
+                <li>Waiting for refresh metadata.</li>
+              </ul>
+            </article>
+          </div>
+
           <p class="note">Auto-load filename:</p>
           <div class="mono">public_sales_proxy_mls_enriched_last12mo.csv</div>
 
@@ -2373,10 +2560,10 @@
           <div class="mono">id,address,type,closePrice</div>
 
           <p class="note">Recommended columns:</p>
-          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,originalListPrice,pendingListPrice,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsStatus,mlsListingPrice,mlsOriginalPrice,mlsDOM,mlsCDOM,mlsStyleCode,hotMarketTag,saleToListRatio,saleToOriginalListRatio,bidUpAmount,bidUpPct,bidStrategy,bidSuggested,bidLow,bidHigh,bidRatio,bidConfidence,bidConfidenceLabel,bidCompCount,bidCompTier,bidStatus,isLikelyPresoldNewBuild,presoldRuleReason</div>
+          <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,originalListPrice,pendingListPrice,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsStatus,mlsListingPrice,mlsOriginalPrice,mlsDOM,mlsCDOM,mlsStyleCode,mlsParkingType,mlsParkingCoveredTotal,mlsTaxesAnnual,mlsBuildingCondition,mlsView,mlsBankOwned,mlsThirdPartyApprovalRequired,mlsNewConstructionState,mlsSquareFootageSource,hotMarketTag,saleToListRatio,saleToOriginalListRatio,bidUpAmount,bidUpPct,bidStrategy,bidSuggested,bidLow,bidHigh,bidRatio,bidConfidence,bidConfidenceLabel,bidCompCount,bidCompTier,bidStatus,isLikelyPresoldNewBuild,presoldRuleReason</div>
 
           <p class="note">Intended use:</p>
-          <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details when available.</div>
+          <div class="mono">Buyer-side neighborhood and pricing-pressure analysis for Seattle. PUBLIC_PROXY mode uses public record fields. MLS_ENRICHED can add original listing timeline details and richer MLS attributes where imported neighborhood exports provide them.</div>
         </section>
       </section>
     </main>
@@ -2517,6 +2704,12 @@
         recordDensity: "compact",
         recordMobileExpanded: null,
         renderDebounce: null,
+        dataSource: {
+          datasetName: DEFAULT_DATASET,
+          rowCount: 0,
+          kind: "default",
+          report: null,
+        },
         flags: {
           projection: false,
           excludeLikelyPresoldNewBuild: false,
@@ -2588,6 +2781,11 @@
         return n > 0 ? formatMoney(n) : "n/a";
       }
 
+      function formatWholeNumber(v) {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.round(n).toLocaleString("en-US") : "n/a";
+      }
+
       function formatMoneyCompact(v, digits = 2) {
         const n = Number(v || 0);
         if (!Number.isFinite(n)) return "$0";
@@ -2614,6 +2812,18 @@
         const d = toDate(value);
         if (!d) return "n/a";
         return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+      }
+
+      function formatDateTime(value) {
+        const d = toDate(value);
+        if (!d) return "n/a";
+        return d.toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
       }
 
       function formatPct(v) {
@@ -2897,12 +3107,22 @@
             mlsListingPrice: num(pickAny("mlsListingPrice", "mlsListPriceAtPending")),
             mlsOriginalPrice: num(pick("mlsOriginalPrice")),
             mlsClosePrice: num(pickAny("mlsClosePrice", "mlsSellingPrice")),
+            mlsRegion: pick("mlsRegion"),
             mlsStyleCode: pick("mlsStyleCode"),
             mlsDOMRaw: pick("mlsDOM"),
             mlsStatus: pick("mlsStatus"),
             mlsDOM: num(pick("mlsDOM")),
             mlsCDOMRaw: pick("mlsCDOM"),
             mlsCDOM: num(pick("mlsCDOM")),
+            mlsParkingType: pick("mlsParkingType"),
+            mlsParkingCoveredTotalRaw: pick("mlsParkingCoveredTotal"),
+            mlsTaxesAnnualRaw: pick("mlsTaxesAnnual"),
+            mlsBuildingCondition: pick("mlsBuildingCondition"),
+            mlsView: pick("mlsView"),
+            mlsBankOwnedRaw: pick("mlsBankOwned"),
+            mlsThirdPartyApprovalRequiredRaw: pick("mlsThirdPartyApprovalRequired"),
+            mlsNewConstructionState: pick("mlsNewConstructionState"),
+            mlsSquareFootageSource: pick("mlsSquareFootageSource"),
             hotMarketTag: pick("hotMarketTag"),
             saleToListRatio: num(pick("saleToListRatio")),
             saleToOriginalListRatio: num(pick("saleToOriginalListRatio")),
@@ -2936,8 +3156,11 @@
 
       function labelNeighborhood(rawNeighborhood, zip) {
         const raw = String(rawNeighborhood || "").trim();
-        if (/[a-z]/i.test(raw)) return raw;
         const z = (String(zip || "").match(/[0-9]{5}/) || [])[0] || "";
+        const broadMlsRegion = /^(nw|ne)\s+seattle$/i.test(raw)
+          || /^qa[\s/_-]*magnolia$/i.test(raw)
+          || /^central[\s/_-]*south\s+seattle$/i.test(raw);
+        if (/[a-z]/i.test(raw) && !broadMlsRegion) return raw;
         return ZIP_NEIGHBORHOOD[z] || "Seattle (Other)";
       }
 
@@ -2970,6 +3193,68 @@
         return /^[A-Z0-9\s/-]+$/.test(raw) ? titleCase(raw) : raw;
       }
 
+      function normalizeBooleanText(rawValue) {
+        const raw = String(rawValue || "").trim();
+        if (!raw) return "";
+        if (/^(true|yes|y|1)$/i.test(raw)) return "true";
+        if (/^(false|no|n|0)$/i.test(raw)) return "false";
+        return raw;
+      }
+
+      function normalizeThirdPartyApproval(rawValue) {
+        const raw = String(rawValue || "").trim();
+        if (!raw) return "";
+        if (/^none$/i.test(raw)) return "None";
+        if (/^short sale$/i.test(raw)) return "Short Sale";
+        if (/^other\b/i.test(raw)) return "Other - See Remarks";
+        return raw;
+      }
+
+      function isBankOwnedFlag(value) {
+        return String(value || "").trim().toLowerCase() === "true";
+      }
+
+      function hasThirdPartyApprovalRequirement(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return false;
+        return !/^none$/i.test(raw) && !/^false$/i.test(raw) && !/^no$/i.test(raw);
+      }
+
+      function matchesSpecialSaleFilter(row, filterValue) {
+        const mode = String(filterValue || "all").toLowerCase();
+        if (mode === "only") return !!row.isSpecialSale;
+        if (mode === "exclude") return !row.isSpecialSale;
+        return true;
+      }
+
+      function specialSaleFilterLabel(value) {
+        if (value === "only") return "Special-Sale Only";
+        if (value === "exclude") return "Exclude Special-Sale";
+        return "All";
+      }
+
+      function recordMlsDetailItems(row) {
+        const items = [];
+        if (row.mlsParkingType) {
+          const covered = row.hasMlsParkingCoveredTotal ? ` (${row.mlsParkingCoveredTotal} covered)` : "";
+          items.push(`Parking: ${row.mlsParkingType}${covered}`);
+        }
+        if (row.hasMlsTaxesAnnual) items.push(`Taxes: ${formatMoney(row.mlsTaxesAnnual)}/yr`);
+        if (row.mlsBuildingCondition) items.push(`Condition: ${row.mlsBuildingCondition}`);
+        if (row.mlsView) items.push(`View: ${row.mlsView}`);
+        if (row.isBankOwned) items.push("Bank-Owned");
+        if (row.hasThirdPartyApprovalRequirement) items.push(`Third-Party Approval: ${row.mlsThirdPartyApprovalRequired}`);
+        if (row.mlsNewConstructionState) items.push(`New Construction: ${row.mlsNewConstructionState}`);
+        if (row.mlsSquareFootageSource) items.push(`SqFt Source: ${row.mlsSquareFootageSource}`);
+        return items;
+      }
+
+      function recordMlsSummaryHtml(row) {
+        const items = recordMlsDetailItems(row).slice(0, 3);
+        if (!items.length) return "";
+        return `<div class="record-submeta">${esc(items.join(" | "))}</div>`;
+      }
+
       function mapPropertyKey(rowLike) {
         const id = String(rowLike.id || "").trim();
         const parcel = String(rowLike.parcelNbr || `${rowLike.major || ""}${rowLike.minor || ""}`).replace(/[^0-9]/g, "");
@@ -3000,6 +3285,7 @@
         updateNeighborhoodSummary();
         document.getElementById("fType").value = findDefaultSingleFamilyLabel();
         document.getElementById("fMlsStatus").value = "All";
+        document.getElementById("fSpecialSale").value = "all";
         document.getElementById("fScope").value = "all";
         updateScopeToggleUI("all");
         document.getElementById("fRecordView").value = "all";
@@ -3090,6 +3376,17 @@
         const mlsStatusLabel = normalizeMlsStatus(source.mlsStatus);
         const mlsStatusNorm = mlsStatusLabel.toUpperCase();
         const styleCode = String(source.mlsStyleCode || "").trim();
+        const mlsParkingCoveredTotalRaw = String(source.mlsParkingCoveredTotalRaw ?? source.mlsParkingCoveredTotal ?? "").trim();
+        const mlsTaxesAnnualRaw = String(source.mlsTaxesAnnualRaw ?? source.mlsTaxesAnnual ?? "").trim();
+        const mlsBankOwned = normalizeBooleanText(source.mlsBankOwnedRaw ?? source.mlsBankOwned);
+        const mlsThirdPartyApprovalRequired = normalizeThirdPartyApproval(
+          source.mlsThirdPartyApprovalRequiredRaw ?? source.mlsThirdPartyApprovalRequired
+        );
+        const hasMlsParkingCoveredTotal = mlsParkingCoveredTotalRaw !== "";
+        const hasMlsTaxesAnnual = mlsTaxesAnnualRaw !== "";
+        const isBankOwned = isBankOwnedFlag(mlsBankOwned);
+        const hasThirdPartyApproval = hasThirdPartyApprovalRequirement(mlsThirdPartyApprovalRequired);
+        const isSpecialSale = isBankOwned || hasThirdPartyApproval;
         const hasNewBuildSignal = num(source.yearBuilt) >= PRESOLD_NEW_BUILD_YEAR_MIN
           || /townhouse|new construction|new build/i.test(styleCode);
         const hasSoldContext = dataMode === "MLS_ENRICHED" && closePrice > 0 && listPriceAtPending > 0;
@@ -3118,7 +3415,24 @@
           neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
           mlsStatusLabel,
           mlsStatusNorm,
+          mlsRegion: source.mlsRegion || "",
           mlsStyleCode: styleCode,
+          mlsParkingType: String(source.mlsParkingType || "").trim(),
+          mlsParkingCoveredTotal: hasMlsParkingCoveredTotal ? num(mlsParkingCoveredTotalRaw) : 0,
+          mlsParkingCoveredTotalRaw,
+          hasMlsParkingCoveredTotal,
+          mlsTaxesAnnual: hasMlsTaxesAnnual ? num(mlsTaxesAnnualRaw) : 0,
+          mlsTaxesAnnualRaw,
+          hasMlsTaxesAnnual,
+          mlsBuildingCondition: String(source.mlsBuildingCondition || "").trim(),
+          mlsView: String(source.mlsView || "").trim(),
+          mlsBankOwned,
+          isBankOwned,
+          mlsThirdPartyApprovalRequired,
+          hasThirdPartyApprovalRequirement: hasThirdPartyApproval,
+          isSpecialSale,
+          mlsNewConstructionState: String(source.mlsNewConstructionState || "").trim(),
+          mlsSquareFootageSource: String(source.mlsSquareFootageSource || "").trim(),
           saleDate: toIso(saleDate),
           listDate: toIso(listDate),
           pendingDate: toIso(pendingDate),
@@ -3323,6 +3637,7 @@
           type: document.getElementById("fType").value,
           mode: "All",
           mlsStatus: document.getElementById("fMlsStatus").value,
+          specialSale: document.getElementById("fSpecialSale").value || "all",
           scope: document.getElementById("fScope").value,
           recordView: document.getElementById("fRecordView").value || "all",
           minClose: Number(document.getElementById("fMinClose").value || PRICE_SLIDER_MIN),
@@ -3382,6 +3697,7 @@
         if (f.type !== "All") rows = rows.filter((r) => r.typeLabel === f.type);
         if (f.mode !== "All") rows = rows.filter((r) => r.dataMode === f.mode);
         if (f.mlsStatus !== "All") rows = rows.filter((r) => r.mlsStatusNorm === String(f.mlsStatus || "").toUpperCase());
+        if (f.specialSale !== "all") rows = rows.filter((r) => matchesSpecialSaleFilter(r, f.specialSale));
         if (f.minClose) rows = rows.filter((r) => r.closePrice >= f.minClose);
         if (f.maxClose !== null) rows = rows.filter((r) => r.closePrice <= f.maxClose);
         if (f.dateFrom) rows = rows.filter((r) => r.saleDate >= f.dateFrom);
@@ -3415,6 +3731,7 @@
         if (f.neighborhoods.length && !f.neighborhoods.includes(row.neighborhoodLabel)) return false;
         if (f.type !== "All" && row.typeLabel !== f.type) return false;
         if (f.mode !== "All" && row.dataMode !== f.mode) return false;
+        if (!matchesSpecialSaleFilter(row, f.specialSale)) return false;
         if (f.minClose && price < f.minClose) return false;
         if (f.maxClose !== null && price > f.maxClose) return false;
         if (f.dateFrom && (!date || date < f.dateFrom)) return false;
@@ -3970,10 +4287,11 @@
         const projectionChip = state.flags.projection;
         const includeOpenChip = state.flags.includeOpenMls;
         const presoldFlagChip = state.flags.excludeLikelyPresoldNewBuild;
+        const specialSaleChip = filterState.specialSale !== "all";
         const customRecordView = filterState.recordView !== "all";
         const bidStrategyChip = state.bid.strategy !== "balanced";
         const bidHighConfChip = state.bid.highConfidenceOnly;
-        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip && !customRecordView && !bidStrategyChip && !bidHighConfChip) {
+        if (!entries.length && !mapSelected && !viewportChip && !projectionChip && !includeOpenChip && !presoldFlagChip && !specialSaleChip && !customRecordView && !bidStrategyChip && !bidHighConfChip) {
           el.innerHTML = `<span class="chip">No cross-filters active</span>`;
           return;
         }
@@ -3996,6 +4314,9 @@
         }
         if (presoldFlagChip) {
           chips.push(`<span class="chip">Feature: Exclude Pre-Sold New Builds<button type="button" data-clear-flag="excludePresold">x</button></span>`);
+        }
+        if (specialSaleChip) {
+          chips.push(`<span class="chip">MLS Special Sale: ${esc(specialSaleFilterLabel(filterState.specialSale))}<button type="button" data-clear-special-sale="1">x</button></span>`);
         }
         if (customRecordView) {
           chips.push(`<span class="chip">Map/Records: ${recordViewLabel(filterState.recordView)}<button type="button" data-clear-record-view="1">x</button></span>`);
@@ -4036,6 +4357,113 @@
           ? String(slices.openRows.length)
           : `${slices.openRows.length} (hidden)`;
         el.textContent = `Projected: ${projectedText} | Open/Pending: ${openText} | View: ${recordViewLabel(slices.filterState.recordView)}`;
+      }
+
+      function renderDataSourcePanel() {
+        const report = state.dataSource.report;
+        const validation = report?.validation || null;
+        const validationCounts = validation?.counts || {};
+        const builderCounts = report?.counts || {};
+        const validationFiles = validation?.files || {};
+        const outputRows = validationCounts.outputRows || builderCounts.outputRows || 0;
+        const mlsRows = validationCounts.mlsRows || builderCounts.mlsRowsParsed || 0;
+        const activeRows = validationCounts.mlsActiveRows || builderCounts.mlsActiveRows || 0;
+        const realtorFileCount = validationFiles.realtorCsvCount || report?.source?.realtorFiles?.length || 0;
+        const modeEntries = Object.entries(validationCounts.modes || {});
+        const datasetName = state.dataSource.datasetName || DEFAULT_DATASET;
+        const isUpload = state.dataSource.kind === "upload";
+
+        const datasetNameEl = document.getElementById("dataDatasetName");
+        if (datasetNameEl) datasetNameEl.textContent = datasetName;
+
+        const datasetRowsEl = document.getElementById("dataDatasetRows");
+        if (datasetRowsEl) {
+          if (state.dataSource.rowCount > 0) {
+            datasetRowsEl.textContent = `${formatWholeNumber(state.dataSource.rowCount)} rows currently loaded in the app.`;
+          } else if (state.dataSource.kind === "unavailable") {
+            datasetRowsEl.textContent = "Default dataset unavailable until the app is served over HTTP.";
+          } else {
+            datasetRowsEl.textContent = "Waiting for dataset load.";
+          }
+        }
+
+        const reportScopeEl = document.getElementById("dataReportScope");
+        if (reportScopeEl) {
+          reportScopeEl.textContent = isUpload
+            ? "Refresh report below describes the repo-generated default files, not the uploaded CSV. MLS enrichment remains neighborhood-scoped rather than citywide."
+            : "Refresh report below describes the repo-generated default dataset. MLS enrichment is neighborhood-scoped rather than citywide.";
+        }
+
+        const modeBadgesEl = document.getElementById("dataModeBadges");
+        if (modeBadgesEl) {
+          const pills = [];
+          if (modeEntries.length) {
+            modeEntries.forEach(([mode, count]) => {
+              pills.push(`<span class="source-pill">${esc(mode)}: ${esc(formatWholeNumber(count))}</span>`);
+            });
+          } else {
+            pills.push(`<span class="source-pill">${isUpload ? "Custom upload" : "Default dataset"}</span>`);
+          }
+          modeBadgesEl.innerHTML = pills.join("");
+        }
+
+        const validationStatusEl = document.getElementById("dataValidationStatus");
+        if (validationStatusEl) {
+          const status = String(validation?.status || "").toUpperCase();
+          validationStatusEl.textContent = status || "Unavailable";
+          validationStatusEl.className = `source-value ${status === "PASS" ? "pass" : status === "FAIL" ? "fail" : "warn"}`;
+        }
+
+        const validationTimeEl = document.getElementById("dataValidationTime");
+        if (validationTimeEl) {
+          validationTimeEl.textContent = validation?.generatedAt
+            ? `Validated ${formatDateTime(validation.generatedAt)}.`
+            : "Refresh metadata loads when the report is available over HTTP.";
+        }
+
+        const generatedTimeEl = document.getElementById("dataGeneratedTime");
+        if (generatedTimeEl) {
+          generatedTimeEl.textContent = report?.generatedAt
+            ? `MLS enrichment last generated ${formatDateTime(report.generatedAt)}.`
+            : "";
+        }
+
+        const warningSummaryEl = document.getElementById("dataWarningSummary");
+        if (warningSummaryEl) {
+          const warningCount = Array.isArray(validation?.warnings) ? validation.warnings.length : 0;
+          const errorCount = Array.isArray(validation?.errors) ? validation.errors.length : 0;
+          if (warningCount || errorCount) {
+            warningSummaryEl.textContent = `${formatWholeNumber(warningCount)} warning(s), ${formatWholeNumber(errorCount)} error(s) in the latest validation report.`;
+          } else if (validation) {
+            warningSummaryEl.textContent = "No validation warnings or errors were reported.";
+          } else {
+            warningSummaryEl.textContent = "";
+          }
+        }
+
+        const outputRowsEl = document.getElementById("dataOutputRows");
+        if (outputRowsEl) outputRowsEl.textContent = outputRows ? formatWholeNumber(outputRows) : "n/a";
+        const mlsRowsEl = document.getElementById("dataMlsRows");
+        if (mlsRowsEl) mlsRowsEl.textContent = mlsRows ? formatWholeNumber(mlsRows) : "n/a";
+        const activeRowsEl = document.getElementById("dataActiveRows");
+        if (activeRowsEl) activeRowsEl.textContent = activeRows ? formatWholeNumber(activeRows) : "n/a";
+        const realtorCountEl = document.getElementById("dataRealtorFileCount");
+        if (realtorCountEl) realtorCountEl.textContent = realtorFileCount ? formatWholeNumber(realtorFileCount) : "n/a";
+
+        const baseFileEl = document.getElementById("dataBaseFile");
+        if (baseFileEl) baseFileEl.textContent = report?.source?.baseFile || validationFiles.public || "Unavailable";
+        const enrichedFileEl = document.getElementById("dataEnrichedFile");
+        if (enrichedFileEl) {
+          enrichedFileEl.textContent = report?.outputs?.enrichedCsv || validationFiles.enriched || DEFAULT_DATASET;
+        }
+
+        const realtorFilesEl = document.getElementById("dataRealtorFiles");
+        if (realtorFilesEl) {
+          const files = Array.isArray(report?.source?.realtorFiles) ? report.source.realtorFiles : [];
+          realtorFilesEl.innerHTML = files.length
+            ? files.map((file) => `<li>${esc(file)}</li>`).join("")
+            : "<li>Refresh metadata not loaded yet.</li>";
+        }
       }
 
       function renderKpis(rows, stats) {
@@ -5207,8 +5635,11 @@
         const mobileList = document.getElementById("recordMobileList");
         const statusEl = document.getElementById("recordsStatus");
         if (statusEl) {
+          const coverageCue = rows.some((r) => r.dataMode === "MLS_ENRICHED")
+            ? " MLS-only extras are neighborhood-scoped and blank fields mean unavailable or unknown for that export."
+            : "";
           statusEl.textContent = rows.length
-            ? `Showing ${rows.length} rows in ${recordViewLabel(filterState.recordView)}.`
+            ? `Showing ${rows.length} rows in ${recordViewLabel(filterState.recordView)}.${coverageCue}`
             : emptyMessage;
         }
         if (!rows.length) {
@@ -5234,6 +5665,7 @@
                   <a class="address-link" href="${esc(zillowUrl(r))}" target="_blank" rel="noopener noreferrer">${esc(r.address)}<span class="ext-icon" aria-hidden="true">&#8599;</span></a>
                   ${countyUrl ? `<a class="addr-sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Record</a>` : ""}
                   ${addrBadge}
+                  ${recordMlsSummaryHtml(r)}
                 </td>
                 <td><button class="inline-filter-link ${nActive ? "active" : ""}" data-set-interaction="neighborhood" data-set-value="${esc(r.neighborhoodLabel)}" title="${esc(r.neighborhoodLabel)}">${esc(r.neighborhoodLabel)}</button></td>
                 <td><button class="inline-filter-link ${tActive ? "active" : ""}" data-set-interaction="type" data-set-value="${esc(r.typeLabel)}" title="${esc(r.typeLabel)}">${esc(r.typeLabel)}</button></td>
@@ -5283,11 +5715,19 @@
                     <div class="mrow-item"><div class="k">DOM</div><div class="v">${domLabel(r)}</div></div>
                     <div class="mrow-item"><div class="k">Sale / List</div><div class="v">${r.saleToList > 0 ? `${r.saleToList.toFixed(2)}x` : "n/a"}</div></div>
                     <div class="mrow-item"><div class="k">Sale / Original</div><div class="v">${r.saleToOriginalList > 0 ? `${r.saleToOriginalList.toFixed(2)}x` : "n/a"}</div></div>
-                    <div class="mrow-item"><div class="k">Bid-Up vs Ask</div><div class="v">${deltaDisplayCompact(r)}</div></div>
-                    <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</div></div>
-                    ${r.isProjectionRow && r.projectedCloseLow > 0 && r.projectedCloseHigh > 0
-                      ? `<div class="mrow-item"><div class="k">Projected Range</div><div class="v">${formatMoneyCompact(r.projectedCloseLow)} - ${formatMoneyCompact(r.projectedCloseHigh)} (${r.projectionBasisCount} comps)</div></div>`
-                      : ""}
+	                    <div class="mrow-item"><div class="k">Bid-Up vs Ask</div><div class="v">${deltaDisplayCompact(r)}</div></div>
+	                    <div class="mrow-item"><div class="k">Hot Category</div><div class="v">${hotCategoryBadge(r)} ${presoldBadgeHtml(r)}</div></div>
+	                    ${r.mlsParkingType ? `<div class="mrow-item"><div class="k">Parking</div><div class="v">${esc(r.mlsParkingType)}${r.hasMlsParkingCoveredTotal ? ` (${esc(formatWholeNumber(r.mlsParkingCoveredTotal))} covered)` : ""}</div></div>` : ""}
+	                    ${r.hasMlsTaxesAnnual ? `<div class="mrow-item"><div class="k">Taxes Annual</div><div class="v">${esc(formatMoney(r.mlsTaxesAnnual))}</div></div>` : ""}
+	                    ${r.mlsBuildingCondition ? `<div class="mrow-item"><div class="k">Condition</div><div class="v">${esc(r.mlsBuildingCondition)}</div></div>` : ""}
+	                    ${r.mlsView ? `<div class="mrow-item"><div class="k">View</div><div class="v">${esc(r.mlsView)}</div></div>` : ""}
+	                    ${r.isBankOwned ? `<div class="mrow-item"><div class="k">Bank-Owned</div><div class="v">Yes</div></div>` : ""}
+	                    ${r.hasThirdPartyApprovalRequirement ? `<div class="mrow-item"><div class="k">Third-Party Approval</div><div class="v">${esc(r.mlsThirdPartyApprovalRequired)}</div></div>` : ""}
+	                    ${r.mlsNewConstructionState ? `<div class="mrow-item"><div class="k">New Construction</div><div class="v">${esc(r.mlsNewConstructionState)}</div></div>` : ""}
+	                    ${r.mlsSquareFootageSource ? `<div class="mrow-item"><div class="k">SqFt Source</div><div class="v">${esc(r.mlsSquareFootageSource)}</div></div>` : ""}
+	                    ${r.isProjectionRow && r.projectedCloseLow > 0 && r.projectedCloseHigh > 0
+	                      ? `<div class="mrow-item"><div class="k">Projected Range</div><div class="v">${formatMoneyCompact(r.projectedCloseLow)} - ${formatMoneyCompact(r.projectedCloseHigh)} (${r.projectionBasisCount} comps)</div></div>`
+	                      : ""}
                   </div>
                 </div>
               </article>
@@ -5406,6 +5846,7 @@
         const headers = [
           "id","address","neighborhood","type","dataMode","saleDate","listDate","pendingDate",
           "closePrice","originalListPrice","pendingListPrice","listPriceAtPending","saleToList","saleToOriginalList","delta","deltaPct","isHotMarket","isUltraHot",
+          "mlsStatus","mlsRegion","mlsParkingType","mlsParkingCoveredTotal","mlsTaxesAnnual","mlsBuildingCondition","mlsView","mlsBankOwned","mlsThirdPartyApprovalRequired","mlsNewConstructionState","mlsSquareFootageSource","isSpecialSale",
           "bidStrategy","bidSuggested","bidLow","bidHigh","bidRatio","bidConfidence","bidConfidenceLabel","bidCompCount","bidCompTier","bidStatus",
           "hotCategory","domDays","isLikelyPresoldNewBuild","presoldRuleReason","isProjectionRow","projectedClosePrice","projectedCloseLow","projectedCloseHigh","projectionBasisCount",
           "beds","baths","sqft","lotSize","yearBuilt","zip"
@@ -5432,6 +5873,18 @@
             r.deltaPct,
             r.isHotMarket ? "true" : "false",
             r.isUltraHot ? "true" : "false",
+            r.mlsStatusLabel || "",
+            r.mlsRegion || "",
+            r.mlsParkingType || "",
+            r.hasMlsParkingCoveredTotal ? r.mlsParkingCoveredTotal : "",
+            r.hasMlsTaxesAnnual ? Math.round(r.mlsTaxesAnnual) : "",
+            r.mlsBuildingCondition || "",
+            r.mlsView || "",
+            r.mlsBankOwned || "",
+            r.mlsThirdPartyApprovalRequired || "",
+            r.mlsNewConstructionState || "",
+            r.mlsSquareFootageSource || "",
+            r.isSpecialSale ? "true" : "false",
             activeBidEligible ? (r.bidStrategy || "") : "",
             activeBidEligible && r.bidStatus === "SCored" ? r.bidSuggested : "",
             activeBidEligible && r.bidStatus === "SCored" ? r.bidLow : "",
@@ -5554,10 +6007,27 @@
       }
 
       function bindEvents() {
-        ["fType", "fMlsStatus", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
+        ["fType", "fSpecialSale", "fScope", "fDateFrom", "fDateTo"].forEach((id) => {
           const el = document.getElementById(id);
           el.addEventListener("change", renderAll);
         });
+        const mlsStatusEl = document.getElementById("fMlsStatus");
+        if (mlsStatusEl) {
+          mlsStatusEl.addEventListener("change", () => {
+            const status = String(mlsStatusEl.value || "").toUpperCase();
+            const wantsOpenRows = status === "ACTIVE"
+              || status === "PENDING"
+              || status === "PENDING INSPECTION"
+              || status === "PENDING BU REQUESTED"
+              || status === "CONTINGENT";
+            if (wantsOpenRows && !state.flags.includeOpenMls) {
+              state.flags.includeOpenMls = true;
+              const includeOpenToggle = document.getElementById("ffIncludeOpenMls");
+              if (includeOpenToggle) includeOpenToggle.checked = true;
+            }
+            renderAll();
+          });
+        }
         const scopeSelect = document.getElementById("fScope");
         if (scopeSelect) {
           scopeSelect.addEventListener("change", () => updateScopeToggleUI(scopeSelect.value));
@@ -5920,6 +6390,14 @@
             return;
           }
 
+          const clearSpecialSale = evt.target.closest("[data-clear-special-sale]");
+          if (clearSpecialSale) {
+            const specialSaleEl = document.getElementById("fSpecialSale");
+            if (specialSaleEl) specialSaleEl.value = "all";
+            renderAll();
+            return;
+          }
+
           const clearBidStrategy = evt.target.closest("[data-clear-bid-strategy]");
           if (clearBidStrategy) {
             state.bid.strategy = "balanced";
@@ -5980,15 +6458,34 @@
                 refreshSelectOptions();
                 applyDefaultFormFilters();
                 clearCrossFilters();
+                state.dataSource.datasetName = file.name;
+                state.dataSource.rowCount = state.rows.length;
+                state.dataSource.kind = "upload";
+                renderDataSourcePanel();
                 document.getElementById("uploadStatus").textContent = `Loaded ${state.rows.length} rows from ${file.name}.`;
                 document.getElementById("datasetStatus").textContent = `Using uploaded dataset: ${file.name} (${state.rows.length} rows).`;
               } catch (err) {
+                state.dataSource.datasetName = file.name;
+                state.dataSource.rowCount = 0;
+                state.dataSource.kind = "upload";
+                renderDataSourcePanel();
                 document.getElementById("uploadStatus").textContent = `Upload failed: ${err.message}`;
               }
             };
             reader.readAsText(file);
           });
         }
+      }
+
+      async function loadRefreshReport() {
+        try {
+          const response = await fetch("data_refresh_report.json", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          state.dataSource.report = await response.json();
+        } catch (err) {
+          state.dataSource.report = null;
+        }
+        renderDataSourcePanel();
       }
 
       async function autoLoadDefault() {
@@ -6002,6 +6499,10 @@
           refreshSelectOptions();
           applyDefaultFormFilters();
           clearCrossFilters();
+          state.dataSource.datasetName = DEFAULT_DATASET;
+          state.dataSource.rowCount = state.rows.length;
+          state.dataSource.kind = "default";
+          renderDataSourcePanel();
           document.getElementById("uploadStatus").textContent = `Auto-loaded ${DEFAULT_DATASET}.`;
           status.textContent = `Auto-loaded ${DEFAULT_DATASET} (${state.rows.length} rows).`;
         } catch (err) {
@@ -6009,6 +6510,10 @@
           refreshNormalizedRows();
           refreshSelectOptions();
           renderAll();
+          state.dataSource.datasetName = DEFAULT_DATASET;
+          state.dataSource.rowCount = 0;
+          state.dataSource.kind = "unavailable";
+          renderDataSourcePanel();
           status.textContent = "Auto-load unavailable. Serve over HTTP (scripts/serve.js) so the default dataset can load.";
         }
       }
@@ -6016,7 +6521,9 @@
       function init() {
         initTheme();
         initRecordDensity();
+        renderDataSourcePanel();
         bindEvents();
+        loadRefreshReport();
         autoLoadDefault();
       }
 

@@ -44,6 +44,11 @@ test("manual bids can load active listing from bids table", () => {
   assert.match(html, /data-use-active-bid/);
 });
 
+test("records filters expose MLS special-sale control and coverage cue", () => {
+  assert.match(html, /id=\"fSpecialSale\"/);
+  assert.match(html, /MLS-only extras are neighborhood-scoped/i);
+});
+
 test("bids table headers expose sortable controls", () => {
   [
     "address",
@@ -54,5 +59,18 @@ test("bids table headers expose sortable controls", () => {
     "compCount",
   ].forEach((key) => {
     assert.match(html, new RegExp(`data-bid-sort=\\\"${key}\\\"`));
+  });
+});
+
+test("data tab exposes refresh metadata placeholders", () => {
+  [
+    "dataDatasetName",
+    "dataDatasetRows",
+    "dataValidationStatus",
+    "dataValidationTime",
+    "dataOutputRows",
+    "dataRealtorFileCount",
+  ].forEach((id) => {
+    assert.match(html, new RegExp(`id=\\"${id}\\"`));
   });
 });
