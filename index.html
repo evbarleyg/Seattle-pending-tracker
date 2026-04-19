@@ -465,6 +465,112 @@
         display: grid;
         gap: 7px;
       }
+      .profile-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .profile-memory-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #3c5d84;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 11px;
+        color: #d9ebff;
+        background: #13253d;
+        white-space: nowrap;
+      }
+      .profile-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: 14px;
+      }
+      .profile-card,
+      .micromarket-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: linear-gradient(180deg, #11223c, #0e1b31);
+        padding: 12px;
+        display: grid;
+        gap: 9px;
+      }
+      .profile-card .label,
+      .micromarket-meta,
+      .profile-mini-stat .k,
+      .micromarket-stat .k {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .profile-card .value {
+        font-size: 22px;
+      }
+      .profile-traits {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .profile-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .profile-mini-stat,
+      .micromarket-stat {
+        border: 1px solid rgba(101, 129, 166, 0.48);
+        border-radius: 10px;
+        background: rgba(16, 28, 49, 0.78);
+        padding: 8px;
+        display: grid;
+        gap: 4px;
+      }
+      .profile-mini-stat .v,
+      .micromarket-stat .v {
+        font-size: 16px;
+        color: #eef6ff;
+      }
+      .profile-empty {
+        border: 1px dashed #4f7099;
+        border-radius: 12px;
+        padding: 12px;
+        color: var(--muted);
+        background: rgba(14, 24, 39, 0.72);
+      }
+      .micromarket-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .micromarket-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .micromarket-title {
+        font-size: 18px;
+        line-height: 1.2;
+      }
+      .micromarket-fit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: 11px;
+        border: 1px solid #49688d;
+        background: rgba(25, 42, 67, 0.9);
+        color: #dcecff;
+        white-space: nowrap;
+      }
+      .micromarket-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
 
       .kpi-grid {
         display: grid;
@@ -513,6 +619,279 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 14px;
+      }
+      .pulse-hero {
+        background:
+          radial-gradient(680px 280px at 0% 0%, rgba(77, 166, 255, 0.18), transparent 60%),
+          radial-gradient(620px 260px at 100% 0%, rgba(61, 213, 157, 0.16), transparent 58%),
+          linear-gradient(180deg, rgba(17, 28, 47, 0.96), rgba(11, 19, 32, 0.95));
+      }
+      .pulse-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .pulse-control-stack {
+        display: grid;
+        gap: 8px;
+        justify-items: end;
+      }
+      .pulse-pill-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .pulse-mode-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .pulse-pill-row .scope-pill {
+        padding: 6px 11px;
+        font-size: 12px;
+      }
+      .pulse-mode-row .scope-pill {
+        padding: 5px 10px;
+        font-size: 11px;
+      }
+      .pulse-status {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .pulse-readout {
+        margin-top: 4px;
+      }
+      .pulse-section-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .pulse-section-head h3 {
+        margin: 0;
+      }
+      .pulse-recent-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pulse-window-card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(18, 36, 64, 0.95), rgba(10, 19, 34, 0.98));
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+      .pulse-window-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .pulse-window-title {
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .pulse-window-subtitle {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .pulse-metric {
+        border: 1px solid rgba(72, 100, 138, 0.6);
+        border-radius: 12px;
+        background: rgba(10, 21, 37, 0.72);
+        padding: 10px;
+        display: grid;
+        gap: 6px;
+      }
+      .pulse-metric-label {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-metric-value {
+        font-size: 22px;
+        font-weight: 650;
+        line-height: 1.1;
+      }
+      .pulse-metric-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .pulse-metric-sample {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-delta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        border: 1px solid #365276;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: #d8e9ff;
+        background: rgba(18, 35, 58, 0.85);
+      }
+      .pulse-delta-chip.hotter {
+        border-color: #92753f;
+        background: rgba(198, 134, 44, 0.18);
+        color: #f9ddb2;
+      }
+      .pulse-delta-chip.cooler {
+        border-color: #2b7a8b;
+        background: rgba(45, 137, 168, 0.16);
+        color: #b7ecff;
+      }
+      .pulse-delta-chip.flat {
+        border-color: #486480;
+        color: #c3d6ee;
+      }
+      .pulse-delta-chip.na {
+        opacity: 0.8;
+      }
+      .pulse-chart-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pulse-chart-card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(12, 22, 38, 0.82);
+        padding: 12px;
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+      .pulse-chart-card-wide {
+        grid-column: 1 / -1;
+      }
+      .pulse-chart-title {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .pulse-chart-subtitle {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-svg-wrap {
+        min-height: 248px;
+      }
+      .pulse-svg-wrap svg,
+      .pulse-trajectory-grid svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .pulse-svg-wrap .note,
+      .pulse-trajectory-grid .note {
+        margin: 0;
+      }
+      .pulse-trajectory-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pulse-trajectory-card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(12, 22, 38, 0.82);
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .pulse-trajectory-card.large {
+        grid-column: 1 / -1;
+      }
+      .pulse-trajectory-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .pulse-trajectory-meta {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-axis-label {
+        fill: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-axis-tick {
+        fill: var(--muted);
+        font-size: 10px;
+      }
+      .pulse-grid-line {
+        stroke: rgba(82, 112, 150, 0.35);
+        stroke-width: 1;
+      }
+      .pulse-line {
+        fill: none;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .pulse-line.rolling {
+        stroke-dasharray: 6 5;
+        opacity: 0.8;
+      }
+      .pulse-point {
+        cursor: pointer;
+      }
+      .pulse-point.current-month {
+        stroke: #f4f8ff;
+        stroke-width: 2;
+      }
+      .pulse-point.month-active {
+        stroke: #f9d26b;
+        stroke-width: 3;
+      }
+      .pulse-series-label {
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .pulse-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        margin-top: 2px;
+      }
+      .pulse-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .pulse-empty {
+        border: 1px dashed rgba(93, 121, 157, 0.75);
+        border-radius: 12px;
+        padding: 16px;
+        color: var(--muted);
+        background: rgba(14, 25, 42, 0.58);
       }
       .bids-head {
         display: flex;
@@ -1595,6 +1974,46 @@
         background: linear-gradient(135deg, #21589d, #2b93ba);
         color: #fff;
       }
+      body.light .pulse-hero {
+        background:
+          radial-gradient(680px 280px at 0% 0%, rgba(77, 166, 255, 0.12), transparent 60%),
+          radial-gradient(620px 260px at 100% 0%, rgba(61, 213, 157, 0.12), transparent 58%),
+          linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(241, 247, 255, 0.98));
+      }
+      body.light .pulse-window-card,
+      body.light .pulse-chart-card,
+      body.light .pulse-trajectory-card {
+        background: rgba(248, 251, 255, 0.92);
+      }
+      body.light .pulse-metric {
+        background: rgba(244, 249, 255, 0.92);
+        border-color: rgba(168, 188, 213, 0.8);
+      }
+      body.light .pulse-delta-chip {
+        border-color: #acc3dc;
+        background: rgba(237, 244, 255, 0.95);
+        color: #31537c;
+      }
+      body.light .pulse-delta-chip.hotter {
+        border-color: #d7ab69;
+        background: rgba(251, 228, 191, 0.72);
+        color: #805114;
+      }
+      body.light .pulse-delta-chip.cooler {
+        border-color: #7fb8cf;
+        background: rgba(211, 243, 255, 0.82);
+        color: #1d5970;
+      }
+      body.light .pulse-delta-chip.flat {
+        color: #466685;
+      }
+      body.light .pulse-grid-line {
+        stroke: rgba(151, 177, 207, 0.55);
+      }
+      body.light .pulse-empty {
+        background: rgba(244, 249, 255, 0.95);
+        border-color: rgba(157, 181, 208, 0.85);
+      }
       body.light .btn.alt {
         color: #274667;
         background: #ffffff;
@@ -1613,6 +2032,34 @@
       }
       body.light .guide,
       body.light .insights { color: #1f3552; }
+      body.light .profile-memory-pill {
+        border-color: #b8cadf;
+        background: #edf4ff;
+        color: #264766;
+      }
+      body.light .profile-card,
+      body.light .micromarket-card {
+        background: linear-gradient(180deg, #f7fbff, #edf5ff);
+        border-color: #c8d7eb;
+      }
+      body.light .profile-mini-stat,
+      body.light .micromarket-stat {
+        border-color: rgba(184, 202, 223, 0.9);
+        background: rgba(248, 251, 255, 0.96);
+      }
+      body.light .profile-mini-stat .v,
+      body.light .micromarket-stat .v {
+        color: #173557;
+      }
+      body.light .micromarket-fit {
+        border-color: #b8cadf;
+        background: #edf4ff;
+        color: #264766;
+      }
+      body.light .profile-empty {
+        border-color: #c8d7eb;
+        background: rgba(247, 251, 255, 0.95);
+      }
       body.light .kpi {
         background: linear-gradient(180deg, #f7fbff, #edf5ff);
         border-color: #c8d7eb;
@@ -1781,6 +2228,12 @@
         .manual-bid-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .manual-bid-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .two-col { grid-template-columns: 1fr; }
+        .profile-grid,
+        .micromarket-grid { grid-template-columns: 1fr; }
+        .pulse-chart-grid,
+        .pulse-trajectory-grid { grid-template-columns: 1fr; }
+        .pulse-chart-card-wide,
+        .pulse-trajectory-card.large { grid-column: auto; }
         .geo-layout { grid-template-columns: 1fr; }
         .geo-main-panel,
         .geo-side-panel {
@@ -1864,6 +2317,27 @@
           width: 100%;
           justify-content: space-between;
         }
+        .pulse-head,
+        .pulse-section-head {
+          align-items: stretch;
+        }
+        .pulse-control-stack {
+          width: 100%;
+          justify-items: stretch;
+        }
+        .pulse-pill-row {
+          justify-content: flex-start;
+        }
+        .pulse-mode-row {
+          justify-content: flex-start;
+        }
+        .pulse-recent-grid,
+        .pulse-metric-grid {
+          grid-template-columns: 1fr;
+        }
+        .profile-mini-grid {
+          grid-template-columns: 1fr 1fr;
+        }
         .manual-bid-form {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -1930,6 +2404,16 @@
         .kpi-grid-overview,
         .kpi-grid-heat,
         .kpi-grid-bids { grid-template-columns: 1fr; }
+        .profile-mini-grid,
+        .micromarket-stats { grid-template-columns: 1fr; }
+        .pulse-pill-row .scope-pill {
+          width: 100%;
+          justify-content: center;
+        }
+        .pulse-mode-row .scope-pill {
+          width: 100%;
+          justify-content: center;
+        }
         .manual-bid-form { grid-template-columns: 1fr; }
         .geo-gradient-labels {
           font-size: 10px;
@@ -1944,6 +2428,7 @@
       <div class="header-controls">
         <div class="tabs" role="tablist" aria-label="Dashboard sections">
           <button class="tab active" id="tab-overview" data-view="overview" type="button" role="tab" aria-selected="true" aria-controls="view-overview" tabindex="0">Overview</button>
+          <button class="tab" id="tab-pulse" data-view="pulse" type="button" role="tab" aria-selected="false" aria-controls="view-pulse" tabindex="-1">Pulse</button>
           <button class="tab" id="tab-charts" data-view="charts" type="button" role="tab" aria-selected="false" aria-controls="view-charts" tabindex="-1">Charts</button>
           <button class="tab" id="tab-heat" data-view="heat" type="button" role="tab" aria-selected="false" aria-controls="view-heat" tabindex="-1">Hot Market</button>
           <button class="tab" id="tab-bids" data-view="bids" type="button" role="tab" aria-selected="false" aria-controls="view-bids" tabindex="-1">Bids</button>
@@ -2091,6 +2576,57 @@
           </ul>
         </section>
 
+        <section class="panel">
+          <div class="profile-head">
+            <div>
+              <h3>Homes Like Yours</h3>
+              <div class="note compact" id="buyerProfileStatus">Loading saved buyer profile...</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="scope-pill active" id="buyerProfileToggle" data-buyer-profile-toggle="1" aria-pressed="true">Saved-Home Lens On</button>
+              <div class="profile-memory-pill" id="buyerProfileMemory">Memory inactive</div>
+            </div>
+          </div>
+          <div class="profile-grid">
+            <article class="profile-card">
+              <div class="label">Saved Profile</div>
+              <div class="value" id="buyerProfileName">North Seattle Character Homes</div>
+              <div class="note compact" id="buyerProfileSummary">Loading saved-home summary...</div>
+              <div class="profile-traits" id="buyerProfileTraits"></div>
+            </article>
+            <article class="profile-card">
+              <div class="label">Profile-Match Cohort</div>
+              <div class="profile-mini-grid">
+                <div class="profile-mini-stat">
+                  <div class="k">Matches In Slice</div>
+                  <div class="v" id="buyerProfileMatchCount">0</div>
+                </div>
+                <div class="profile-mini-stat">
+                  <div class="k">Median Close</div>
+                  <div class="v" id="buyerProfileMedianClose">n/a</div>
+                </div>
+                <div class="profile-mini-stat">
+                  <div class="k">Hot Share</div>
+                  <div class="v" id="buyerProfileHotShare">n/a</div>
+                </div>
+                <div class="profile-mini-stat">
+                  <div class="k">Median DOM</div>
+                  <div class="v" id="buyerProfileMedianDom">n/a</div>
+                </div>
+                <div class="profile-mini-stat">
+                  <div class="k">Median Bid-Up</div>
+                  <div class="v" id="buyerProfileMedianBidUp">n/a</div>
+                </div>
+                <div class="profile-mini-stat">
+                  <div class="k">Top Micromarket</div>
+                  <div class="v" id="buyerProfileTopMicromarket">n/a</div>
+                </div>
+              </div>
+            </article>
+          </div>
+          <ul class="insights" id="buyerProfileInsights"></ul>
+        </section>
+
         <div class="kpi-grid kpi-grid-overview">
           <article class="kpi">
             <div class="label">Sales Count</div>
@@ -2137,6 +2673,90 @@
         <section class="panel">
           <h3>Current Slice Readout</h3>
           <ul class="insights" id="insights"></ul>
+        </section>
+
+        <section class="panel">
+          <h3>Micromarket Profiles</h3>
+          <div class="note compact" id="micromarketIntro">A micromarket is a smaller pocket of homes that behaves differently from the city overall, often because the housing stock, buyer pool, and competition tempo are unusually consistent inside that pocket.</div>
+          <div class="micromarket-grid" id="micromarketProfiles"></div>
+        </section>
+      </section>
+
+      <section id="view-pulse" class="view" role="tabpanel" aria-labelledby="tab-pulse" tabindex="0">
+        <section class="panel pulse-hero">
+          <div class="pulse-head">
+            <div>
+              <h3>Watchlist Pulse</h3>
+              <div class="note compact">
+                MLS-first market pulse for your watchlist areas. This view keeps its own recent and 12-month windows so you can read competition and price pressure without the global date filters distorting the story.
+              </div>
+            </div>
+            <div class="pulse-control-stack">
+              <div class="pulse-pill-row" id="pulseGroupPills" role="toolbar" aria-label="Pulse watchlist groups">
+                <button type="button" class="scope-pill active" data-pulse-group="primary">Primary Watchlist</button>
+                <button type="button" class="scope-pill" data-pulse-group="Ballard">Ballard</button>
+                <button type="button" class="scope-pill" data-pulse-group="Fremont / Green Lake / Woodland Park">Fremont / Green Lake / Woodland Park</button>
+                <button type="button" class="scope-pill" data-pulse-group="Queen Anne">Queen Anne</button>
+                <button type="button" class="scope-pill" data-pulse-group="Magnolia">Magnolia</button>
+              </div>
+              <div class="pulse-mode-row" id="pulseModeToggles" role="toolbar" aria-label="Pulse chart display mode">
+                <button type="button" class="scope-pill active" data-pulse-mode="compare">Compare Neighborhoods</button>
+                <button type="button" class="scope-pill" data-pulse-mode="combined">Combined Selection</button>
+              </div>
+            </div>
+          </div>
+          <div class="pulse-status" id="pulseStatus" aria-live="polite">Building watchlist pulse...</div>
+          <ul class="insights pulse-readout" id="pulseReadout"></ul>
+        </section>
+
+        <section class="panel">
+          <div class="pulse-section-head">
+            <h3>Recent Pulse</h3>
+            <div class="note compact">Current window vs the immediately prior equal-length window.</div>
+          </div>
+          <div class="pulse-recent-grid" id="pulseRecentGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="pulse-section-head">
+            <h3>Competition + Price Timeline</h3>
+            <div class="note compact">Click any month point to set the dashboard’s existing month cross-filter.</div>
+          </div>
+          <div class="pulse-chart-grid">
+            <article class="pulse-chart-card">
+              <div class="pulse-chart-title">Hot Share</div>
+              <div class="pulse-chart-subtitle">Share of MLS-enriched sold rows tagged hot (DOM/CDOM &le; 10 days).</div>
+              <div class="pulse-svg-wrap" id="pulseChartHotShare"></div>
+            </article>
+            <article class="pulse-chart-card">
+              <div class="pulse-chart-title">Median DOM</div>
+              <div class="pulse-chart-subtitle">CDOM preferred, then DOM, then list-to-pending timing.</div>
+              <div class="pulse-svg-wrap" id="pulseChartMedianDom"></div>
+            </article>
+            <article class="pulse-chart-card">
+              <div class="pulse-chart-title">Median Sale / List@Pending</div>
+              <div class="pulse-chart-subtitle">How far buyers are stretching relative to ask when the home goes pending.</div>
+              <div class="pulse-svg-wrap" id="pulseChartSaleToList"></div>
+            </article>
+            <article class="pulse-chart-card">
+              <div class="pulse-chart-title">Median Bid-Up Dollars</div>
+              <div class="pulse-chart-subtitle">Close price minus List@Pending.</div>
+              <div class="pulse-svg-wrap" id="pulseChartBidUp"></div>
+            </article>
+            <article class="pulse-chart-card pulse-chart-card-wide">
+              <div class="pulse-chart-title">Median Close Price</div>
+              <div class="pulse-chart-subtitle">Monthly closed-price context for the same watchlist slice.</div>
+              <div class="pulse-svg-wrap" id="pulseChartClosePrice"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="pulse-section-head">
+            <h3>Market Trajectory</h3>
+            <div class="note compact">Monthly path through competition: farther left is faster, higher is more over ask, larger bubbles mean more sales.</div>
+          </div>
+          <div class="pulse-trajectory-grid" id="pulseTrajectory"></div>
         </section>
       </section>
 
@@ -2573,7 +3193,11 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="./pulse_metrics.js"></script>
+    <script src="./buyer_profile.js"></script>
     <script>
+      const PulseLib = window.PulseMetrics || {};
+      const BuyerProfileLib = window.BuyerProfile || {};
       const DEFAULT_DATASET = "public_sales_proxy_mls_enriched_last12mo.csv";
       const DEFAULT_MIN_CLOSE = 1100000;
       const DEFAULT_MAX_CLOSE = 1400000;
@@ -2590,6 +3214,37 @@
       const BID_MIN_COMPS = 6;
       const BID_RATIO_MIN = 0.9;
       const BID_RATIO_MAX = 1.25;
+      const PULSE_PRIMARY_GROUP_ID = PulseLib.PRIMARY_GROUP_ID || "primary";
+      const PULSE_GROUPS = Array.isArray(PulseLib.PULSE_GROUPS) ? PulseLib.PULSE_GROUPS : [];
+      const WATCHLIST_GROUP_ORDER = Array.isArray(PulseLib.WATCHLIST_GROUP_ORDER) ? PulseLib.WATCHLIST_GROUP_ORDER : [];
+      const PULSE_PRIMARY_GROUPS = Array.isArray(PulseLib.PRIMARY_WATCHLIST_GROUPS) ? PulseLib.PRIMARY_WATCHLIST_GROUPS : [];
+      const BUYER_PROFILE_FILE = "buyer_profile_memory.json";
+      const BUYER_PROFILE_TOGGLE_STORAGE_KEY = "buyer_lens_profile_views_enabled";
+      const DEFAULT_BUYER_PROFILE_MEMORY = BuyerProfileLib.DEFAULT_PROFILE_MEMORY || {
+        id: "north-seattle-character-homes",
+        name: "North Seattle Character Homes",
+        homesCount: 12,
+        savedAt: "2026-04-19",
+        sourceLabel: "My Favorite Homes _ Zillow.pdf",
+        watchlistGroups: ["Ballard", "Fremont / Green Lake / Woodland Park", "Queen Anne", "Magnolia"],
+        flexNeighborhoodLabels: ["Capitol Hill / Eastlake"],
+        typeLabel: "Single Family",
+        ranges: {
+          beds: [3, 5],
+          baths: [1.5, 3.5],
+          sqft: [1450, 3000],
+          yearBuilt: [1900, 1945],
+          lotSize: [3000, 9000],
+        },
+        traits: ["Detached single-family", "1900-1945 vintage", "3-4 beds", "Real yard / lot"],
+        summary: "Classic north Seattle houses with character and enough space for daily life.",
+      };
+      const PULSE_GROUP_COLORS = {
+        Ballard: "#f08a52",
+        "Fremont / Green Lake / Woodland Park": "#53c27f",
+        "Queen Anne": "#5aa6ff",
+        Magnolia: "#d8b14b",
+      };
       const BID_STRATEGIES = {
         conservative: { point: 0.5, low: 0.4, high: 0.6, label: "Conservative" },
         balanced: { point: 0.6, low: 0.5, high: 0.7, label: "Balanced" },
@@ -2725,6 +3380,17 @@
         bidSort: {
           key: "confidence",
           dir: "desc",
+        },
+        pulse: {
+          selectedGroup: PULSE_PRIMARY_GROUP_ID,
+          timelineMode: "compare",
+          aggregateCache: new Map(),
+        },
+        buyerProfile: {
+          memory: null,
+          enabled: true,
+          source: "embedded",
+          ready: false,
         },
         interactions: {
           month: null,
@@ -3303,6 +3969,9 @@
         state.flags.projection = false;
         state.flags.excludeLikelyPresoldNewBuild = false;
         state.flags.includeOpenMls = false;
+        state.pulse.selectedGroup = PULSE_PRIMARY_GROUP_ID;
+        state.pulse.timelineMode = "compare";
+        state.pulse.aggregateCache.clear();
         state.bid.strategy = "balanced";
         state.bid.highConfidenceOnly = false;
         state.bid.manualEnabled = false;
@@ -3326,6 +3995,62 @@
         document.querySelectorAll("[data-bid-strategy]").forEach((btn) => {
           btn.classList.toggle("active", btn.getAttribute("data-bid-strategy") === "balanced");
         });
+      }
+
+      function normalizeBuyerProfileMemory(profile) {
+        if (typeof BuyerProfileLib.normalizeProfileMemory === "function") {
+          return BuyerProfileLib.normalizeProfileMemory(profile || DEFAULT_BUYER_PROFILE_MEMORY);
+        }
+        return profile || DEFAULT_BUYER_PROFILE_MEMORY;
+      }
+
+      function setBuyerProfileToggle(enabled, persist = true) {
+        state.buyerProfile.enabled = !!enabled;
+        if (!persist) return;
+        try {
+          localStorage.setItem(BUYER_PROFILE_TOGGLE_STORAGE_KEY, state.buyerProfile.enabled ? "1" : "0");
+        } catch (err) {
+          // ignore storage errors
+        }
+      }
+
+      function initBuyerProfileState() {
+        let enabled = true;
+        try {
+          const raw = localStorage.getItem(BUYER_PROFILE_TOGGLE_STORAGE_KEY);
+          if (raw === "0") enabled = false;
+        } catch (err) {
+          enabled = true;
+        }
+        state.buyerProfile = {
+          memory: normalizeBuyerProfileMemory(DEFAULT_BUYER_PROFILE_MEMORY),
+          enabled,
+          source: "embedded",
+          ready: false,
+        };
+      }
+
+      async function loadBuyerProfileMemory() {
+        const fallback = normalizeBuyerProfileMemory(DEFAULT_BUYER_PROFILE_MEMORY);
+        try {
+          const response = await fetch(BUYER_PROFILE_FILE, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const payload = await response.json();
+          state.buyerProfile.memory = normalizeBuyerProfileMemory(payload);
+          state.buyerProfile.source = "durable";
+          state.buyerProfile.ready = true;
+        } catch (err) {
+          state.buyerProfile.memory = fallback;
+          state.buyerProfile.source = "embedded";
+          state.buyerProfile.ready = true;
+        }
+        if (state.rows.length) {
+          renderAll();
+        } else {
+          renderBuyerProfileViews([], {
+            closedSlice: [],
+          }, readFormFilters());
+        }
       }
 
       function normalizeRow(source) {
@@ -3406,13 +4131,16 @@
         const mapLon = Number.isFinite(source.lon) ? source.lon : (zipCoord ? zipCoord.lon : null);
         const hasActualClose = closePrice > 0 && !!toIso(saleDate);
         const effectiveDate = toIso(saleDate || pendingDate || listDate);
+        const neighborhoodLabel = labelNeighborhood(source.neighborhood, source.zip);
+        const pulseGroup = pulseWatchlistGroup(neighborhoodLabel);
 
         return {
           ...source,
           mapPropertyKey: mapPropertyKey(source),
           dataMode,
           typeLabel: labelType(source.type, source.typeCode),
-          neighborhoodLabel: labelNeighborhood(source.neighborhood, source.zip),
+          neighborhoodLabel,
+          pulseWatchlistGroup: pulseGroup,
           mlsStatusLabel,
           mlsStatusNorm,
           mlsRegion: source.mlsRegion || "",
@@ -3485,6 +4213,7 @@
 
       function refreshNormalizedRows() {
         state.normalizedRows = state.rows.map(normalizeRow);
+        state.pulse.aggregateCache.clear();
       }
 
       function getSelectedNeighborhoods() {
@@ -3739,6 +4468,705 @@
         if (f.scope === "hot10" && !row.isHotMarket) return false;
         if (f.scope === "ultra5" && !row.isUltraHot) return false;
         return true;
+      }
+
+      function pulseWatchlistGroup(neighborhoodLabel) {
+        if (typeof PulseLib.pulseWatchlistGroup === "function") {
+          return PulseLib.pulseWatchlistGroup(neighborhoodLabel);
+        }
+        return "";
+      }
+
+      function pulseSelectionGroups(selectionId) {
+        if (typeof PulseLib.groupsForSelection === "function") {
+          return PulseLib.groupsForSelection(selectionId);
+        }
+        return PULSE_PRIMARY_GROUPS.slice();
+      }
+
+      function pulseSelectionLabel(selectionId) {
+        const normalized = typeof PulseLib.normalizeSelectionId === "function"
+          ? PulseLib.normalizeSelectionId(selectionId)
+          : (selectionId || PULSE_PRIMARY_GROUP_ID);
+        const match = PULSE_GROUPS.find((group) => group.id === normalized);
+        return match ? match.label : "Primary Watchlist";
+      }
+
+      function pulseMetricConfig(metricKey) {
+        if (metricKey === "salesCount") {
+          return {
+            label: "Sales Count",
+            sampleLabel: (sample) => `${sample.salesCount || 0} sold`,
+            formatValue: (value) => formatWholeNumber(value || 0),
+            formatDelta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}`,
+          };
+        }
+        if (metricKey === "hotShare") {
+          return {
+            label: "Hot Share",
+            sampleLabel: (sample) => `${sample.salesCount || 0} sold`,
+            formatValue: (value) => Number.isFinite(value) ? formatPct(value) : "n/a",
+            formatDelta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts`,
+          };
+        }
+        if (metricKey === "ultraHotShare") {
+          return {
+            label: "Ultra-Hot Share",
+            sampleLabel: (sample) => `${sample.salesCount || 0} sold`,
+            formatValue: (value) => Number.isFinite(value) ? formatPct(value) : "n/a",
+            formatDelta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts`,
+          };
+        }
+        if (metricKey === "medianDom") {
+          return {
+            label: "Median DOM",
+            sampleLabel: (sample) => `${sample.domSampleSize || 0} DOM rows`,
+            formatValue: (value) => Number.isFinite(value) ? `${Math.round(value)}d` : "n/a",
+            formatDelta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}d`,
+          };
+        }
+        if (metricKey === "medianSaleToList") {
+          return {
+            label: "Median Sale/List",
+            sampleLabel: (sample) => `${sample.ratioSampleSize || 0} ratio rows`,
+            formatValue: (value) => Number.isFinite(value) ? `${value.toFixed(2)}x` : "n/a",
+            formatDelta: (value) => `${value >= 0 ? "+" : ""}${(value || 0).toFixed(3)}x`,
+          };
+        }
+        if (metricKey === "medianBidUp") {
+          return {
+            label: "Median Bid-Up",
+            sampleLabel: (sample) => `${sample.bidUpSampleSize || 0} priced rows`,
+            formatValue: (value) => Number.isFinite(value) ? formatMoney(value) : "n/a",
+            formatDelta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}`,
+          };
+        }
+        return {
+          label: "Median Close Price",
+          sampleLabel: (sample) => `${sample.closeSampleSize || 0} sold rows`,
+          formatValue: (value) => Number.isFinite(value) ? formatMoney(value) : "n/a",
+          formatDelta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}`,
+        };
+      }
+
+      function pulseDeltaChip(metricKey, currentValue, previousValue) {
+        const competitiveDelta = typeof PulseLib.competitiveDelta === "function"
+          ? PulseLib.competitiveDelta(metricKey, currentValue, previousValue)
+          : null;
+        const direction = typeof PulseLib.metricDirection === "function"
+          ? PulseLib.metricDirection(metricKey, currentValue, previousValue)
+          : 0;
+        const config = pulseMetricConfig(metricKey);
+        if (competitiveDelta === null || !Number.isFinite(competitiveDelta)) {
+          return `<span class="pulse-delta-chip na">n/a vs prior</span>`;
+        }
+        const tone = direction > 0 ? "hotter" : (direction < 0 ? "cooler" : "flat");
+        const label = direction > 0 ? "hotter" : (direction < 0 ? "cooler" : "flat");
+        const text = config.formatDelta(competitiveDelta);
+        return `<span class="pulse-delta-chip ${tone}" title="Change versus the prior equal-length window">${esc(text)} ${esc(label)}</span>`;
+      }
+
+      function pulseMonthKeys(nowValue = new Date()) {
+        if (typeof PulseLib.buildMonthKeys === "function") {
+          return PulseLib.buildMonthKeys(nowValue, 12);
+        }
+        return [];
+      }
+
+      function pulseFilterRows(normalizedRows, filterState) {
+        const f = filterState;
+        let rows = normalizedRows
+          .filter((row) => row.dataMode === "MLS_ENRICHED")
+          .filter((row) => row.hasActualClose && row.closePrice > 0)
+          .filter((row) => !!row.pulseWatchlistGroup);
+
+        if (f.neighborhoods.length) rows = rows.filter((row) => f.neighborhoods.includes(row.neighborhoodLabel));
+        if (f.type !== "All") rows = rows.filter((row) => row.typeLabel === f.type);
+        if (f.specialSale !== "all") rows = rows.filter((row) => matchesSpecialSaleFilter(row, f.specialSale));
+        if (f.minClose) rows = rows.filter((row) => row.closePrice >= f.minClose);
+        if (f.maxClose !== null) rows = rows.filter((row) => row.closePrice <= f.maxClose);
+        if (state.flags.excludeLikelyPresoldNewBuild) rows = rows.filter((row) => !row.isLikelyPresoldNewBuild);
+        if (f.scope === "hot10") rows = rows.filter((row) => row.isHotMarket);
+        if (f.scope === "ultra5") rows = rows.filter((row) => row.isUltraHot);
+        return rows;
+      }
+
+      function pulseRowSummary(row) {
+        return {
+          neighborhoodLabel: row.neighborhoodLabel,
+          pulseWatchlistGroup: row.pulseWatchlistGroup,
+          saleDate: row.saleDate,
+          isHotMarket: row.isHotMarket,
+          isUltraHot: row.isUltraHot,
+          domValue: domMetric(row),
+          saleToList: row.saleToList,
+          delta: row.delta,
+          closePrice: row.closePrice,
+        };
+      }
+
+      function pulseCacheKey(filterState) {
+        return JSON.stringify({
+          type: filterState.type,
+          neighborhoods: (filterState.neighborhoods || []).slice().sort(),
+          specialSale: filterState.specialSale,
+          minClose: filterState.minClose,
+          maxClose: filterState.maxClose,
+          scope: filterState.scope,
+          excludePresold: !!state.flags.excludeLikelyPresoldNewBuild,
+          pulseGroup: state.pulse.selectedGroup,
+          rowCount: state.normalizedRows.length,
+        });
+      }
+
+      function buildPulseSnapshot(normalizedRows, filterState) {
+        const cacheKey = pulseCacheKey(filterState);
+        if (state.pulse.aggregateCache.has(cacheKey)) {
+          return state.pulse.aggregateCache.get(cacheKey);
+        }
+
+        const nowValue = new Date();
+        const eligibleRows = pulseFilterRows(normalizedRows, filterState);
+        const selectionGroups = pulseSelectionGroups(state.pulse.selectedGroup);
+        const selectedRows = eligibleRows.filter((row) => selectionGroups.includes(row.pulseWatchlistGroup));
+        const availableGroups = Array.from(new Set(eligibleRows.map((row) => row.pulseWatchlistGroup))).sort(
+          (a, b) => WATCHLIST_GROUP_ORDER.indexOf(a) - WATCHLIST_GROUP_ORDER.indexOf(b)
+        );
+        const summaryRows = eligibleRows.map(pulseRowSummary);
+        const selectedSummaryRows = selectedRows.map(pulseRowSummary);
+        const monthlyByGroup = typeof PulseLib.computeMonthlyGroupSeries === "function"
+          ? PulseLib.computeMonthlyGroupSeries(summaryRows, nowValue, 12)
+          : {};
+        const selectedMonthlySeries = typeof PulseLib.computeMonthlySeries === "function"
+          ? PulseLib.computeMonthlySeries(selectedSummaryRows, nowValue, 12)
+          : [];
+        const recentComparisons = typeof PulseLib.computeRecentComparisons === "function"
+          ? PulseLib.computeRecentComparisons(selectedSummaryRows, nowValue, [30, 90])
+          : [];
+        const snapshot = {
+          cacheKey,
+          nowValue,
+          availableGroups,
+          eligibleRows,
+          monthlyByGroup,
+          recentComparisons,
+          selectedGroups: selectionGroups,
+          selectedMonthlySeries,
+          selectedRows,
+          selectedSummaryRows,
+        };
+        state.pulse.aggregateCache.set(cacheKey, snapshot);
+        return snapshot;
+      }
+
+      function renderPulseGroupPills(snapshot) {
+        const available = new Set(snapshot.availableGroups);
+        document.querySelectorAll("[data-pulse-group]").forEach((btn) => {
+          const groupId = btn.getAttribute("data-pulse-group");
+          const active = state.pulse.selectedGroup === groupId;
+          const groups = pulseSelectionGroups(groupId);
+          const enabled = groupId === PULSE_PRIMARY_GROUP_ID
+            ? groups.some((group) => available.has(group))
+            : available.has(groupId);
+          btn.classList.toggle("active", active);
+          btn.disabled = !enabled;
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+          btn.style.opacity = enabled ? "1" : "0.45";
+        });
+      }
+
+      function pulseActiveGroups(snapshot) {
+        return snapshot.selectedGroups.filter((group) => snapshot.availableGroups.includes(group));
+      }
+
+      function pulseUsesCombinedSeries(snapshot) {
+        const activeGroups = pulseActiveGroups(snapshot);
+        if (activeGroups.length <= 1) return true;
+        return state.pulse.timelineMode === "combined";
+      }
+
+      function pulseSelectionColor(snapshot) {
+        const activeGroups = pulseActiveGroups(snapshot);
+        if (activeGroups.length === 1) return pulseColor(activeGroups[0]);
+        return "#f4cf6a";
+      }
+
+      function renderPulseModeButtons(snapshot) {
+        const canCompare = pulseActiveGroups(snapshot).length > 1;
+        const effectiveMode = canCompare ? state.pulse.timelineMode : "combined";
+        document.querySelectorAll("[data-pulse-mode]").forEach((btn) => {
+          const mode = btn.getAttribute("data-pulse-mode");
+          const active = effectiveMode === mode;
+          const enabled = mode === "combined" || canCompare;
+          btn.classList.toggle("active", active);
+          btn.disabled = !enabled;
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+          btn.style.opacity = enabled ? "1" : "0.45";
+        });
+      }
+
+      function pulseScaleDomain(values, opts = {}) {
+        const valid = values.filter((value) => Number.isFinite(value));
+        if (!valid.length) return { min: 0, max: 1 };
+        const rawMin = Math.min(...valid);
+        const rawMax = Math.max(...valid);
+        if (opts.zeroFloor) return { min: 0, max: Math.max(rawMax, opts.minSpan || 1) };
+        if (rawMin === rawMax) {
+          const pad = Math.max(Math.abs(rawMax) * 0.1, opts.minSpan || 1);
+          return { min: rawMin - pad, max: rawMax + pad };
+        }
+        const pad = (rawMax - rawMin) * (opts.padRatio || 0.12);
+        return { min: rawMin - pad, max: rawMax + pad };
+      }
+
+      function pulseColor(groupName) {
+        return PULSE_GROUP_COLORS[groupName] || "#9ec0e8";
+      }
+
+      function pulseFormatAxis(metricKey, value) {
+        if (!Number.isFinite(value)) return "";
+        if (metricKey === "hotShare" || metricKey === "ultraHotShare") return `${Math.round(value * 100)}%`;
+        if (metricKey === "medianDom") return `${Math.round(value)}d`;
+        if (metricKey === "medianSaleToList") return `${value.toFixed(2)}x`;
+        if (metricKey === "medianBidUp" || metricKey === "medianClosePrice") return formatMoneyCompact(value, 1);
+        return formatWholeNumber(value);
+      }
+
+      function pulseMetricField(metricKey) {
+        return metricKey;
+      }
+
+      function pulseSeriesPoints(series, metricKey) {
+        return series.map((point) => ({
+          month: point.month,
+          salesCount: point.salesCount || 0,
+          value: Number.isFinite(point[pulseMetricField(metricKey)]) ? point[pulseMetricField(metricKey)] : null,
+        }));
+      }
+
+      function pulseLinePath(points) {
+        const valid = points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+        if (!valid.length) return "";
+        return valid.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+      }
+
+      function pulseChartSvg(metricKey, snapshot) {
+        const activeGroups = pulseActiveGroups(snapshot);
+        if (!activeGroups.length) {
+          return `<div class="pulse-empty">No Pulse rows remain for this watchlist selection after the current global filters.</div>`;
+        }
+
+        const useCombined = pulseUsesCombinedSeries(snapshot);
+        const monthKeys = pulseMonthKeys(snapshot.nowValue);
+        const latestMonth = monthKeys[monthKeys.length - 1] || "";
+        const width = 720;
+        const height = 248;
+        const margin = { top: 16, right: 18, bottom: 36, left: 48 };
+        const plotWidth = width - margin.left - margin.right;
+        const plotHeight = height - margin.top - margin.bottom;
+        const seriesByGroup = useCombined
+          ? [{
+              group: pulseSelectionLabel(state.pulse.selectedGroup),
+              color: pulseSelectionColor(snapshot),
+              series: pulseSeriesPoints(snapshot.selectedMonthlySeries || [], metricKey),
+            }]
+          : activeGroups.map((group) => ({
+              group,
+              color: pulseColor(group),
+              series: pulseSeriesPoints(snapshot.monthlyByGroup[group] || [], metricKey),
+            }));
+        const values = seriesByGroup.flatMap((entry) => entry.series.map((point) => point.value)).filter((value) => Number.isFinite(value));
+        const domain = pulseScaleDomain(values, {
+          zeroFloor: metricKey === "hotShare" || metricKey === "ultraHotShare" || metricKey === "medianDom",
+          minSpan: metricKey === "medianSaleToList" ? 0.02 : 1,
+        });
+        const xStep = monthKeys.length > 1 ? plotWidth / (monthKeys.length - 1) : 0;
+        const yScale = (value) => {
+          if (!Number.isFinite(value)) return null;
+          if (domain.max === domain.min) return margin.top + plotHeight / 2;
+          const ratio = (value - domain.min) / (domain.max - domain.min);
+          return margin.top + plotHeight - (ratio * plotHeight);
+        };
+        const xScale = (month) => margin.left + (monthKeys.indexOf(month) * xStep);
+        const ticks = 4;
+        const tickLines = Array.from({ length: ticks + 1 }, (_, idx) => {
+          const ratio = idx / ticks;
+          const value = domain.min + ((domain.max - domain.min) * ratio);
+          const y = margin.top + plotHeight - (ratio * plotHeight);
+          return `
+            <line class="pulse-grid-line" x1="${margin.left}" y1="${y.toFixed(2)}" x2="${(margin.left + plotWidth).toFixed(2)}" y2="${y.toFixed(2)}"></line>
+            <text class="pulse-axis-tick" x="${margin.left - 8}" y="${(y + 4).toFixed(2)}" text-anchor="end">${esc(pulseFormatAxis(metricKey, value))}</text>
+          `;
+        }).join("");
+
+        const xLabels = monthKeys.map((month) => {
+          const x = xScale(month);
+          return `<text class="pulse-axis-tick" x="${x.toFixed(2)}" y="${height - 10}" text-anchor="middle">${esc(monthLabelCompact(month))}</text>`;
+        }).join("");
+
+        const lines = seriesByGroup.map((entry) => {
+          const chartPoints = entry.series.map((point) => ({
+            ...point,
+            x: xScale(point.month),
+            y: yScale(point.value),
+          })).filter((point) => Number.isFinite(point.y));
+          const path = pulseLinePath(chartPoints);
+          const latestPoint = chartPoints[chartPoints.length - 1];
+          const pointNodes = chartPoints.map((point) => {
+            const activeMonth = state.interactions.month === point.month;
+            const currentMonth = point.month === latestMonth;
+            const classes = ["pulse-point"];
+            if (activeMonth) classes.push("month-active");
+            if (currentMonth) classes.push("current-month");
+            return `
+              <circle
+                class="${classes.join(" ")}"
+                cx="${point.x.toFixed(2)}"
+                cy="${point.y.toFixed(2)}"
+                r="${currentMonth ? 5.5 : 4.25}"
+                fill="${entry.color}"
+                data-set-interaction="month"
+                data-set-value="${esc(point.month)}"
+              >
+                <title>${entry.group} | ${monthLabel(point.month)} | ${pulseMetricConfig(metricKey).label}: ${pulseFormatAxis(metricKey, point.value)} | ${point.salesCount} sales</title>
+              </circle>
+            `;
+          }).join("");
+          const rollingLine = seriesByGroup.length === 1
+            ? (() => {
+                const rollingValues = typeof PulseLib.rollingAverage === "function"
+                  ? PulseLib.rollingAverage(entry.series.map((point) => point.value), 3)
+                  : [];
+                const rollingPoints = entry.series.map((point, idx) => ({
+                  month: point.month,
+                  value: rollingValues[idx],
+                  x: xScale(point.month),
+                  y: yScale(rollingValues[idx]),
+                })).filter((point) => Number.isFinite(point.y));
+                const rollingPath = pulseLinePath(rollingPoints);
+                return rollingPath ? `<path class="pulse-line rolling" d="${rollingPath}" stroke="${entry.color}"></path>` : "";
+              })()
+            : "";
+          const latestLabel = latestPoint
+            ? `<text class="pulse-series-label" x="${Math.min(latestPoint.x + 8, width - 40).toFixed(2)}" y="${Math.max(latestPoint.y - 8, 14).toFixed(2)}" fill="${entry.color}">${esc(entry.group)}</text>`
+            : "";
+          return `${rollingLine}<path class="pulse-line" d="${path}" stroke="${entry.color}"></path>${pointNodes}${latestLabel}`;
+        }).join("");
+
+        const legend = !useCombined && activeGroups.length > 1
+          ? `<div class="pulse-legend">${activeGroups.map((group) => `<span class="pulse-legend-item"><span class="pulse-swatch" style="background:${pulseColor(group)}"></span>${esc(group)}</span>`).join("")}</div>`
+          : (useCombined
+            ? `<div class="pulse-legend"><span class="pulse-legend-item"><span class="pulse-swatch" style="background:${pulseSelectionColor(snapshot)}"></span>${esc(pulseSelectionLabel(state.pulse.selectedGroup))}</span></div>`
+            : "");
+
+        return `
+          ${legend}
+          <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(pulseMetricConfig(metricKey).label)} trend">
+            ${tickLines}
+            <line class="pulse-grid-line" x1="${margin.left}" y1="${(margin.top + plotHeight).toFixed(2)}" x2="${(margin.left + plotWidth).toFixed(2)}" y2="${(margin.top + plotHeight).toFixed(2)}"></line>
+            ${lines}
+            ${xLabels}
+          </svg>
+        `;
+      }
+
+      function pulseTrajectorySvg(groupName, series, isLarge = false) {
+        const points = series
+          .filter((point) => point.salesCount > 0 && Number.isFinite(point.medianDom) && Number.isFinite(point.medianSaleToList))
+          .map((point, idx) => ({ ...point, idx }));
+        if (!points.length) {
+          return `<div class="pulse-empty">No valid monthly DOM and sale-to-list points for this watchlist slice.</div>`;
+        }
+
+        const width = isLarge ? 940 : 440;
+        const height = isLarge ? 320 : 260;
+        const margin = { top: 18, right: 22, bottom: 36, left: 48 };
+        const plotWidth = width - margin.left - margin.right;
+        const plotHeight = height - margin.top - margin.bottom;
+        const domDomain = pulseScaleDomain(points.map((point) => point.medianDom), { zeroFloor: true, minSpan: 4 });
+        const ratioDomain = pulseScaleDomain(points.map((point) => point.medianSaleToList), { minSpan: 0.02 });
+        const maxSales = Math.max(...points.map((point) => point.salesCount), 1);
+        const xScale = (value) => margin.left + (((value - domDomain.min) / Math.max(domDomain.max - domDomain.min, 0.0001)) * plotWidth);
+        const yScale = (value) => margin.top + plotHeight - (((value - ratioDomain.min) / Math.max(ratioDomain.max - ratioDomain.min, 0.0001)) * plotHeight);
+        const trail = points.map((point) => ({
+          ...point,
+          x: xScale(point.medianDom),
+          y: yScale(point.medianSaleToList),
+          radius: 4 + ((point.salesCount / maxSales) * 10),
+        }));
+        const path = pulseLinePath(trail);
+        const dots = trail.map((point, idx) => {
+          const hue = 210 - Math.round((idx / Math.max(trail.length - 1, 1)) * 170);
+          const fill = `hsl(${hue} 82% 58%)`;
+          const activeMonth = state.interactions.month === point.month;
+          const latest = idx === trail.length - 1;
+          const classes = ["pulse-point"];
+          if (activeMonth) classes.push("month-active");
+          if (latest) classes.push("current-month");
+          return `
+            <circle
+              class="${classes.join(" ")}"
+              cx="${point.x.toFixed(2)}"
+              cy="${point.y.toFixed(2)}"
+              r="${point.radius.toFixed(2)}"
+              fill="${fill}"
+              fill-opacity="${latest ? "0.92" : "0.78"}"
+              stroke="${latest ? pulseColor(groupName) : "#0f1f33"}"
+              stroke-width="${latest ? "2.6" : "1.4"}"
+              data-set-interaction="month"
+              data-set-value="${esc(point.month)}"
+            >
+              <title>${groupName} | ${monthLabel(point.month)} | DOM ${Math.round(point.medianDom)}d | ${point.medianSaleToList.toFixed(2)}x sale/list | ${point.salesCount} sales</title>
+            </circle>
+          `;
+        }).join("");
+        const latestPoint = trail[trail.length - 1];
+        const grid = [0, 0.5, 1].map((ratio) => {
+          const x = margin.left + (plotWidth * ratio);
+          const y = margin.top + (plotHeight * ratio);
+          const domValue = domDomain.min + ((domDomain.max - domDomain.min) * ratio);
+          const ratioValue = ratioDomain.max - ((ratioDomain.max - ratioDomain.min) * ratio);
+          return `
+            <line class="pulse-grid-line" x1="${x.toFixed(2)}" y1="${margin.top}" x2="${x.toFixed(2)}" y2="${(margin.top + plotHeight).toFixed(2)}"></line>
+            <line class="pulse-grid-line" x1="${margin.left}" y1="${y.toFixed(2)}" x2="${(margin.left + plotWidth).toFixed(2)}" y2="${y.toFixed(2)}"></line>
+            <text class="pulse-axis-tick" x="${x.toFixed(2)}" y="${height - 10}" text-anchor="middle">${esc(`${Math.round(domValue)}d`)}</text>
+            <text class="pulse-axis-tick" x="${margin.left - 8}" y="${(y + 4).toFixed(2)}" text-anchor="end">${esc(`${ratioValue.toFixed(2)}x`)}</text>
+          `;
+        }).join("");
+        const latestLabel = latestPoint
+          ? `<text class="pulse-series-label" x="${Math.min(latestPoint.x + latestPoint.radius + 8, width - 90).toFixed(2)}" y="${Math.max(latestPoint.y - latestPoint.radius, 18).toFixed(2)}" fill="${pulseColor(groupName)}">${esc(`${groupName} latest`)}</text>`
+          : "";
+        return `
+          <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(groupName)} market trajectory">
+            ${grid}
+            <line class="pulse-grid-line" x1="${margin.left}" y1="${(margin.top + plotHeight).toFixed(2)}" x2="${(margin.left + plotWidth).toFixed(2)}" y2="${(margin.top + plotHeight).toFixed(2)}"></line>
+            <path class="pulse-line" d="${path}" stroke="${pulseColor(groupName)}" opacity="0.82"></path>
+            ${dots}
+            ${latestLabel}
+            <text class="pulse-axis-label" x="${(margin.left + plotWidth / 2).toFixed(2)}" y="${height - 2}" text-anchor="middle">Market DOM (hotter market to the left)</text>
+            <text class="pulse-axis-label" x="14" y="${(margin.top + plotHeight / 2).toFixed(2)}" text-anchor="middle" transform="rotate(-90 14 ${(margin.top + plotHeight / 2).toFixed(2)})">Median Sale/List</text>
+          </svg>
+        `;
+      }
+
+      function pulseTrailingMedian(series, metricKey) {
+        const values = series
+          .map((point) => point[metricKey])
+          .filter((value) => Number.isFinite(value));
+        return values.length ? median(values) : null;
+      }
+
+      function renderPulseReadout(snapshot) {
+        const el = document.getElementById("pulseReadout");
+        if (!el) return;
+        if (!snapshot.selectedRows.length) {
+          el.innerHTML = "";
+          return;
+        }
+
+        const bullets = [];
+        if (state.pulse.selectedGroup === PULSE_PRIMARY_GROUP_ID) {
+          const perGroup = snapshot.selectedGroups
+            .filter((group) => snapshot.availableGroups.includes(group))
+            .map((group) => ({
+              group,
+              recent90: typeof PulseLib.computeWindowSummary === "function"
+                ? PulseLib.computeWindowSummary(
+                  snapshot.eligibleRows
+                    .filter((row) => row.pulseWatchlistGroup === group)
+                    .map(pulseRowSummary),
+                  snapshot.nowValue,
+                  90
+                )
+                : null,
+              monthSeries: snapshot.monthlyByGroup[group] || [],
+            }));
+
+          const hotMover = perGroup
+            .filter((entry) => entry.recent90 && Number.isFinite(entry.recent90.current.hotShare) && Number.isFinite(entry.recent90.previous.hotShare))
+            .sort((a, b) => (PulseLib.competitiveDelta("hotShare", b.recent90.current.hotShare, b.recent90.previous.hotShare) || 0)
+              - (PulseLib.competitiveDelta("hotShare", a.recent90.current.hotShare, a.recent90.previous.hotShare) || 0))[0];
+          if (hotMover) {
+            const delta = PulseLib.competitiveDelta("hotShare", hotMover.recent90.current.hotShare, hotMover.recent90.previous.hotShare);
+            bullets.push(`${hotMover.group} moved the most on hot-share in the last 90 days: ${formatPct(hotMover.recent90.previous.hotShare)} to ${formatPct(hotMover.recent90.current.hotShare)} (${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} pts).`);
+          }
+
+          const fastest = perGroup
+            .filter((entry) => entry.recent90 && Number.isFinite(entry.recent90.current.medianDom))
+            .sort((a, b) => a.recent90.current.medianDom - b.recent90.current.medianDom)[0];
+          if (fastest) {
+            bullets.push(`${fastest.group} is the fastest right now, with a recent 90-day median DOM of ${Math.round(fastest.recent90.current.medianDom)} days.`);
+          }
+
+          const bidLeader = perGroup
+            .filter((entry) => entry.recent90 && Number.isFinite(entry.recent90.current.medianBidUp))
+            .sort((a, b) => b.recent90.current.medianBidUp - a.recent90.current.medianBidUp)[0];
+          if (bidLeader) {
+            bullets.push(`${bidLeader.group} is showing the strongest recent bid-up pressure at a median ${formatMoney(bidLeader.recent90.current.medianBidUp)} over ask.`);
+          }
+
+          const latestSaleToList = perGroup
+            .map((entry) => {
+              const latest = (entry.monthSeries || []).filter((point) => point.salesCount > 0).slice(-1)[0];
+              const trailing = pulseTrailingMedian(entry.monthSeries || [], "medianSaleToList");
+              return {
+                group: entry.group,
+                latestValue: latest ? latest.medianSaleToList : null,
+                trailing,
+              };
+            })
+            .filter((entry) => Number.isFinite(entry.latestValue) && Number.isFinite(entry.trailing))
+            .sort((a, b) => Math.abs((b.latestValue - b.trailing)) - Math.abs(a.latestValue - a.trailing))[0];
+          if (latestSaleToList) {
+            const direction = latestSaleToList.latestValue >= latestSaleToList.trailing ? "above" : "below";
+            bullets.push(`${latestSaleToList.group} is ${direction} its trailing 12-month sale-to-list baseline: ${latestSaleToList.latestValue.toFixed(2)}x vs ${latestSaleToList.trailing.toFixed(2)}x.`);
+          }
+        } else {
+          const latestGroup = snapshot.selectedGroups[0];
+          const recent30 = snapshot.recentComparisons.find((entry) => entry.windowDays === 30);
+          const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
+          const series = snapshot.monthlyByGroup[latestGroup] || [];
+          const currentMonth = series.filter((point) => point.salesCount > 0).slice(-1)[0] || null;
+          const trailingSaleToList = pulseTrailingMedian(series, "medianSaleToList");
+
+          if (recent30 && Number.isFinite(recent30.current.hotShare) && Number.isFinite(recent30.previous.hotShare)) {
+            const delta = PulseLib.competitiveDelta("hotShare", recent30.current.hotShare, recent30.previous.hotShare);
+            bullets.push(`${latestGroup} hot-share over the last 30 days is ${formatPct(recent30.current.hotShare)}, versus ${formatPct(recent30.previous.hotShare)} in the prior 30 days (${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} pts).`);
+          }
+          if (recent90 && Number.isFinite(recent90.current.medianDom) && Number.isFinite(recent90.previous.medianDom)) {
+            const delta = recent90.current.medianDom - recent90.previous.medianDom;
+            const direction = delta <= 0 ? "faster" : "slower";
+            bullets.push(`${latestGroup} is moving ${direction} on a 90-day basis: median DOM is ${Math.round(recent90.current.medianDom)} days versus ${Math.round(recent90.previous.medianDom)} days in the prior window.`);
+          }
+          if (recent90 && Number.isFinite(recent90.current.medianBidUp) && Number.isFinite(recent90.previous.medianBidUp)) {
+            const delta = recent90.current.medianBidUp - recent90.previous.medianBidUp;
+            bullets.push(`Median bid-up is ${formatMoney(recent90.current.medianBidUp)} in the last 90 days, ${delta >= 0 ? "up" : "down"} ${formatMoney(Math.abs(delta))} from the prior 90-day period.`);
+          }
+          if (currentMonth && Number.isFinite(currentMonth.medianSaleToList) && Number.isFinite(trailingSaleToList)) {
+            const direction = currentMonth.medianSaleToList >= trailingSaleToList ? "above" : "below";
+            bullets.push(`The latest month is ${direction} the trailing 12-month sale-to-list baseline: ${currentMonth.medianSaleToList.toFixed(2)}x versus ${trailingSaleToList.toFixed(2)}x.`);
+          }
+        }
+
+        el.innerHTML = bullets.slice(0, 4).map((bullet) => `<li>${esc(bullet)}</li>`).join("");
+      }
+
+      function renderPulse(snapshot) {
+        const statusEl = document.getElementById("pulseStatus");
+        const recentGridEl = document.getElementById("pulseRecentGrid");
+        const trajectoryEl = document.getElementById("pulseTrajectory");
+        if (!statusEl || !recentGridEl || !trajectoryEl) return;
+        const chartIds = [
+          "pulseChartHotShare",
+          "pulseChartMedianDom",
+          "pulseChartSaleToList",
+          "pulseChartBidUp",
+          "pulseChartClosePrice",
+        ];
+        const setEmptyCharts = (message) => {
+          chartIds.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = `<div class="pulse-empty">${esc(message)}</div>`;
+          });
+        };
+
+        renderPulseGroupPills(snapshot);
+        renderPulseModeButtons(snapshot);
+        if (!snapshot.eligibleRows.length) {
+          statusEl.textContent = "No watchlist Pulse rows remain after the current global filters. Pulse uses MLS-enriched sold rows only and ignores the global date filters.";
+          recentGridEl.innerHTML = `<div class="pulse-empty">Try widening the neighborhood, type, or price filters. Pulse only includes your mapped watchlist groups and MLS-enriched sold rows.</div>`;
+          setEmptyCharts("No trend data for the current Pulse slice.");
+          trajectoryEl.innerHTML = `<div class="pulse-empty">No trajectory data for the current Pulse slice.</div>`;
+          renderPulseReadout(snapshot);
+          return;
+        }
+
+        const activeGroups = pulseActiveGroups(snapshot);
+        if (!activeGroups.length) {
+          statusEl.textContent = `${pulseSelectionLabel(state.pulse.selectedGroup)} has no rows after the current global filters. Pulse keeps this pill local, so you can switch groups without rewriting the global neighborhood filter.`;
+          recentGridEl.innerHTML = `<div class="pulse-empty">The selected Pulse group is fully filtered out right now. Try another Pulse pill or widen the global neighborhood, type, or price filters.</div>`;
+          setEmptyCharts("No trend data for the selected Pulse group.");
+          trajectoryEl.innerHTML = `<div class="pulse-empty">No trajectory data for the selected Pulse group.</div>`;
+          renderPulseReadout(snapshot);
+          return;
+        }
+        const modeLabel = pulseUsesCombinedSeries(snapshot) ? "Combined selection" : "Compare neighborhoods";
+        statusEl.textContent = `${pulseSelectionLabel(state.pulse.selectedGroup)} | ${activeGroups.join(", ") || "No watchlist groups"} | ${modeLabel} | ${snapshot.selectedRows.length} MLS-enriched sold rows in the current Pulse slice. Global date filters are intentionally ignored here.`;
+
+        recentGridEl.innerHTML = snapshot.recentComparisons.map((entry) => {
+          const current = entry.current;
+          return `
+            <article class="pulse-window-card">
+              <div class="pulse-window-head">
+                <div>
+                  <div class="pulse-window-title">Last ${entry.windowDays} Days</div>
+                  <div class="pulse-window-subtitle">Compared with the prior ${entry.windowDays} days</div>
+                </div>
+                <span class="chip">${current.salesCount || 0} sold</span>
+              </div>
+              <div class="pulse-metric-grid">
+                ${[
+                  "salesCount",
+                  "hotShare",
+                  "ultraHotShare",
+                  "medianDom",
+                  "medianSaleToList",
+                  "medianBidUp",
+                  "medianClosePrice",
+                ].map((metricKey) => {
+                  const config = pulseMetricConfig(metricKey);
+                  return `
+                    <article class="pulse-metric">
+                      <div class="pulse-metric-label">${esc(config.label)}</div>
+                      <div class="pulse-metric-value">${esc(config.formatValue(current[metricKey]))}</div>
+                      <div class="pulse-metric-foot">
+                        ${pulseDeltaChip(metricKey, current[metricKey], entry.previous[metricKey])}
+                        <span class="pulse-metric-sample">${esc(config.sampleLabel(current))}</span>
+                      </div>
+                    </article>
+                  `;
+                }).join("")}
+              </div>
+            </article>
+          `;
+        }).join("");
+
+        document.getElementById("pulseChartHotShare").innerHTML = pulseChartSvg("hotShare", snapshot);
+        document.getElementById("pulseChartMedianDom").innerHTML = pulseChartSvg("medianDom", snapshot);
+        document.getElementById("pulseChartSaleToList").innerHTML = pulseChartSvg("medianSaleToList", snapshot);
+        document.getElementById("pulseChartBidUp").innerHTML = pulseChartSvg("medianBidUp", snapshot);
+        document.getElementById("pulseChartClosePrice").innerHTML = pulseChartSvg("medianClosePrice", snapshot);
+
+        if (pulseUsesCombinedSeries(snapshot)) {
+          const title = activeGroups.length === 1 ? activeGroups[0] : pulseSelectionLabel(state.pulse.selectedGroup);
+          const series = activeGroups.length === 1
+            ? (snapshot.monthlyByGroup[activeGroups[0]] || [])
+            : (snapshot.selectedMonthlySeries || []);
+          trajectoryEl.innerHTML = `
+            <article class="pulse-trajectory-card large">
+              <div class="pulse-trajectory-title">
+                <strong>${esc(title)}</strong>
+                <span class="pulse-trajectory-meta">12-month monthly path</span>
+              </div>
+              ${pulseTrajectorySvg(title, series, true)}
+            </article>
+          `;
+        } else {
+          trajectoryEl.innerHTML = activeGroups.map((group) => {
+            const series = snapshot.monthlyByGroup[group] || [];
+            return `
+              <article class="pulse-trajectory-card">
+                <div class="pulse-trajectory-title">
+                  <strong>${esc(group)}</strong>
+                  <span class="pulse-trajectory-meta">12-month monthly path</span>
+                </div>
+                ${pulseTrajectorySvg(group, series, false)}
+              </article>
+            `;
+          }).join("");
+        }
+
+        renderPulseReadout(snapshot);
       }
 
       function applyBidViewInteractions(rows) {
@@ -4547,6 +5975,158 @@
 
         lines.push("Color scales cap outlier influence at robust percentile bounds (5th-95th).\n");
         el.innerHTML = lines.map((line) => `<li>${esc(line)}</li>`).join("");
+      }
+
+      function renderBuyerProfileViews(normalizedRows, slices, filterState) {
+        const statusEl = document.getElementById("buyerProfileStatus");
+        const memoryEl = document.getElementById("buyerProfileMemory");
+        const toggleEl = document.getElementById("buyerProfileToggle");
+        const nameEl = document.getElementById("buyerProfileName");
+        const summaryEl = document.getElementById("buyerProfileSummary");
+        const traitsEl = document.getElementById("buyerProfileTraits");
+        const insightsEl = document.getElementById("buyerProfileInsights");
+        const introEl = document.getElementById("micromarketIntro");
+        const cardsEl = document.getElementById("micromarketProfiles");
+        if (!statusEl || !memoryEl || !toggleEl || !nameEl || !summaryEl || !traitsEl || !insightsEl || !introEl || !cardsEl) return;
+
+        const profileState = state.buyerProfile || {
+          memory: normalizeBuyerProfileMemory(DEFAULT_BUYER_PROFILE_MEMORY),
+          enabled: true,
+          source: "embedded",
+          ready: false,
+        };
+        const profile = normalizeBuyerProfileMemory(profileState.memory || DEFAULT_BUYER_PROFILE_MEMORY);
+        profileState.memory = profile;
+        state.buyerProfile = profileState;
+        const cohort = typeof BuyerProfileLib.buildProfileCohort === "function"
+          ? BuyerProfileLib.buildProfileCohort(slices.closedSlice, profile)
+          : { rows: [], summary: {} };
+        const cohortRows = Array.isArray(cohort.rows) ? cohort.rows : [];
+        const cohortSummary = cohort.summary || {};
+
+        toggleEl.classList.toggle("active", !!profileState.enabled);
+        toggleEl.setAttribute("aria-pressed", profileState.enabled ? "true" : "false");
+        toggleEl.textContent = profileState.enabled ? "Saved-Home Lens On" : "Saved-Home Lens Off";
+        nameEl.textContent = profile.name || "Saved Buyer Profile";
+        summaryEl.textContent = profile.summary || "Saved-home profile loaded from durable memory.";
+        if (!profileState.ready) {
+          statusEl.textContent = "Loading saved-home profile from durable memory...";
+        } else if (profileState.source === "durable") {
+          statusEl.textContent = `Loaded from durable memory (${BUYER_PROFILE_FILE}) using ${profile.homesCount || 0} liked homes from ${profile.sourceLabel || "saved favorites"}.`;
+        } else {
+          statusEl.textContent = `Durable memory file unavailable, so the app is using the embedded fallback profile based on ${profile.homesCount || 0} liked homes.`;
+        }
+        const sourceLabel = profileState.source === "durable" ? "Durable Memory" : "Embedded Fallback";
+        memoryEl.textContent = `${sourceLabel} | ${profile.homesCount || 0} homes | Saved ${profile.savedAt ? formatDateShort(profile.savedAt) : "recently"}`;
+        traitsEl.innerHTML = (profile.traits || []).slice(0, 8)
+          .map((trait) => `<span class="chip">${esc(trait)}</span>`)
+          .join("");
+
+        if (!profileState.enabled) {
+          document.getElementById("buyerProfileMatchCount").textContent = "Off";
+          document.getElementById("buyerProfileMedianClose").textContent = "n/a";
+          document.getElementById("buyerProfileHotShare").textContent = "n/a";
+          document.getElementById("buyerProfileMedianDom").textContent = "n/a";
+          document.getElementById("buyerProfileMedianBidUp").textContent = "n/a";
+          document.getElementById("buyerProfileTopMicromarket").textContent = "n/a";
+          insightsEl.innerHTML = `<li>The saved-home lens is currently off. Turn it on to see similar-home cohort stats and profile-aware micromarket commentary.</li>`;
+          introEl.textContent = "A micromarket is a smaller pocket of homes that behaves differently from the city overall because the inventory, buyer pool, and competition tempo are unusually consistent there.";
+          cardsEl.innerHTML = `<div class="profile-empty">Saved-home lens is off. Turn it on to compare watchlist micromarkets against the profile stored in durable memory.</div>`;
+          return;
+        }
+
+        document.getElementById("buyerProfileMatchCount").textContent = formatWholeNumber(cohortSummary.count || 0);
+        document.getElementById("buyerProfileMedianClose").textContent = cohortSummary.medianClosePrice
+          ? formatMoney(cohortSummary.medianClosePrice)
+          : "n/a";
+        document.getElementById("buyerProfileHotShare").textContent = Number.isFinite(cohortSummary.hotShare)
+          ? formatPct(cohortSummary.hotShare)
+          : "n/a";
+        document.getElementById("buyerProfileMedianDom").textContent = Number.isFinite(cohortSummary.medianDom)
+          ? `${Math.round(cohortSummary.medianDom)}d`
+          : "n/a";
+        document.getElementById("buyerProfileMedianBidUp").textContent = Number.isFinite(cohortSummary.medianBidUp)
+          ? formatMoney(cohortSummary.medianBidUp)
+          : "n/a";
+        document.getElementById("buyerProfileTopMicromarket").textContent = cohortSummary.topMicromarket || "n/a";
+
+        if (!cohortRows.length) {
+          insightsEl.innerHTML = `<li>No current closed rows match the saved-home profile after the active filters and cross-filters. Clear constraints or widen the slice to see the cohort again.</li>`;
+        } else {
+          const locations = {};
+          cohortRows.forEach((row) => {
+            const key = row.pulseWatchlistGroup || row.neighborhoodLabel || "Seattle";
+            locations[key] = (locations[key] || 0) + 1;
+          });
+          const topLocation = Object.entries(locations).sort((a, b) => b[1] - a[1])[0];
+          const lines = [
+            `${formatWholeNumber(cohortRows.length)} homes in the current closed slice look materially similar to your saved-home profile.`,
+            cohortSummary.medianClosePrice
+              ? `The profile-match cohort is centering around ${formatMoney(cohortSummary.medianClosePrice)} closes, with ${Number.isFinite(cohortSummary.medianBidUp) ? `${formatMoney(cohortSummary.medianBidUp)} median bid-up` : "limited bid-up signal"} when MLS data is present.`
+              : "Price medians are still sparse for the current profile-match cohort.",
+            Number.isFinite(cohortSummary.hotShare) && Number.isFinite(cohortSummary.medianDom)
+              ? `${formatPct(cohortSummary.hotShare)} of matching MLS sales were hot-market deals, and median DOM is ${Math.round(cohortSummary.medianDom)} days.`
+              : "Recent MLS timing is still thin for the current profile-match cohort.",
+            topLocation
+              ? `The densest pocket for your profile in the current slice is ${topLocation[0]} (${topLocation[1]} matches).`
+              : "No single micromarket is dominating the profile-match cohort right now.",
+          ];
+          insightsEl.innerHTML = lines.map((line) => `<li>${esc(line)}</li>`).join("");
+        }
+
+        introEl.textContent = "A micromarket is a smaller pocket of homes that behaves differently from the city overall because the inventory, buyer pool, and competition tempo are unusually consistent there. These cards use recent 90-day MLS-enriched sold rows and ignore the global date filter, but they still honor your current price, type, neighborhood, special-sale, and pre-sold settings.";
+
+        const micromarketRows = pulseFilterRows(normalizedRows, filterState);
+        const microProfiles = typeof BuyerProfileLib.buildMicromarketProfiles === "function"
+          ? BuyerProfileLib.buildMicromarketProfiles(micromarketRows, profile, new Date())
+          : [];
+
+        if (!micromarketRows.length || !microProfiles.length) {
+          cardsEl.innerHTML = `<div class="profile-empty">No watchlist micromarket rows remain after the current global filters. Try widening the neighborhood, property type, or price band.</div>`;
+          return;
+        }
+
+        cardsEl.innerHTML = microProfiles.map((card) => {
+          const summary = card.summary || {};
+          return `
+            <article class="micromarket-card">
+              <div class="micromarket-top">
+                <div>
+                  <div class="micromarket-title">${esc(card.group)}</div>
+                  <div class="micromarket-meta">${esc(card.priceBandLabel || "Price signal unavailable")} | ${esc(card.fitLabel || "Fit signal unavailable")}</div>
+                </div>
+                <span class="micromarket-fit">${esc(card.fitLabel || "Fit n/a")}</span>
+              </div>
+              <div class="note compact">${esc(card.descriptor || "No descriptor available.")}</div>
+              <div class="micromarket-stats">
+                <div class="micromarket-stat">
+                  <div class="k">Recent 90d Sales</div>
+                  <div class="v">${formatWholeNumber(summary.salesCount || 0)}</div>
+                </div>
+                <div class="micromarket-stat">
+                  <div class="k">Hot Share</div>
+                  <div class="v">${Number.isFinite(summary.hotShare) ? formatPct(summary.hotShare) : "n/a"}</div>
+                </div>
+                <div class="micromarket-stat">
+                  <div class="k">Median DOM</div>
+                  <div class="v">${Number.isFinite(summary.medianDom) ? `${Math.round(summary.medianDom)}d` : "n/a"}</div>
+                </div>
+                <div class="micromarket-stat">
+                  <div class="k">Median Sale/List</div>
+                  <div class="v">${Number.isFinite(summary.medianSaleToList) ? `${summary.medianSaleToList.toFixed(2)}x` : "n/a"}</div>
+                </div>
+                <div class="micromarket-stat">
+                  <div class="k">Median Bid-Up</div>
+                  <div class="v">${Number.isFinite(summary.medianBidUp) ? formatMoney(summary.medianBidUp) : "n/a"}</div>
+                </div>
+                <div class="micromarket-stat">
+                  <div class="k">Median Close</div>
+                  <div class="v">${Number.isFinite(summary.medianClosePrice) ? formatMoney(summary.medianClosePrice) : "n/a"}</div>
+                </div>
+              </div>
+            </article>
+          `;
+        }).join("");
       }
 
       function renderColumnChart(containerId, items, valueFn, labelFn, axisLabelFn, warm, pointLabelFn) {
@@ -5808,6 +7388,8 @@
         renderRecordDensityUI();
         renderKpis(slices.closedSlice, slices.stats);
         renderInsights(slices.closedSlice);
+        renderBuyerProfileViews(normalizedAll, slices, filterState);
+        renderPulse(buildPulseSnapshot(normalizedAll, filterState));
         renderCharts(slices.closedSlice);
         renderHotMarket(slices.closedSlice);
         renderGeo(viewRows, { emptyMessage: slices.emptyMessage, filterState });
@@ -6287,6 +7869,31 @@
             return;
           }
 
+          const buyerProfileToggle = evt.target.closest("[data-buyer-profile-toggle]");
+          if (buyerProfileToggle) {
+            setBuyerProfileToggle(!state.buyerProfile.enabled);
+            renderAll();
+            return;
+          }
+
+          const pulseGroupBtn = evt.target.closest("[data-pulse-group]");
+          if (pulseGroupBtn) {
+            const nextGroup = pulseGroupBtn.getAttribute("data-pulse-group");
+            if (!PULSE_GROUPS.some((group) => group.id === nextGroup)) return;
+            state.pulse.selectedGroup = nextGroup;
+            renderAll();
+            return;
+          }
+
+          const pulseModeBtn = evt.target.closest("[data-pulse-mode]");
+          if (pulseModeBtn) {
+            const nextMode = pulseModeBtn.getAttribute("data-pulse-mode");
+            if (nextMode !== "compare" && nextMode !== "combined") return;
+            state.pulse.timelineMode = nextMode;
+            renderAll();
+            return;
+          }
+
           const compactMoney = evt.target.closest("[data-money-compact]");
           if (compactMoney) {
             toggleMoneyCompact(compactMoney);
@@ -6521,9 +8128,11 @@
       function init() {
         initTheme();
         initRecordDensity();
+        initBuyerProfileState();
         renderDataSourcePanel();
         bindEvents();
         loadRefreshReport();
+        loadBuyerProfileMemory();
         autoLoadDefault();
       }
 

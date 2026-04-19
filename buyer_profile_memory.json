@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "id": "north-seattle-character-homes",
+  "name": "North Seattle Character Homes",
+  "sourceLabel": "My Favorite Homes _ Zillow.pdf",
+  "savedAt": "2026-04-19",
+  "homesCount": 12,
+  "sampleAddresses": [
+    "9500 Phinney Avenue N, Seattle, WA 98103",
+    "3244 NW 64th Street, Seattle, WA 98107",
+    "144 NW 79th Street, Seattle, WA 98117",
+    "4701 Woodland Park Ave N, Seattle, WA 98103",
+    "2616 Franklin Avenue E, Seattle, WA 98102",
+    "7544 31st Avenue NW, Seattle, WA 98117",
+    "5625 7th Avenue NW, Seattle, WA 98107",
+    "339 NW 77th Street, Seattle, WA 98117",
+    "6707 6th Avenue NW, Seattle, WA 98117",
+    "4146 2nd Avenue NW, Seattle, WA 98107",
+    "406 N Bowdoin Place, Seattle, WA 98103",
+    "2419 2nd Avenue W, Seattle, WA 98119"
+  ],
+  "watchlistGroups": [
+    "Ballard",
+    "Fremont / Green Lake / Woodland Park",
+    "Queen Anne",
+    "Magnolia"
+  ],
+  "flexNeighborhoodLabels": [
+    "Capitol Hill / Eastlake"
+  ],
+  "typeLabel": "Single Family",
+  "ranges": {
+    "beds": [3, 5],
+    "baths": [1.5, 3.5],
+    "sqft": [1450, 3000],
+    "yearBuilt": [1900, 1945],
+    "lotSize": [3000, 9000]
+  },
+  "traits": [
+    "Detached single-family",
+    "1900-1945 vintage",
+    "3-4 beds",
+    "1,450-3,000 sqft",
+    "Real yard / lot",
+    "Light, views, or outdoor upside",
+    "Parking or flexible lower level"
+  ],
+  "summary": "Classic north Seattle houses with character, real lots, and enough space for everyday living, guests, or work-from-home flexibility."
+}

@@ -28,12 +28,12 @@ function runNodeCheck(filePath) {
 function extractInlineScript() {
   const indexPath = path.join(PROJECT_DIR, "index.html");
   const html = fs.readFileSync(indexPath, "utf8");
-  const start = html.indexOf("<script>");
-  const end = html.lastIndexOf("</script>");
-  if (start < 0 || end < 0 || end <= start) {
+  const scriptMatches = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+  const inlineMatch = scriptMatches.reverse().find((match) => !/\bsrc\s*=/.test(match[1] || ""));
+  if (!inlineMatch) {
     fail("Could not locate inline <script> block in index.html");
   }
-  const js = html.slice(start + "<script>".length, end);
+  const js = inlineMatch[2];
   const tmpPath = path.join(os.tmpdir(), "seattle_buyer_lens_inline_check.js");
   fs.writeFileSync(tmpPath, js);
   return { html, tmpPath };
@@ -42,6 +42,7 @@ function extractInlineScript() {
 function checkUiContract(html) {
   const requiredPairs = [
     ["tab-overview", "view-overview"],
+    ["tab-pulse", "view-pulse"],
     ["tab-charts", "view-charts"],
     ["tab-heat", "view-heat"],
     ["tab-bids", "view-bids"],
@@ -72,6 +73,38 @@ function checkUiContract(html) {
   if (!html.includes("data-use-active-bid")) {
     fail("Missing active-listing quick-use action (data-use-active-bid)");
   }
+
+  [
+    "pulseGroupPills",
+    "pulseModeToggles",
+    "pulseRecentGrid",
+    "pulseChartHotShare",
+    "pulseTrajectory",
+  ].forEach((id) => {
+    if (!html.includes(`id="${id}"`)) {
+      fail(`Missing Pulse UI anchor: ${id}`);
+    }
+  });
+
+  [
+    "buyerProfileStatus",
+    "buyerProfileName",
+    "buyerProfileToggle",
+    "buyerProfileInsights",
+    "micromarketProfiles",
+  ].forEach((id) => {
+    if (!html.includes(`id="${id}"`)) {
+      fail(`Missing buyer profile UI anchor: ${id}`);
+    }
+  });
+
+  if (!html.includes("<script src=\"./buyer_profile.js\"></script>")) {
+    fail("Missing buyer_profile.js script include");
+  }
+
+  if (!html.includes("data-buyer-profile-toggle=\"1\"")) {
+    fail("Missing buyer profile toggle control");
+  }
 }
 
 function runSyntaxChecks() {
@@ -80,6 +113,8 @@ function runSyntaxChecks() {
     .readdirSync(scriptsDir)
     .filter((name) => name.endsWith(".js"))
     .map((name) => path.join(scriptsDir, name));
+  scriptFiles.push(path.join(PROJECT_DIR, "pulse_metrics.js"));
+  scriptFiles.push(path.join(PROJECT_DIR, "buyer_profile.js"));
 
   scriptFiles.forEach(runNodeCheck);
   const { html, tmpPath } = extractInlineScript();
