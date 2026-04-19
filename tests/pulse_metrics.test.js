@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  computeMicroNeighborhoodBreakout,
   computeRecentComparisons,
   computeMonthlyGroupSeries,
   computeWindowSummary,
@@ -182,6 +183,107 @@ test("computeMonthlyGroupSeries rolls rows into watchlist buckets by month", () 
 
   assert.equal(series.Magnolia[2].salesCount, 1);
   assert.equal(series.Magnolia[2].medianBidUp, -9000);
+});
+
+test("computeMonthlyGroupSeries preserves already-normalized pulse groups", () => {
+  const rows = [
+    {
+      pulseWatchlistGroup: "Fremont / Green Lake / Woodland Park",
+      neighborhoodLabel: "Fremont / Green Lake / Wallingford",
+      saleDate: "2026-04-08",
+      isHotMarket: true,
+      isUltraHot: false,
+      domValue: 6,
+      saleToList: 1.06,
+      delta: 55000,
+      closePrice: 1195000,
+    },
+    {
+      pulseWatchlistGroup: "Queen Anne",
+      neighborhoodLabel: "South Lake Union / Queen Anne",
+      saleDate: "2026-04-12",
+      isHotMarket: false,
+      isUltraHot: false,
+      domValue: 12,
+      saleToList: 1.01,
+      delta: 12000,
+      closePrice: 1320000,
+    },
+  ];
+
+  const series = computeMonthlyGroupSeries(rows, "2026-04-18", 1);
+
+  assert.equal(series["Fremont / Green Lake / Woodland Park"][0].salesCount, 1);
+  assert.equal(series["Fremont / Green Lake / Woodland Park"][0].medianSaleToList, 1.06);
+  assert.equal(series["Queen Anne"][0].salesCount, 1);
+  assert.equal(series["Queen Anne"][0].medianDom, 12);
+});
+
+test("computeMicroNeighborhoodBreakout summarizes exact neighborhood labels inside each pulse group", () => {
+  const rows = [
+    {
+      pulseWatchlistGroup: "Ballard",
+      neighborhoodLabel: "Ballard",
+      saleDate: "2026-04-10",
+      isHotMarket: true,
+      isUltraHot: false,
+      domValue: 5,
+      saleToList: 1.08,
+      delta: 82000,
+      closePrice: 1285000,
+    },
+    {
+      pulseWatchlistGroup: "Ballard",
+      neighborhoodLabel: "Ballard",
+      saleDate: "2025-12-18",
+      isHotMarket: false,
+      isUltraHot: false,
+      domValue: 15,
+      saleToList: 1.00,
+      delta: 10000,
+      closePrice: 1160000,
+    },
+    {
+      pulseWatchlistGroup: "Ballard",
+      neighborhoodLabel: "Ballard / Crown Hill",
+      saleDate: "2026-03-04",
+      isHotMarket: false,
+      isUltraHot: false,
+      domValue: 13,
+      saleToList: 1.02,
+      delta: 18000,
+      closePrice: 1115000,
+    },
+    {
+      pulseWatchlistGroup: "Queen Anne",
+      neighborhoodLabel: "Queen Anne / Magnolia",
+      saleDate: "2026-04-06",
+      isHotMarket: true,
+      isUltraHot: true,
+      domValue: 4,
+      saleToList: 1.05,
+      delta: 62000,
+      closePrice: 1410000,
+    },
+  ];
+
+  const breakout = computeMicroNeighborhoodBreakout(rows, "2026-04-18", 90);
+  const ballard = breakout.find((entry) => entry.group === "Ballard");
+  const queenAnne = breakout.find((entry) => entry.group === "Queen Anne");
+  const ballardProper = ballard.neighborhoods.find((entry) => entry.neighborhoodLabel === "Ballard");
+  const crownHill = ballard.neighborhoods.find((entry) => entry.neighborhoodLabel === "Ballard / Crown Hill");
+
+  assert.equal(ballard.totalSalesCount, 2);
+  assert.equal(ballard.neighborhoods.length, 2);
+  assert.equal(ballardProper.current.salesCount, 1);
+  assert.equal(ballardProper.previous.salesCount, 1);
+  assert.equal(ballardProper.latestSaleDate, "2026-04-10");
+  assert.equal(crownHill.current.salesCount, 1);
+  assert.equal(crownHill.current.medianDom, 13);
+
+  assert.equal(queenAnne.totalSalesCount, 1);
+  assert.equal(queenAnne.neighborhoods.length, 1);
+  assert.equal(queenAnne.neighborhoods[0].current.hotShare, 1);
 });
 
 test("metricDirection treats lower DOM as hotter and higher ratios as hotter", () => {

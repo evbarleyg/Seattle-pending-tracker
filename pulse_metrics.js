@@ -48,6 +48,16 @@
     return "";
   }
 
+  function isWatchlistGroup(groupName) {
+    return WATCHLIST_GROUP_ORDER.includes(String(groupName || "").trim());
+  }
+
+  function canonicalPulseGroup(groupName, neighborhoodLabel) {
+    const direct = String(groupName || "").trim();
+    if (isWatchlistGroup(direct)) return direct;
+    return pulseWatchlistGroup(neighborhoodLabel || direct);
+  }
+
   function normalizeSelectionId(selectionId) {
     const wanted = String(selectionId || PRIMARY_GROUP_ID).trim();
     return PULSE_GROUPS.some((group) => group.id === wanted) ? wanted : PRIMARY_GROUP_ID;
@@ -200,7 +210,7 @@
     const grouped = new Map();
     WATCHLIST_GROUP_ORDER.forEach((group) => grouped.set(group, []));
     (rows || []).forEach((row) => {
-      const group = pulseWatchlistGroup(row.pulseWatchlistGroup || row.neighborhoodLabel || "");
+      const group = canonicalPulseGroup(row.pulseWatchlistGroup, row.neighborhoodLabel);
       if (!grouped.has(group)) return;
       grouped.get(group).push(row);
     });
@@ -209,6 +219,72 @@
       result[group] = computeMonthlySeries(grouped.get(group), nowValue, monthCount);
     });
     return result;
+  }
+
+  function compareFiniteDesc(aValue, bValue) {
+    const a = safeNumber(aValue);
+    const b = safeNumber(bValue);
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return b - a;
+  }
+
+  function compareFiniteAsc(aValue, bValue) {
+    const a = safeNumber(aValue);
+    const b = safeNumber(bValue);
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  }
+
+  function computeMicroNeighborhoodBreakout(rows, nowValue, windowDays = 90) {
+    const groups = new Map();
+    (rows || []).forEach((row) => {
+      const pulseGroup = canonicalPulseGroup(row.pulseWatchlistGroup, row.neighborhoodLabel);
+      const neighborhoodLabel = String(row.neighborhoodLabel || "").trim();
+      if (!pulseGroup || !neighborhoodLabel) return;
+      if (!groups.has(pulseGroup)) groups.set(pulseGroup, new Map());
+      const neighborhoods = groups.get(pulseGroup);
+      if (!neighborhoods.has(neighborhoodLabel)) neighborhoods.set(neighborhoodLabel, []);
+      neighborhoods.get(neighborhoodLabel).push(row);
+    });
+
+    return WATCHLIST_GROUP_ORDER.map((group) => {
+      const neighborhoods = Array.from((groups.get(group) || new Map()).entries())
+        .map(([neighborhoodLabel, neighborhoodRows]) => {
+          const summary = computeWindowSummary(neighborhoodRows, nowValue, windowDays);
+          const latestSaleDate = neighborhoodRows
+            .map((row) => toDate(row.saleDate))
+            .filter((value) => value instanceof Date && !Number.isNaN(value.getTime()))
+            .sort((a, b) => a.getTime() - b.getTime())
+            .slice(-1)[0];
+          return {
+            neighborhoodLabel,
+            pulseWatchlistGroup: group,
+            latestSaleDate: latestSaleDate ? toIsoDate(latestSaleDate) : "",
+            current: summary.current,
+            previous: summary.previous,
+          };
+        })
+        .filter((entry) => (entry.current.salesCount || 0) > 0 || (entry.previous.salesCount || 0) > 0)
+        .sort((a, b) => (
+          compareFiniteDesc(a.current.salesCount, b.current.salesCount)
+          || compareFiniteDesc(a.current.hotShare, b.current.hotShare)
+          || compareFiniteDesc(a.current.medianSaleToList, b.current.medianSaleToList)
+          || compareFiniteAsc(a.current.medianDom, b.current.medianDom)
+          || compareFiniteDesc(a.previous.salesCount, b.previous.salesCount)
+          || a.neighborhoodLabel.localeCompare(b.neighborhoodLabel)
+        ));
+
+      return {
+        group,
+        neighborhoods,
+        totalSalesCount: neighborhoods.reduce((sum, entry) => sum + (entry.current.salesCount || 0), 0),
+        windowDays: Number(windowDays || 90),
+      };
+    }).filter((entry) => entry.neighborhoods.length);
   }
 
   function rollingAverage(values, windowSize = 3) {
@@ -247,6 +323,7 @@
     buildMonthKeys,
     competitiveDelta,
     computeMonthlyGroupSeries,
+    computeMicroNeighborhoodBreakout,
     computeMonthlySeries,
     computeRecentComparisons,
     computeWindowSummary,

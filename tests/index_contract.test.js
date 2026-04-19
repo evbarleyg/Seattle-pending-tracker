@@ -52,6 +52,7 @@ test("pulse tab exposes local controls and visualization anchors", () => {
     "pulseStatus",
     "pulseReadout",
     "pulseRecentGrid",
+    "pulseMicroBreakout",
     "pulseChartHotShare",
     "pulseChartMedianDom",
     "pulseChartSaleToList",

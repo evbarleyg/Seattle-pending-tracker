@@ -78,6 +78,7 @@ function checkUiContract(html) {
     "pulseGroupPills",
     "pulseModeToggles",
     "pulseRecentGrid",
+    "pulseMicroBreakout",
     "pulseChartHotShare",
     "pulseTrajectory",
   ].forEach((id) => {

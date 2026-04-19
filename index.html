@@ -817,6 +817,77 @@
         display: grid;
         gap: 8px;
       }
+      .pulse-micro-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pulse-micro-card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(12, 22, 38, 0.82);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+      .pulse-micro-head,
+      .pulse-micro-row-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .pulse-micro-kicker {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .pulse-micro-meta {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-micro-list {
+        display: grid;
+        gap: 8px;
+      }
+      .pulse-micro-row {
+        border: 1px solid rgba(72, 100, 138, 0.6);
+        border-radius: 12px;
+        background: rgba(10, 21, 37, 0.72);
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+      }
+      .pulse-micro-name {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .pulse-micro-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .pulse-micro-stat {
+        border: 1px solid rgba(72, 100, 138, 0.42);
+        border-radius: 10px;
+        background: rgba(14, 28, 48, 0.62);
+        padding: 8px;
+        display: grid;
+        gap: 5px;
+      }
+      .pulse-micro-stat-label {
+        color: var(--muted);
+        font-size: 10px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .pulse-micro-stat-value {
+        font-size: 15px;
+        font-weight: 650;
+        line-height: 1.1;
+      }
       .pulse-trajectory-card.large {
         grid-column: 1 / -1;
       }
@@ -1982,12 +2053,21 @@
       }
       body.light .pulse-window-card,
       body.light .pulse-chart-card,
-      body.light .pulse-trajectory-card {
+      body.light .pulse-trajectory-card,
+      body.light .pulse-micro-card {
         background: rgba(248, 251, 255, 0.92);
       }
       body.light .pulse-metric {
         background: rgba(244, 249, 255, 0.92);
         border-color: rgba(168, 188, 213, 0.8);
+      }
+      body.light .pulse-micro-row {
+        background: rgba(244, 249, 255, 0.92);
+        border-color: rgba(168, 188, 213, 0.8);
+      }
+      body.light .pulse-micro-stat {
+        background: rgba(251, 253, 255, 0.96);
+        border-color: rgba(181, 198, 220, 0.8);
       }
       body.light .pulse-delta-chip {
         border-color: #acc3dc;
@@ -2231,7 +2311,8 @@
         .profile-grid,
         .micromarket-grid { grid-template-columns: 1fr; }
         .pulse-chart-grid,
-        .pulse-trajectory-grid { grid-template-columns: 1fr; }
+        .pulse-trajectory-grid,
+        .pulse-micro-grid { grid-template-columns: 1fr; }
         .pulse-chart-card-wide,
         .pulse-trajectory-card.large { grid-column: auto; }
         .geo-layout { grid-template-columns: 1fr; }
@@ -2335,6 +2416,9 @@
         .pulse-metric-grid {
           grid-template-columns: 1fr;
         }
+        .pulse-micro-stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
         .profile-mini-grid {
           grid-template-columns: 1fr 1fr;
         }
@@ -2405,7 +2489,8 @@
         .kpi-grid-heat,
         .kpi-grid-bids { grid-template-columns: 1fr; }
         .profile-mini-grid,
-        .micromarket-stats { grid-template-columns: 1fr; }
+        .micromarket-stats,
+        .pulse-micro-stats { grid-template-columns: 1fr; }
         .pulse-pill-row .scope-pill {
           width: 100%;
           justify-content: center;
@@ -2715,6 +2800,14 @@
             <div class="note compact">Current window vs the immediately prior equal-length window.</div>
           </div>
           <div class="pulse-recent-grid" id="pulseRecentGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="pulse-section-head">
+            <h3>Micro Neighborhood Breakout</h3>
+            <div class="note compact">Recent 90-day Pulse by exact MLS neighborhood label inside the current selection. Combined labels stay combined when that is how the export is authored.</div>
+          </div>
+          <div class="pulse-micro-grid" id="pulseMicroBreakout"></div>
         </section>
 
         <section class="panel">
@@ -4637,6 +4730,9 @@
         const monthlyByGroup = typeof PulseLib.computeMonthlyGroupSeries === "function"
           ? PulseLib.computeMonthlyGroupSeries(summaryRows, nowValue, 12)
           : {};
+        const microBreakout = typeof PulseLib.computeMicroNeighborhoodBreakout === "function"
+          ? PulseLib.computeMicroNeighborhoodBreakout(selectedSummaryRows, nowValue, 90)
+          : [];
         const selectedMonthlySeries = typeof PulseLib.computeMonthlySeries === "function"
           ? PulseLib.computeMonthlySeries(selectedSummaryRows, nowValue, 12)
           : [];
@@ -4648,6 +4744,7 @@
           nowValue,
           availableGroups,
           eligibleRows,
+          microBreakout,
           monthlyByGroup,
           recentComparisons,
           selectedGroups: selectionGroups,
@@ -5051,11 +5148,73 @@
         el.innerHTML = bullets.slice(0, 4).map((bullet) => `<li>${esc(bullet)}</li>`).join("");
       }
 
+      function renderPulseMicroBreakout(snapshot) {
+        const el = document.getElementById("pulseMicroBreakout");
+        if (!el) return;
+        const cards = Array.isArray(snapshot.microBreakout)
+          ? snapshot.microBreakout.filter((entry) => Array.isArray(entry.neighborhoods) && entry.neighborhoods.length)
+          : [];
+        if (!cards.length) {
+          el.innerHTML = `<div class="pulse-empty">No recent 90-day micromarket rows remain inside this Pulse slice. Try widening the neighborhood, type, or price filters.</div>`;
+          return;
+        }
+
+        el.innerHTML = cards.map((card) => `
+          <article class="pulse-micro-card">
+            <div class="pulse-micro-head">
+              <div>
+                <div class="pulse-micro-kicker">Pulse Group</div>
+                <div class="pulse-chart-title">${esc(card.group)}</div>
+                <div class="pulse-micro-meta">${formatWholeNumber(card.neighborhoods.length || 0)} exact MLS labels | ${formatWholeNumber(card.totalSalesCount || 0)} sales in the last ${formatWholeNumber(card.windowDays || 90)} days</div>
+              </div>
+              <span class="chip">${formatWholeNumber(card.totalSalesCount || 0)} sold</span>
+            </div>
+            <div class="pulse-micro-list">
+              ${card.neighborhoods.map((entry) => {
+                const current = entry.current || {};
+                const previous = entry.previous || {};
+                const stats = [
+                  ["Hot Share", "hotShare"],
+                  ["Median DOM", "medianDom"],
+                  ["Median Sale/List", "medianSaleToList"],
+                  ["Median Bid-Up", "medianBidUp"],
+                  ["Median Close", "medianClosePrice"],
+                ];
+                return `
+                  <article class="pulse-micro-row">
+                    <div class="pulse-micro-row-head">
+                      <div>
+                        <div class="pulse-micro-name">${esc(entry.neighborhoodLabel)}</div>
+                        <div class="pulse-micro-meta">Exact MLS label${entry.latestSaleDate ? ` | Latest close ${esc(formatDateShort(entry.latestSaleDate))}` : ""}</div>
+                      </div>
+                      <span class="chip">${formatWholeNumber(current.salesCount || 0)} sold</span>
+                    </div>
+                    <div class="pulse-micro-stats">
+                      ${stats.map(([label, metricKey]) => {
+                        const config = pulseMetricConfig(metricKey);
+                        return `
+                          <div class="pulse-micro-stat">
+                            <div class="pulse-micro-stat-label">${esc(label)}</div>
+                            <div class="pulse-micro-stat-value">${esc(config.formatValue(current[metricKey]))}</div>
+                            ${pulseDeltaChip(metricKey, current[metricKey], previous[metricKey])}
+                          </div>
+                        `;
+                      }).join("")}
+                    </div>
+                  </article>
+                `;
+              }).join("")}
+            </div>
+          </article>
+        `).join("");
+      }
+
       function renderPulse(snapshot) {
         const statusEl = document.getElementById("pulseStatus");
         const recentGridEl = document.getElementById("pulseRecentGrid");
+        const microBreakoutEl = document.getElementById("pulseMicroBreakout");
         const trajectoryEl = document.getElementById("pulseTrajectory");
-        if (!statusEl || !recentGridEl || !trajectoryEl) return;
+        if (!statusEl || !recentGridEl || !microBreakoutEl || !trajectoryEl) return;
         const chartIds = [
           "pulseChartHotShare",
           "pulseChartMedianDom",
@@ -5075,6 +5234,7 @@
         if (!snapshot.eligibleRows.length) {
           statusEl.textContent = "No watchlist Pulse rows remain after the current global filters. Pulse uses MLS-enriched sold rows only and ignores the global date filters.";
           recentGridEl.innerHTML = `<div class="pulse-empty">Try widening the neighborhood, type, or price filters. Pulse only includes your mapped watchlist groups and MLS-enriched sold rows.</div>`;
+          microBreakoutEl.innerHTML = `<div class="pulse-empty">No micro-neighborhood breakout is available because the current global filters remove every MLS-enriched watchlist sale.</div>`;
           setEmptyCharts("No trend data for the current Pulse slice.");
           trajectoryEl.innerHTML = `<div class="pulse-empty">No trajectory data for the current Pulse slice.</div>`;
           renderPulseReadout(snapshot);
@@ -5085,6 +5245,7 @@
         if (!activeGroups.length) {
           statusEl.textContent = `${pulseSelectionLabel(state.pulse.selectedGroup)} has no rows after the current global filters. Pulse keeps this pill local, so you can switch groups without rewriting the global neighborhood filter.`;
           recentGridEl.innerHTML = `<div class="pulse-empty">The selected Pulse group is fully filtered out right now. Try another Pulse pill or widen the global neighborhood, type, or price filters.</div>`;
+          microBreakoutEl.innerHTML = `<div class="pulse-empty">No micro-neighborhood rows are available for the selected Pulse group after the current global filters.</div>`;
           setEmptyCharts("No trend data for the selected Pulse group.");
           trajectoryEl.innerHTML = `<div class="pulse-empty">No trajectory data for the selected Pulse group.</div>`;
           renderPulseReadout(snapshot);
@@ -5131,6 +5292,7 @@
           `;
         }).join("");
 
+        renderPulseMicroBreakout(snapshot);
         document.getElementById("pulseChartHotShare").innerHTML = pulseChartSvg("hotShare", snapshot);
         document.getElementById("pulseChartMedianDom").innerHTML = pulseChartSvg("medianDom", snapshot);
         document.getElementById("pulseChartSaleToList").innerHTML = pulseChartSvg("medianSaleToList", snapshot);
