@@ -1,0 +1,80 @@
+name: Deploy New Style Preview
+
+on:
+  push:
+    branches: ["codex/staging-buyer-profile-toggle"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    environment:
+      name: github-pages
+      url: https://evbarleyg.github.io/Seattle-pending-tracker/new-style/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v4
+        with:
+          path: preview-src
+
+      - name: Checkout current main site
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-src
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: preview-src/package-lock.json
+
+      - name: Install dependencies
+        working-directory: preview-src
+        run: npm ci
+
+      - name: Build preview app
+        working-directory: preview-src
+        run: npm run build
+
+      - name: Compose root plus preview path
+        run: |
+          mkdir -p site/new-style
+          cp main-src/index.html site/
+          cp main-src/favicon.ico site/
+          cp main-src/favicon.svg site/
+          cp -R main-src/assets site/assets
+          cp main-src/*.csv site/
+          cp main-src/*.json site/
+          cp -R preview-src/dist/. site/new-style/
+          cat > site/new-style-preview.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8" />
+          <meta http-equiv="refresh" content="0; url=./new-style/" />
+          <title>Seattle Pending Tracker New Style Preview</title>
+          <a href="./new-style/">Open the new style preview</a>
+          HTML
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
