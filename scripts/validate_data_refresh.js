@@ -94,21 +94,27 @@ function listRealtorFiles() {
   return fs.readdirSync(REALTOR_DIR).filter((n) => /\.csv$/i.test(n)).sort();
 }
 
+function readExistingReport() {
+  if (!fs.existsSync(REPORT_FILE)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(REPORT_FILE, "utf8"));
+  } catch (err) {
+    return {};
+  }
+}
+
+function reportRealtorFiles(report) {
+  const files = report?.source?.realtorFiles;
+  return Array.isArray(files) ? files.filter(Boolean) : [];
+}
+
 function num(v) {
   if (v === null || v === undefined || v === "") return 0;
   const n = Number(String(v).replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 
-function updateReport(result) {
-  let report = {};
-  if (fs.existsSync(REPORT_FILE)) {
-    try {
-      report = JSON.parse(fs.readFileSync(REPORT_FILE, "utf8"));
-    } catch (err) {
-      report = {};
-    }
-  }
+function updateReport(result, report = readExistingReport()) {
   report.validation = result;
   fs.writeFileSync(REPORT_FILE, `${JSON.stringify(report, null, 2)}\n`);
 }
@@ -120,8 +126,11 @@ function main() {
   if (!fs.existsSync(PUBLIC_FILE)) errors.push(`Missing file: ${PUBLIC_FILE}`);
   if (!fs.existsSync(ENRICHED_FILE)) errors.push(`Missing file: ${ENRICHED_FILE}`);
 
+  const existingReport = readExistingReport();
   const realtorFiles = listRealtorFiles();
-  if (!realtorFiles.length) {
+  const manifestedRealtorFiles = reportRealtorFiles(existingReport);
+  const realtorCsvCount = realtorFiles.length || manifestedRealtorFiles.length;
+  if (!realtorCsvCount) {
     warnings.push(`No realtor CSV files found in ${REALTOR_DIR}. MLS enrichment may be stale.`);
   }
 
@@ -133,7 +142,8 @@ function main() {
     files: {
       public: path.basename(PUBLIC_FILE),
       enriched: path.basename(ENRICHED_FILE),
-      realtorCsvCount: realtorFiles.length,
+      realtorCsvCount,
+      realtorSource: realtorFiles.length ? "local" : (manifestedRealtorFiles.length ? "report-manifest" : "missing"),
     },
     counts: {},
   };
@@ -185,7 +195,7 @@ function main() {
   summary.errors = errors;
   summary.warnings = warnings;
   summary.status = errors.length ? "fail" : "pass";
-  updateReport(summary);
+  updateReport(summary, existingReport);
 
   // eslint-disable-next-line no-console
   console.log(`Validation status: ${summary.status.toUpperCase()}`);
@@ -216,4 +226,5 @@ module.exports = {
   num,
   readHeader,
   readRows,
+  reportRealtorFiles,
 };

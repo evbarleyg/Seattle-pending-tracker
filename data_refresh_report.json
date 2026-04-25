@@ -46,14 +46,15 @@
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-04-25T15:53:37.456Z",
+    "generatedAt": "2026-04-25T15:56:17.614Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
     "files": {
       "public": "public_sales_proxy_all_prices_last12mo.csv",
       "enriched": "public_sales_proxy_mls_enriched_last12mo.csv",
-      "realtorCsvCount": 8
+      "realtorCsvCount": 8,
+      "realtorSource": "local"
     },
     "counts": {
       "outputRows": 17356,

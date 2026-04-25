@@ -7,6 +7,7 @@ const {
   parseCsvLine,
   hasColumns,
   num,
+  reportRealtorFiles,
 } = require("../scripts/validate_data_refresh.js");
 
 test("parseCsvLine handles quoted commas and escaped quotes", () => {
@@ -25,4 +26,18 @@ test("num parses currency and handles empty values safely", () => {
   assert.equal(num(""), 0);
   assert.equal(num(undefined), 0);
   assert.equal(num("bad"), 0);
+});
+
+test("reportRealtorFiles reads committed source manifest for CI validation", () => {
+  const report = {
+    source: {
+      realtorFiles: ["NE Seattle Sale Stats.csv", "", "QA_Magnolia Rich Snapshot.csv"],
+    },
+  };
+
+  assert.deepEqual(reportRealtorFiles(report), [
+    "NE Seattle Sale Stats.csv",
+    "QA_Magnolia Rich Snapshot.csv",
+  ]);
+  assert.deepEqual(reportRealtorFiles({}), []);
 });
