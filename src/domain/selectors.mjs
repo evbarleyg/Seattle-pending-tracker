@@ -188,7 +188,7 @@ export function computeBaseRows(filterState, normalizedRows, flags = {}) {
 }
 
 export function applyInteractions(baseRows, stats, interactions = {}, geo = {}) {
-  const selectedMapKeys = Array.isArray(geo.selectedPropertyKeys) ? geo.selectedPropertyKeys : [];
+  const selectedMapKeys = Array.isArray(geo.filterPropertyKeys) ? geo.filterPropertyKeys : [];
   const viewportFilterActive = !!geo.viewportFilter && !!geo.mapBounds;
   return (baseRows || []).filter((row) => {
     if (selectedMapKeys.length && !selectedMapKeys.includes(row.mapPropertyKey)) return false;
@@ -572,7 +572,7 @@ export function computeActiveBidSuggestions(filterState, normalizedRows, strateg
 }
 
 export function applyBidViewInteractions(rows, interactions = {}, geo = {}) {
-  const selectedMapKeys = Array.isArray(geo.selectedPropertyKeys) ? geo.selectedPropertyKeys : [];
+  const selectedMapKeys = Array.isArray(geo.filterPropertyKeys) ? geo.filterPropertyKeys : [];
   const viewportFilterActive = !!geo.viewportFilter && !!geo.mapBounds;
   return (rows || []).filter((row) => {
     if (selectedMapKeys.length && !selectedMapKeys.includes(row.mapPropertyKey)) return false;

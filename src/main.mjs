@@ -72,6 +72,7 @@ import {
   applyBidViewInteractions,
   bidTierLabel,
   buildBidCompPool,
+  computeBidCompTiers,
   buildOptions,
   buildPulseSnapshot,
   computeActiveBidSuggestions,
@@ -154,6 +155,7 @@ const state = {
     strategy: "balanced",
     highConfidenceOnly: false,
     manualEnabled: false,
+    compSearchEnabled: false,
     manualSourceKey: "",
     activeLookup: new Map(),
   },
@@ -172,13 +174,14 @@ const state = {
   bidsPage: 1,
   activeView: "overview",
   mountedViews: new Set(["overview"]),
-  dirtyViews: new Set(["overview", "pulse", "charts", "heat", "bids", "geo", "records", "data"]),
+  dirtyViews: new Set(["overview", "pulse", "bids", "geo", "records", "data"]),
   geo: {
     leaflet: null,
     map: null,
     mapEl: null,
     layer: null,
     selectedPropertyKeys: [],
+    filterPropertyKeys: [],
     popupPropertyKey: "",
     viewportFilter: false,
     mapBounds: null,
@@ -295,21 +298,6 @@ function renderShell() {
       </header>
 
       <main>
-        <section class="command-center" id="commandCenter" aria-label="Buyer command center">
-          <div class="hero-copy">
-            <p class="eyebrow">MLS-enriched Seattle pending and sold lens</p>
-            <h1>Command center for the next offer.</h1>
-            <p class="lead">Defaulting to Single Family homes in the $1.1M-$1.4M band, with market pressure, saved-home fit, and direct jumps into Pulse, Bids, Geo, and Records.</p>
-          </div>
-          <div class="command-grid" id="commandGrid">
-            <article class="state-panel loading-panel">
-              <span class="skeleton wide"></span>
-              <span class="skeleton"></span>
-              <span class="skeleton short"></span>
-            </article>
-          </div>
-        </section>
-
         <section class="control-band" aria-label="Dashboard controls">
           <div class="active-filter-strip">
             <div>
@@ -328,8 +316,6 @@ function renderShell() {
         <nav class="tabs" role="tablist" aria-label="Dashboard views">
           ${tabButton("overview", "Overview", "home", true)}
           ${tabButton("pulse", "Pulse", "activity")}
-          ${tabButton("charts", "Charts", "bar-chart-3")}
-          ${tabButton("heat", "Heat", "waves")}
           ${tabButton("bids", "Bids", "target")}
           ${tabButton("geo", "Geo", "map")}
           ${tabButton("records", "Records", "rows-3")}
@@ -338,8 +324,6 @@ function renderShell() {
 
         <section class="view active" id="view-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0"></section>
         <section class="view" id="view-pulse" role="tabpanel" aria-labelledby="tab-pulse" tabindex="0" aria-hidden="true"></section>
-        <section class="view" id="view-charts" role="tabpanel" aria-labelledby="tab-charts" tabindex="0" aria-hidden="true"></section>
-        <section class="view" id="view-heat" role="tabpanel" aria-labelledby="tab-heat" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-bids" role="tabpanel" aria-labelledby="tab-bids" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-geo" role="tabpanel" aria-labelledby="tab-geo" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-records" role="tabpanel" aria-labelledby="tab-records" tabindex="0" aria-hidden="true"></section>
@@ -375,15 +359,25 @@ function tabButton(view, label, iconName, active = false) {
 }
 
 function renderLoadingState() {
-  const grid = qs("#commandGrid");
-  if (!grid) return;
-  grid.innerHTML = `
-    <article class="state-panel loading-panel">
-      <div class="panel-kicker">Dataset</div>
-      <h2>${esc(state.dataSource.status || "Loading dataset...")}</h2>
-      <p>${state.dataSource.error ? esc(state.dataSource.error) : "Parsing and normalizing in a module worker so the interface stays responsive."}</p>
-    </article>
-  `;
+  const overview = qs("#view-overview");
+  if (overview) {
+    overview.innerHTML = `
+      <section class="command-center" id="commandCenter" aria-label="Buyer command center">
+        <div class="hero-copy">
+          <p class="eyebrow">MLS-enriched Seattle pending and sold lens</p>
+          <h1>Command center for the next offer.</h1>
+          <p class="lead">Defaulting to Single Family homes in the $1.1M-$1.4M band, with market pressure, saved-home fit, and direct jumps into Pulse, Bids, Geo, and Records.</p>
+        </div>
+        <div class="command-grid" id="commandGrid">
+          <article class="state-panel loading-panel">
+            <div class="panel-kicker">Dataset</div>
+            <h2>${esc(state.dataSource.status || "Loading dataset...")}</h2>
+            <p>${state.dataSource.error ? esc(state.dataSource.error) : "Parsing and normalizing in a module worker so the interface stays responsive."}</p>
+          </article>
+        </div>
+      </section>
+    `;
+  }
   const dataset = qs("#datasetStatus");
   if (dataset) dataset.textContent = state.dataSource.status || "Loading dataset...";
 }
@@ -414,10 +408,10 @@ function recomputeDerived() {
   };
   state.bid.activeLookup = new Map(bidRows.map((row) => [row.mapPropertyKey, row]));
   let viewRows = slices.recordGeoRows.map((row) => mergeBidFields(row, bidResult.byKey));
-  if (state.geo.selectedPropertyKeys.length) {
+  if (state.geo.filterPropertyKeys.length) {
     const validMapKeys = new Set(viewRows.map((row) => row.mapPropertyKey));
-    state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((key) => validMapKeys.has(key));
-    viewRows = viewRows.filter((row) => !state.geo.selectedPropertyKeys.length || state.geo.selectedPropertyKeys.includes(row.mapPropertyKey));
+    state.geo.filterPropertyKeys = state.geo.filterPropertyKeys.filter((key) => validMapKeys.has(key));
+    viewRows = viewRows.filter((row) => !state.geo.filterPropertyKeys.length || state.geo.filterPropertyKeys.includes(row.mapPropertyKey));
   }
 
   state.derived = {
@@ -436,7 +430,7 @@ function recomputeDerived() {
 
 function markDirty(view = null) {
   if (view) state.dirtyViews.add(view);
-  else ["overview", "pulse", "charts", "heat", "bids", "geo", "records", "data"].forEach((name) => state.dirtyViews.add(name));
+  else ["overview", "pulse", "bids", "geo", "records", "data"].forEach((name) => state.dirtyViews.add(name));
   if (state.renderQueued) return;
   state.renderQueued = true;
   requestAnimationFrame(() => {
@@ -454,7 +448,6 @@ function renderDashboard() {
     return;
   }
   recomputeDerived();
-  renderCommandCenter();
   renderFilterControls();
   renderActiveFilterChips();
   renderCrossFilterChips();
@@ -463,9 +456,16 @@ function renderDashboard() {
   refreshIcons();
 }
 
-function renderCommandCenter() {
-  const grid = qs("#commandGrid");
-  if (!grid || !state.derived) return;
+function commandCenterCardsHtml() {
+  if (!state.derived) {
+    return `
+      <article class="state-panel loading-panel">
+        <span class="skeleton wide"></span>
+        <span class="skeleton"></span>
+        <span class="skeleton short"></span>
+      </article>
+    `;
+  }
   const { slices, bidStatsView } = state.derived;
   const stats = slices.stats;
   const profile = state.buyerProfile.memory;
@@ -476,13 +476,13 @@ function renderCommandCenter() {
   const chips = filtersToSummary(state.filters);
   const pulse = state.derived.pulse.recentComparisons.find((entry) => entry.windowDays === 90);
   const heatText = pulse?.current?.hotShare !== null && pulse?.current?.hotShare !== undefined
-    ? `${formatPct(pulse.current.hotShare)} hot share`
+    ? `${formatPct(pulse.current.hotShare)} fast-sale share`
     : "Pulse warming up";
   const savedStatus = state.buyerProfile.enabled
     ? `${cohort.summary.count} saved-home matches`
     : "Saved-home lens paused";
 
-  grid.innerHTML = `
+  return `
     <article class="state-panel span-2">
       <div class="panel-kicker">Active lens</div>
       <h2>${esc(chips.join(" + "))}</h2>
@@ -518,6 +518,21 @@ function renderCommandCenter() {
       ${buttonIcon("Open Geo", "map", "data-switch-view=\"geo\"")}
       ${buttonIcon("Open Records", "rows-3", "data-switch-view=\"records\"")}
     </div>
+  `;
+}
+
+function commandCenterSectionHtml() {
+  return `
+    <section class="command-center" id="commandCenter" aria-label="Buyer command center">
+      <div class="hero-copy">
+        <p class="eyebrow">MLS-enriched Seattle pending and sold lens</p>
+        <h1>Command center for the next offer.</h1>
+        <p class="lead">Defaulting to Single Family homes in the $1.1M-$1.4M band, with market pressure, saved-home fit, and direct jumps into Pulse, Bids, Geo, and Records.</p>
+      </div>
+      <div class="command-grid" id="commandGrid">
+        ${commandCenterCardsHtml()}
+      </div>
+    </section>
   `;
 }
 
@@ -632,7 +647,7 @@ function renderCrossFilterChips() {
   Object.entries(state.interactions).forEach(([key, value]) => {
     if (value) chips.push(`<span class="chip strong">${esc(crossFilterLabel(key, value))}<button type="button" data-clear-interaction="${esc(key)}">x</button></span>`);
   });
-  if (state.geo.selectedPropertyKeys.length) chips.push(`<span class="chip strong">Map properties: ${state.geo.selectedPropertyKeys.length}<button type="button" data-clear-map-selection="1">x</button></span>`);
+  if (state.geo.filterPropertyKeys.length) chips.push(`<span class="chip strong">Map filter: ${state.geo.filterPropertyKeys.length} properties<button type="button" data-clear-map-filter="1">x</button></span>`);
   if (state.geo.viewportFilter) chips.push(`<span class="chip strong">Map viewport<button type="button" data-clear-viewport-filter="1">x</button></span>`);
   if (state.flags.projection) chips.push(`<span class="chip">Pending projection<button type="button" data-clear-flag="projection">x</button></span>`);
   if (state.flags.includeOpenMls) chips.push(`<span class="chip">Open/Pending MLS<button type="button" data-clear-flag="includeOpenMls">x</button></span>`);
@@ -671,8 +686,6 @@ function renderView(view) {
   if (!state.dirtyViews.has(view) && view !== "geo") return;
   if (view === "overview") renderOverviewView();
   if (view === "pulse") renderPulseView();
-  if (view === "charts") renderChartsView();
-  if (view === "heat") renderHeatView();
   if (view === "bids") renderBidsView();
   if (view === "records") renderRecordsView();
   if (view === "data") renderDataView();
@@ -689,8 +702,57 @@ function renderOverviewView() {
   const profile = state.buyerProfile.memory;
   const cohort = buildProfileCohort(slices.closedSlice, profile);
   const profiles = buildMicromarketProfiles(slices.closedSlice, profile, new Date());
+  const stats = slices.stats;
+  const pulse90 = state.derived.pulse.recentComparisons.find((entry) => entry.windowDays === 90);
+  const fastSaleText = pulse90?.current?.hotShare !== null && pulse90?.current?.hotShare !== undefined
+    ? formatPct(pulse90.current.hotShare)
+    : "n/a";
+  const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${formatMoneyOrNa(stats.medianBidUp)} median bid-up · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median DOM`;
   wrap.innerHTML = `
     <div class="view-band">
+      ${commandCenterSectionHtml()}
+
+      <section class="section-block decision-brief" id="decisionBrief">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">What this means for the next offer</p>
+            <h2>Start with stance, then inspect the proof.</h2>
+          </div>
+        </div>
+        <div class="decision-grid">
+          <article class="decision-card">
+            <span>Current lens</span>
+            <strong>${esc(filtersToSummary(state.filters).join(" + "))}</strong>
+            <p>${formatWholeNumber(slices.closedSlice.length)} closed comps are shaping the read.</p>
+          </article>
+          <article class="decision-card">
+            <span>Market stance</span>
+            <strong>${esc(stance)}</strong>
+            <p>Fast-sale share is DOM-based pressure; sale/list and bid-up are price pressure.</p>
+          </article>
+          <button class="decision-action" type="button" data-switch-view="pulse">
+            ${icon("activity")}
+            <strong>Review Pulse</strong>
+            <span>See whether watchlist pressure is changing.</span>
+          </button>
+          <button class="decision-action" type="button" data-switch-view="bids">
+            ${icon("target")}
+            <strong>Estimate a bid</strong>
+            <span>Load a listing or enter an address to find comps.</span>
+          </button>
+          <button class="decision-action" type="button" data-switch-view="geo">
+            ${icon("map")}
+            <strong>Inspect map pockets</strong>
+            <span>Compare where pressure clusters before applying map filters.</span>
+          </button>
+          <button class="decision-action" type="button" data-switch-view="records">
+            ${icon("rows-3")}
+            <strong>Open comp records</strong>
+            <span>Use Zillow and KC links for property-level review.</span>
+          </button>
+        </div>
+      </section>
+
       <section class="section-head">
         <div>
           <p class="eyebrow">Overview</p>
@@ -763,12 +825,15 @@ function renderPulseView() {
   if (!wrap || !state.derived) return;
   const snapshot = state.derived.pulse;
   const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
+  const sliceRows = state.derived.slices.closedSlice;
+  const sliceSeries = buildSliceMonthlySeries(sliceRows);
+  const pockets = competitionPocketEntries(sliceRows);
   wrap.innerHTML = `
     <div class="view-band">
       <section class="section-head">
         <div>
           <p class="eyebrow">Pulse</p>
-          <h2>Watchlist market pressure</h2>
+          <h2>Is my watchlist heating up?</h2>
         </div>
         <div class="segmented" id="pulseModeToggles">
           <button type="button" class="scope-pill ${state.pulseTimelineMode !== "combined" ? "active" : ""}" data-pulse-mode="compare">Compare</button>
@@ -782,24 +847,58 @@ function renderPulseView() {
       <div class="pulse-grid" id="pulseRecentGrid">
         ${["salesCount", "hotShare", "medianDom", "medianSaleToList", "medianBidUp", "medianClosePrice"].map((key) => pulseMetricCard(key, recent90)).join("")}
       </div>
+      <div id="pulseReadout" class="readout">${pulseReadout(snapshot)}</div>
       <div class="chart-grid">
-        ${chartPanel("Hot share", "pulseChartHotShare", pulseChartSvg("hotShare", snapshot), chartSummary(snapshot.selectedMonthlySeries, "hotShare"), chartGuide("hotShare", "line"))}
-        ${chartPanel("Median DOM", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"))}
-        ${chartPanel("Sale/List", "pulseChartSaleToList", pulseChartSvg("medianSaleToList", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"))}
-        ${chartPanel("Bid-up", "pulseChartBidUp", pulseChartSvg("medianBidUp", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianBidUp"), chartGuide("medianBidUp", "line"))}
-        ${chartPanel("Close price", "pulseChartClosePrice", pulseChartSvg("medianClosePrice", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"))}
+        ${chartPanel("Fast-sale share", "pulseChartHotShare", pulseChartSvg("hotShare", snapshot), chartSummary(snapshot.selectedMonthlySeries, "hotShare"), chartGuide("hotShare", "line"), chartInsight("hotShare"))}
+        ${chartPanel("Median DOM", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"), chartInsight("medianDom"))}
+        ${chartPanel("Sale/List price pressure", "pulseChartSaleToList", pulseChartSvg("medianSaleToList", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
+        ${chartPanel("Bid-up price pressure", "pulseChartBidUp", pulseChartSvg("medianBidUp", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianBidUp"), chartGuide("medianBidUp", "line"), chartInsight("medianBidUp"))}
+        ${chartPanel("Close price band", "pulseChartClosePrice", pulseChartSvg("medianClosePrice", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
       </div>
       <section class="section-block">
         <div class="section-head compact">
-          <h3>Trajectory</h3>
+          <div>
+            <p class="eyebrow">Watchlist comparison</p>
+            <h3>Sale/List trajectory by pocket</h3>
+          </div>
         </div>
+        <p class="note">Use this to separate broad buyer pressure from a single neighborhood spike.</p>
         <div id="pulseTrajectory" class="trajectory-grid">
           ${pulseTrajectoryCards(snapshot)}
         </div>
       </section>
+      <section class="section-block" id="pulseSliceTrends">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Whole-slice trends</p>
+            <h3>How the current filter band is moving</h3>
+          </div>
+        </div>
+        <p class="note">These are the old Charts view, kept here so the context sits beside the watchlist pulse.</p>
+        <div class="chart-grid">
+          ${chartPanel("Monthly volume", "chartVolume", barSvg(sliceSeries, "salesCount"), chartSummary(sliceSeries, "salesCount"), chartGuide("salesCount", "bar"), chartInsight("salesCount"))}
+          ${chartPanel("Median close", "chartClose", lineSvg(sliceSeries, "medianClosePrice"), chartSummary(sliceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
+          ${chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
+        </div>
+      </section>
+      <section class="section-block" id="pulseCompetitionPockets">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Competition pockets</p>
+            <h3>Where fast sales concentrate</h3>
+          </div>
+        </div>
+        <p class="note">These rows are clickable neighborhood cross-filters. Fast-sale share is DOM-based; sale/list shows price pressure.</p>
+        <div class="heat-list">
+          ${heatListHtml(pockets)}
+        </div>
+      </section>
       <section class="section-block">
         <div class="section-head compact">
-          <h3>Micro breakout</h3>
+          <div>
+            <p class="eyebrow">Micro breakout</p>
+            <h3>Watchlist neighborhoods</h3>
+          </div>
         </div>
         <div id="pulseMicroBreakout" class="profile-grid">
           ${snapshot.microBreakout.map((group) => `
@@ -808,14 +907,13 @@ function renderPulseView() {
               ${group.neighborhoods.slice(0, 4).map((entry) => `
                 <div class="mini-metric">
                   <button class="link-button" data-set-interaction="neighborhood" data-set-value="${esc(entry.neighborhoodLabel)}">${esc(entry.neighborhoodLabel)}</button>
-                  <strong>${formatPct(entry.current.hotShare || 0)}</strong>
+                  <strong>${formatPct(entry.current.hotShare || 0)} fast-sale</strong>
                 </div>
               `).join("")}
             </article>
           `).join("") || `<p class="note">No watchlist pulse rows in this slice.</p>`}
         </div>
       </section>
-      <div id="pulseReadout" class="readout">${pulseReadout(snapshot)}</div>
     </div>
   `;
 }
@@ -838,15 +936,27 @@ function pulseMetricCard(key, recent) {
 
 function pulseMetricConfig(key) {
   if (key === "salesCount") return { label: "Sales Count", format: (value) => formatWholeNumber(value || 0), delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}` };
-  if (key === "hotShare") return { label: "Hot Share", format: (value) => value === null ? "n/a" : formatPct(value), delta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts` };
+  if (key === "hotShare") return { label: "Fast-Sale Share", format: (value) => value === null ? "n/a" : formatPct(value), delta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts` };
   if (key === "medianDom") return { label: "Median DOM", format: (value) => value === null ? "n/a" : `${Math.round(value)}d`, delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}d` };
   if (key === "medianSaleToList") return { label: "Median Sale/List", format: (value) => value === null ? "n/a" : `${value.toFixed(2)}x`, delta: (value) => `${value >= 0 ? "+" : ""}${(value || 0).toFixed(3)}x` };
   if (key === "medianBidUp") return { label: "Median Bid-Up", format: (value) => value === null ? "n/a" : formatMoneyCompact(value), delta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}` };
   return { label: "Median Close", format: (value) => value === null ? "n/a" : formatMoneyCompact(value), delta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}` };
 }
 
-function chartPanel(title, id, content, summary = "", guide = "") {
-  return `<article class="chart-panel"><div class="chart-title">${esc(title)}</div>${summary}${guide}<div id="${esc(id)}">${content}</div></article>`;
+function chartPanel(title, id, content, summary = "", guide = "", insight = "") {
+  return `<article class="chart-panel"><div class="chart-title">${esc(title)}</div>${insight}${summary}${guide}<div id="${esc(id)}">${content}</div></article>`;
+}
+
+function chartInsight(metricKey) {
+  const copy = {
+    salesCount: "What this tells you: whether the slice has enough recent activity to trust the read.",
+    hotShare: "What this tells you: how often homes are moving quickly enough to compress your decision window.",
+    medianDom: "What this tells you: how much time you may have before a strong listing gets claimed.",
+    medianSaleToList: "What this tells you: whether accepted prices are clearing above, at, or below ask.",
+    medianBidUp: "What this tells you: how many dollars buyers are adding over the pending ask price.",
+    medianClosePrice: "What this tells you: whether the target band is drifting away from your budget.",
+  };
+  return `<p class="chart-insight">${esc(copy[metricKey] || "What this tells you: how the market is moving inside this slice.")}</p>`;
 }
 
 function pulseChartSvg(metricKey, snapshot) {
@@ -1041,27 +1151,14 @@ function pulseReadout(snapshot) {
   return bullets.map((text) => `<p>${esc(text)}</p>`).join("");
 }
 
-function renderChartsView() {
-  const wrap = qs("#view-charts");
-  if (!wrap || !state.derived) return;
-  const rows = state.derived.slices.closedSlice;
+function buildSliceMonthlySeries(rows) {
   const byMonth = groupRows(rows, (row) => row.saleDate ? row.saleDate.slice(0, 7) : "Unknown");
-  const series = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([month, monthRows]) => ({
+  return Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([month, monthRows]) => ({
     month,
     salesCount: monthRows.length,
     medianClosePrice: medianValue(monthRows.map((row) => row.closePrice)),
     medianSaleToList: medianValue(monthRows.map((row) => row.saleToList).filter((value) => value > 0)),
   }));
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head"><div><p class="eyebrow">Charts</p><h2>Slice trends</h2></div></section>
-      <div class="chart-grid">
-        ${chartPanel("Monthly volume", "chartVolume", barSvg(series, "salesCount"), chartSummary(series, "salesCount"), chartGuide("salesCount", "bar"))}
-        ${chartPanel("Median close", "chartClose", lineSvg(series, "medianClosePrice"), chartSummary(series, "medianClosePrice"), chartGuide("medianClosePrice", "line"))}
-        ${chartPanel("Median sale/list", "chartRatio", lineSvg(series, "medianSaleToList"), chartSummary(series, "medianSaleToList"), chartGuide("medianSaleToList", "line"))}
-      </div>
-    </div>
-  `;
 }
 
 function medianValue(values) {
@@ -1129,11 +1226,8 @@ function barSvg(series, metricKey) {
   `;
 }
 
-function renderHeatView() {
-  const wrap = qs("#view-heat");
-  if (!wrap || !state.derived) return;
-  const rows = state.derived.slices.closedSlice;
-  const byNeighborhood = Object.entries(groupRows(rows, (row) => row.neighborhoodLabel || "Unknown"))
+function competitionPocketEntries(rows) {
+  return Object.entries(groupRows(rows, (row) => row.neighborhoodLabel || "Unknown"))
     .map(([name, list]) => ({
       name,
       count: list.length,
@@ -1143,21 +1237,17 @@ function renderHeatView() {
     }))
     .sort((a, b) => (b.hotShare - a.hotShare) || (b.count - a.count))
     .slice(0, 30);
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head"><div><p class="eyebrow">Heat</p><h2>Competition pockets</h2></div></section>
-      <div class="heat-list">
-        ${byNeighborhood.map((entry) => `
-          <button class="heat-row" type="button" data-set-interaction="neighborhood" data-set-value="${esc(entry.name)}">
-            <span>${esc(entry.name)}</span>
-            <strong>${formatPct(entry.hotShare)}</strong>
-            <em>${formatWholeNumber(entry.count)} sales · ${formatRatio(entry.medianRatio)} · ${formatMoneyOrNa(entry.medianClose)}</em>
-            <i style="inline-size:${Math.max(6, entry.hotShare * 100).toFixed(1)}%"></i>
-          </button>
-        `).join("") || `<div class="empty-state">No rows in this slice.</div>`}
-      </div>
-    </div>
-  `;
+}
+
+function heatListHtml(entries) {
+  return entries.map((entry) => `
+    <button class="heat-row" type="button" data-set-interaction="neighborhood" data-set-value="${esc(entry.name)}">
+      <span>${esc(entry.name)}</span>
+      <strong>${formatPct(entry.hotShare)} fast-sale</strong>
+      <em>${formatWholeNumber(entry.count)} sales · ${formatRatio(entry.medianRatio)} sale/list · ${formatMoneyOrNa(entry.medianClose)}</em>
+      <i style="inline-size:${Math.max(6, entry.hotShare * 100).toFixed(1)}%"></i>
+    </button>
+  `).join("") || `<div class="empty-state">No rows in this slice.</div>`;
 }
 
 function groupRows(rows, keyFn) {
@@ -1182,20 +1272,28 @@ function renderBidsView() {
       <section class="section-head">
         <div>
           <p class="eyebrow">Bids</p>
-          <h2>Active-listing bid scenarios</h2>
+          <h2>Offer Lab: what should I bid?</h2>
         </div>
         <div class="segmented">
           ${Object.entries(BID_STRATEGIES).map(([key, strategy]) => `<button type="button" class="scope-pill ${state.bid.strategy === key ? "active" : ""}" data-bid-strategy="${esc(key)}">${esc(strategy.label)}</button>`).join("")}
         </div>
       </section>
-      <label class="check inline"><input type="checkbox" id="bidHighConfidenceOnly" ${state.bid.highConfidenceOnly ? "checked" : ""} /> High confidence only</label>
+      <p class="note">Load an active listing or enter a prospective address to find comps first, then estimate a bid range from the same comp pool.</p>
+      ${renderManualBidPanel()}
       <div class="metric-row">
         ${miniMetric("Active listings", formatWholeNumber(stats.activeCount))}
         ${miniMetric("Scored", formatWholeNumber(stats.scoredCount))}
         ${miniMetric("High confidence", formatWholeNumber(stats.highConfidenceCount))}
         ${miniMetric("Median over ask", `${(stats.medianOverAskPct || 0).toFixed(1)}%`)}
       </div>
-      ${renderManualBidPanel()}
+      <section class="section-block">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Active listing queue</p>
+            <h3>Listings ready for scenario review</h3>
+          </div>
+          <label class="check inline"><input type="checkbox" id="bidHighConfidenceOnly" ${state.bid.highConfidenceOnly ? "checked" : ""} /> High confidence only</label>
+        </div>
       <div class="table-head">
         <p class="note">Showing ${page.start}-${page.end} of ${page.total}. Sorting uses the full filtered active-listing set.</p>
         ${paginationControls("bids", page)}
@@ -1222,17 +1320,19 @@ function renderBidsView() {
         </table>
       </div>
       <div class="mobile-card-list" id="bidMobileList">${page.rows.map(bidMobileCard).join("")}</div>
+      </section>
     </div>
   `;
 }
 
 function renderManualBidPanel() {
   const result = state.bid.manualEnabled ? computeManualBid() : null;
+  const compLookup = (state.bid.compSearchEnabled || state.bid.manualEnabled) ? computeManualComps() : null;
   return `
     <section class="manual-bid-wrap">
       <div class="section-head compact">
-        <div><p class="eyebrow">Manual scenario</p><h3>Offer estimator</h3></div>
-        <span class="note" id="manualBidStatus">${result?.status || "No manual scenario yet."}</span>
+        <div><p class="eyebrow">Comp Finder</p><h3>Prospective listing comps</h3></div>
+        <span class="note" id="manualBidStatus">${result?.status || compLookup?.status || "Load a listing or enter an address to find comps."}</span>
       </div>
       <div class="manual-bid-form">
         <div class="field"><label for="manualBidSource">Load Active Listing</label><select id="manualBidSource"><option value="">Manual entry</option>${state.derived.bidRows.map((row) => `<option value="${esc(row.mapPropertyKey)}" ${state.bid.manualSourceKey === row.mapPropertyKey ? "selected" : ""}>${esc(row.address || "Address unavailable")}</option>`).join("")}</select></div>
@@ -1245,6 +1345,7 @@ function renderManualBidPanel() {
         <div class="field"><label for="manualBidCdom">CDOM</label><input id="manualBidCdom" type="number" min="0" step="1" value="${esc(state.manualBid.cdom)}" placeholder="9" /></div>
       </div>
       <div class="manual-bid-actions">
+        ${buttonIcon("Find Comps", "search", "id=\"manualCompRun\"", "alt")}
         ${buttonIcon("Estimate Bid", "target", "id=\"manualBidRun\"")}
         ${buttonIcon("Clear", "refresh-ccw", "id=\"manualBidClear\"", "alt")}
       </div>
@@ -1253,28 +1354,67 @@ function renderManualBidPanel() {
       </div>
       <div class="table-wrap manual-bid-table-wrap">
         <table class="manual-bid-table">
-          <thead><tr><th>Comp</th><th>Close</th><th>S/List</th><th>DOM</th></tr></thead>
-          <tbody id="manualBidCompRows">${result?.compRows || ""}</tbody>
+          <thead><tr><th>Comp</th><th>Neighborhood</th><th>Close</th><th>S/List</th><th>DOM</th><th>Bid-Up</th></tr></thead>
+          <tbody id="manualBidCompRows">${compLookup?.rowsHtml || result?.compRows || `<tr><td colspan="6">${esc(compLookup?.status || "Find comps to populate this list.")}</td></tr>`}</tbody>
         </table>
       </div>
     </section>
   `;
 }
 
-function computeManualBid() {
-  const row = {
+function zipFromText(text) {
+  const match = String(text || "").match(/\b(98\d{3})\b/);
+  return match ? match[1] : "";
+}
+
+function manualScenarioRow() {
+  const domValue = num(state.manualBid.cdom || state.manualBid.dom);
+  return {
     address: state.manualBid.address,
     pendingListPrice: num(state.manualBid.pendingListPrice),
     neighborhoodLabel: state.manualBid.neighborhoodLabel || "Seattle",
     typeLabel: state.manualBid.typeLabel || state.filters.type,
-    zip: state.manualBid.zip,
-    isHotMarket: num(state.manualBid.cdom || state.manualBid.dom) > 0 && num(state.manualBid.cdom || state.manualBid.dom) <= 10,
-    isUltraHot: num(state.manualBid.cdom || state.manualBid.dom) > 0 && num(state.manualBid.cdom || state.manualBid.dom) <= 5,
+    zip: state.manualBid.zip || zipFromText(state.manualBid.address),
+    isHotMarket: domValue > 0 && domValue <= 10,
+    isUltraHot: domValue > 0 && domValue <= 5,
     hasMlsDomValue: state.manualBid.dom !== "",
     hasMlsCdomValue: state.manualBid.cdom !== "",
     mlsDOM: num(state.manualBid.dom),
     mlsCDOM: num(state.manualBid.cdom),
   };
+}
+
+function compRowsHtml(rows) {
+  return (rows || []).map((comp) => `
+    <tr>
+      <td>${propertyAddressLink(comp, "comp-link")}</td>
+      <td>${esc(comp.neighborhoodLabel)}</td>
+      <td>${formatMoneyCompact(comp.closePrice)}</td>
+      <td>${formatRatio(comp.saleToList)}</td>
+      <td>${domMetric(comp) ?? "n/a"}</td>
+      <td>${formatMoneyCompact(comp.delta)}</td>
+    </tr>
+  `).join("");
+}
+
+function computeManualComps() {
+  const row = manualScenarioRow();
+  if (!row.address && !row.zip && (!row.neighborhoodLabel || row.neighborhoodLabel === "Seattle")) {
+    return { status: "Enter an address plus ZIP or neighborhood, or load an active listing.", rowsHtml: "" };
+  }
+  const tier = computeBidCompTiers(row, state.derived.compPool);
+  const rows = tier.rows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || ""))).slice(0, 12);
+  if (!rows.length) {
+    return { status: "No comparable recent sales found for this type and location.", rowsHtml: "" };
+  }
+  return {
+    status: `Showing ${rows.length} comps from ${bidTierLabel(tier.tier)}.`,
+    rowsHtml: compRowsHtml(rows),
+  };
+}
+
+function computeManualBid() {
+  const row = manualScenarioRow();
   if (!row.pendingListPrice) return { status: "Enter Ask Price to estimate bid.", html: "", compRows: "" };
   const scored = scoreBidForRow(row, state.derived.compPool, state.bid.strategy, true);
   if (scored.bidStatus !== "SCored") {
@@ -1291,8 +1431,9 @@ function computeManualBid() {
       ${miniMetric("Range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`)}
       ${miniMetric("S/List", `${scored.bidRatio.toFixed(2)}x`)}
       ${miniMetric("Confidence", `${scored.bidConfidenceLabel} (${scored.bidConfidence})`)}
+      ${miniMetric("Comp basis", `${scored.bidCompCount} comps · ${bidTierLabel(scored.bidCompTier)}`)}
     `,
-    compRows: (scored.bidCompRows || []).map((comp) => `<tr><td>${propertyAddressLink(comp, "comp-link")}</td><td>${formatMoneyCompact(comp.closePrice)}</td><td>${formatRatio(comp.saleToList)}</td><td>${domMetric(comp) ?? "n/a"}</td></tr>`).join(""),
+    compRows: compRowsHtml(scored.bidCompRows || []),
   };
 }
 
@@ -1367,8 +1508,8 @@ function renderRecordsView() {
   wrap.innerHTML = `
     <div class="view-band">
       <section class="section-head">
-        <div><p class="eyebrow">Records</p><h2>Filtered rows</h2></div>
-        <p class="note" id="recordsStatus">${page.total ? `Showing ${page.total} rows in ${recordViewLabel(state.filters.recordView)}. MLS-only extras are neighborhood-scoped and blank fields mean unavailable or unknown for that export.` : emptyMessage}</p>
+        <div><p class="eyebrow">Records</p><h2>Comps and property links</h2></div>
+        <p class="note" id="recordsStatus">${page.total ? `Showing ${page.total} comps/properties in ${recordViewLabel(state.filters.recordView)}. Zillow and KC parcel links stay available for property-level review; blank MLS fields mean unavailable or unknown for that export.` : emptyMessage}</p>
       </section>
       <div class="table-head">
         <p class="note">Showing ${page.start}-${page.end} of ${page.total}. Sorting and export use the full filtered dataset.</p>
@@ -1479,10 +1620,12 @@ function ensureGeoShell(wrap) {
   wrap.innerHTML = `
     <div class="view-band geo-view">
       <section class="section-head">
-        <div><p class="eyebrow">Geo</p><h2>Mapped properties</h2></div>
+        <div><p class="eyebrow">Geo</p><h2>Where is pressure located?</h2></div>
         <div class="geo-actions">
           <label class="check inline"><input type="checkbox" id="geoViewportFilter" /> Filter to viewport</label>
+          ${buttonIcon("Filter dashboard to selected", "target", "id=\"geoApplySelection\"")}
           ${buttonIcon("Clear selection", "refresh-ccw", "id=\"geoClearSelection\"", "alt")}
+          ${buttonIcon("Clear map filter", "search", "id=\"geoClearFilter\"", "alt")}
         </div>
       </section>
       <div class="geo-layout">
@@ -1500,10 +1643,15 @@ function ensureGeoShell(wrap) {
 function updateGeoShell(rows) {
   const viewport = qs("#geoViewportFilter");
   if (viewport) viewport.checked = !!state.geo.viewportFilter;
+  const applySelection = qs("#geoApplySelection");
+  if (applySelection) applySelection.disabled = !state.geo.selectedPropertyKeys.length;
+  const clearFilter = qs("#geoClearFilter");
+  if (clearFilter) clearFilter.disabled = !state.geo.filterPropertyKeys.length;
   const status = qs("#geoStatus");
   const drawnCount = Math.min(rows.length, 1200);
   if (status) {
-    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Colors show sale/list pressure.`;
+    const applied = state.geo.filterPropertyKeys.length ? ` ${formatWholeNumber(state.geo.filterPropertyKeys.length)} map-selected properties are filtering the dashboard.` : " Marker clicks inspect properties only until you apply them as a filter.";
+    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Colors show sale/list pressure.${applied}`;
   }
   const legend = qs(".geo-legend");
   if (legend) legend.outerHTML = geoLegendHtml();
@@ -1595,9 +1743,10 @@ function renderGeoSelectedRows() {
   const wrap = qs("#geoSelectedRows");
   if (!wrap || !state.derived) return;
   const selected = state.derived.viewRows.filter((row) => state.geo.selectedPropertyKeys.includes(row.mapPropertyKey));
+  const filterCount = state.geo.filterPropertyKeys.length;
   wrap.innerHTML = selected.length
-    ? selected.map((row) => `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span></article>`).join("")
-    : `<div class="empty-state">Click map points to select properties and filter the dashboard.</div>`;
+    ? `<div class="geo-selected-status">${formatWholeNumber(selected.length)} selected for inspection${filterCount ? ` · ${formatWholeNumber(filterCount)} applied as dashboard filter` : ""}</div>${selected.map((row) => `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span></article>`).join("")}`
+    : `<div class="empty-state">Click map points to inspect properties. Use "Filter dashboard to selected" only when you want the rest of the app to narrow.</div>`;
 }
 
 function toggleMapSelection(key) {
@@ -1609,12 +1758,26 @@ function toggleMapSelection(key) {
     state.geo.selectedPropertyKeys = [...state.geo.selectedPropertyKeys, key];
     state.geo.popupPropertyKey = key;
   }
-  markDirty();
+  markDirty("geo");
 }
 
 function clearMapSelection() {
   state.geo.selectedPropertyKeys = [];
   state.geo.popupPropertyKey = "";
+  markDirty("geo");
+}
+
+function applyMapSelectionFilter() {
+  state.geo.filterPropertyKeys = state.geo.selectedPropertyKeys.slice();
+  state.recordsPage = 1;
+  state.bidsPage = 1;
+  markDirty();
+}
+
+function clearMapSelectionFilter() {
+  state.geo.filterPropertyKeys = [];
+  state.recordsPage = 1;
+  state.bidsPage = 1;
   markDirty();
 }
 
@@ -1703,6 +1866,7 @@ function applyManualScenarioFromActiveRow(row) {
     cdom: row.hasMlsCdomValue ? String(Math.round(row.mlsCDOM)) : "",
   };
   state.bid.manualEnabled = true;
+  state.bid.compSearchEnabled = true;
   state.bid.manualSourceKey = row.mapPropertyKey || "";
 }
 
@@ -1794,13 +1958,22 @@ function bindEvents() {
       return markDirty();
     }
     if (target.closest("#geoClearSelection")) return clearMapSelection();
+    if (target.closest("#geoApplySelection")) return applyMapSelectionFilter();
+    if (target.closest("#geoClearFilter")) return clearMapSelectionFilter();
+    if (target.closest("#manualCompRun")) {
+      updateManualBidFromInputs();
+      state.bid.compSearchEnabled = true;
+      return markDirty("bids");
+    }
     if (target.closest("#manualBidRun")) {
       updateManualBidFromInputs();
       state.bid.manualEnabled = true;
+      state.bid.compSearchEnabled = true;
       return markDirty("bids");
     }
     if (target.closest("#manualBidClear")) {
       state.bid.manualEnabled = false;
+      state.bid.compSearchEnabled = false;
       state.bid.manualSourceKey = "";
       state.manualBid = {
         address: "",
@@ -1865,6 +2038,7 @@ function bindEvents() {
       return markDirty();
     }
     if (target.closest("[data-clear-map-selection]")) return clearMapSelection();
+    if (target.closest("[data-clear-map-filter]")) return clearMapSelectionFilter();
     if (target.closest("[data-clear-viewport-filter]")) {
       state.geo.viewportFilter = false;
       state.geo.mapBounds = null;
@@ -1924,6 +2098,8 @@ function resetFilters() {
 function clearCrossFilters(render = true) {
   state.interactions = createEmptyInteractions();
   state.geo.selectedPropertyKeys = [];
+  state.geo.filterPropertyKeys = [];
+  state.geo.popupPropertyKey = "";
   state.geo.viewportFilter = false;
   state.geo.mapBounds = null;
   if (render) markDirty();
@@ -2054,10 +2230,6 @@ id="tab-overview" aria-controls="view-overview"
 id="view-overview" role="tabpanel" aria-labelledby="tab-overview"
 id="tab-pulse" aria-controls="view-pulse"
 id="view-pulse" role="tabpanel" aria-labelledby="tab-pulse"
-id="tab-charts" aria-controls="view-charts"
-id="view-charts" role="tabpanel" aria-labelledby="tab-charts"
-id="tab-heat" aria-controls="view-heat"
-id="view-heat" role="tabpanel" aria-labelledby="tab-heat"
 id="tab-bids" aria-controls="view-bids"
 id="view-bids" role="tabpanel" aria-labelledby="tab-bids"
 id="tab-geo" aria-controls="view-geo"
@@ -2083,6 +2255,12 @@ id="pulseChartSaleToList"
 id="pulseChartBidUp"
 id="pulseChartClosePrice"
 id="pulseTrajectory"
+id="pulseSliceTrends"
+id="pulseCompetitionPockets"
+id="chartVolume"
+id="chartClose"
+id="chartRatio"
+id="geoApplySelection"
 id="buyerProfileStatus"
 id="buyerProfileMemory"
 id="buyerProfileToggle"

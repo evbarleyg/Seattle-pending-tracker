@@ -125,3 +125,54 @@ test("bid selector reuses one comp pool and scores active rows", async () => {
   assert.equal(result.rows[0].bidCompTier, "T1_NEIGHBORHOOD_TYPE");
   assert.ok(result.rows[0].bidSuggested > active.pendingListPrice);
 });
+
+test("geo marker selection does not filter until map filter is applied", async () => {
+  const { computeSlices, DEFAULT_FILTERS } = await importModule("src/domain/selectors.mjs");
+  const rows = [
+    {
+      mapPropertyKey: "map-a",
+      typeLabel: "Single Family",
+      neighborhoodLabel: "Ballard",
+      dataMode: "MLS_ENRICHED",
+      mlsStatusNorm: "SOLD",
+      closePrice: 1200000,
+      pendingListPrice: 1150000,
+      saleDate: "2026-03-10",
+      effectiveDate: "2026-03-10",
+      saleToList: 1.04,
+      delta: 50000,
+      pricePerSqft: 600,
+      isHotMarket: true,
+      isUltraHot: false,
+      hasActualClose: true,
+    },
+    {
+      mapPropertyKey: "map-b",
+      typeLabel: "Single Family",
+      neighborhoodLabel: "Ravenna",
+      dataMode: "MLS_ENRICHED",
+      mlsStatusNorm: "SOLD",
+      closePrice: 1250000,
+      pendingListPrice: 1220000,
+      saleDate: "2026-03-11",
+      effectiveDate: "2026-03-11",
+      saleToList: 1.02,
+      delta: 30000,
+      pricePerSqft: 650,
+      isHotMarket: false,
+      isUltraHot: false,
+      hasActualClose: true,
+    },
+  ];
+  const filters = { ...DEFAULT_FILTERS, type: "Single Family", minClose: 1100000, maxClose: 1400000 };
+  const selectedOnly = computeSlices(filters, rows, {
+    geo: { selectedPropertyKeys: ["map-a"], filterPropertyKeys: [] },
+  });
+  const appliedFilter = computeSlices(filters, rows, {
+    geo: { selectedPropertyKeys: ["map-a"], filterPropertyKeys: ["map-a"] },
+  });
+
+  assert.equal(selectedOnly.closedSlice.length, 2);
+  assert.equal(appliedFilter.closedSlice.length, 1);
+  assert.equal(appliedFilter.closedSlice[0].mapPropertyKey, "map-a");
+});

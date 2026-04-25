@@ -47,8 +47,6 @@ function checkUiContract(html, source) {
   const requiredPairs = [
     ["tab-overview", "view-overview"],
     ["tab-pulse", "view-pulse"],
-    ["tab-charts", "view-charts"],
-    ["tab-heat", "view-heat"],
     ["tab-bids", "view-bids"],
     ["tab-geo", "view-geo"],
     ["tab-records", "view-records"],
@@ -85,6 +83,8 @@ function checkUiContract(html, source) {
     "pulseMicroBreakout",
     "pulseChartHotShare",
     "pulseTrajectory",
+    "pulseSliceTrends",
+    "pulseCompetitionPockets",
   ].forEach((id) => {
     if (!hasAnchor(id)) {
       fail(`Missing Pulse UI anchor: ${id}`);

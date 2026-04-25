@@ -17,8 +17,6 @@ test("tabs and tabpanels are mapped for accessibility", () => {
   const pairs = [
     ["tab-overview", "view-overview"],
     ["tab-pulse", "view-pulse"],
-    ["tab-charts", "view-charts"],
-    ["tab-heat", "view-heat"],
     ["tab-bids", "view-bids"],
     ["tab-geo", "view-geo"],
     ["tab-records", "view-records"],
@@ -37,6 +35,20 @@ test("tabs and tabpanels are mapped for accessibility", () => {
       `Expected ${panelId} to be labelled by ${tabId}`
     );
   });
+});
+
+test("moderate merge removes charts and heat as top-level tabs", () => {
+  assert.doesNotMatch(source, /id=\"tab-charts\"|id=\"view-charts\"/);
+  assert.doesNotMatch(source, /id=\"tab-heat\"|id=\"view-heat\"/);
+  assert.match(source, /id=\"pulseSliceTrends\"/);
+  assert.match(source, /id=\"pulseCompetitionPockets\"/);
+});
+
+test("overview owns the command center and decision brief", () => {
+  assert.match(source, /function renderOverviewView[\s\S]*?commandCenterSectionHtml/);
+  assert.match(source, /id=\"decisionBrief\"/);
+  assert.match(source, /What this means for the next offer/);
+  assert.match(source, /Start with stance, then inspect the proof/);
 });
 
 test("geo legend uses fixed numeric range labels", () => {
@@ -75,6 +87,11 @@ test("pulse tab exposes local controls and visualization anchors", () => {
     "pulseChartBidUp",
     "pulseChartClosePrice",
     "pulseTrajectory",
+    "pulseSliceTrends",
+    "pulseCompetitionPockets",
+    "chartVolume",
+    "chartClose",
+    "chartRatio",
   ].forEach((id) => {
     assert.match(source, new RegExp(`id=\\"${id}\\"`));
   });
@@ -136,6 +153,8 @@ test("charts expose readable axes and data labels", () => {
   assert.match(source, /X-axis shows sale month/);
   assert.match(source, /Blue line: monthly value/);
   assert.match(source, /Green line: 3-month average/);
+  assert.match(source, /What this tells you/);
+  assert.match(source, /Fast-Sale Share/);
 });
 
 test("records filters expose MLS special-sale control and coverage cue", () => {
@@ -150,6 +169,27 @@ test("property surfaces keep Zillow links available", () => {
     "mrow-address-link",
     "mini-record-link",
     "map-popup-zillow",
+    "KC Parcel",
+  ].forEach((token) => {
+    assert.match(source, new RegExp(token));
+  });
+});
+
+test("geo selection is separate from dashboard map filtering", () => {
+  assert.match(source, /selectedPropertyKeys/);
+  assert.match(source, /filterPropertyKeys/);
+  assert.match(source, /id=\"geoApplySelection\"/);
+  assert.match(source, /applyMapSelectionFilter/);
+  assert.match(source, /Marker clicks inspect properties only/);
+});
+
+test("bids includes a comp finder for prospective listings", () => {
+  [
+    "Comp Finder",
+    "Find Comps",
+    "computeManualComps",
+    "computeBidCompTiers",
+    "manualCompRun",
   ].forEach((token) => {
     assert.match(source, new RegExp(token));
   });

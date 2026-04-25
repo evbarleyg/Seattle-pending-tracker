@@ -525,6 +525,73 @@ h3 {
   gap: 14px;
 }
 
+.decision-brief h2 {
+  max-inline-size: 760px;
+}
+
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.decision-card,
+.decision-action {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-block-size: 132px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: start;
+}
+
+.decision-card {
+  grid-column: span 2;
+}
+
+.decision-card span,
+.decision-action span,
+.chart-insight,
+.geo-selected-status {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.decision-card > span,
+.decision-action > strong {
+  font-weight: 850;
+}
+
+.decision-card strong {
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+
+.decision-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.decision-action {
+  cursor: pointer;
+}
+
+.decision-action svg {
+  inline-size: 18px;
+  block-size: 18px;
+  color: var(--brand);
+}
+
+.decision-action:hover,
+.decision-action:focus-visible {
+  border-color: var(--brand);
+}
+
 .panel,
 .section-block,
 .manual-bid-wrap {
@@ -685,6 +752,10 @@ h3 {
   flex-wrap: wrap;
   gap: 7px;
   margin: 0 0 10px;
+}
+
+.chart-insight {
+  margin: 4px 0 10px;
 }
 
 .chart-summary span {
@@ -864,7 +935,7 @@ h3 {
 }
 
 .manual-bid-result {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin-block-start: 12px;
 }
 
@@ -1145,6 +1216,11 @@ th {
   margin-block-end: 8px;
 }
 
+.geo-selected-status {
+  margin-block-end: 8px;
+  font-weight: 800;
+}
+
 .mini-record span,
 .empty-state {
   color: var(--muted);
@@ -1240,6 +1316,7 @@ th {
   }
 
   .command-grid,
+  .decision-grid,
   .filters-grid,
   .profile-grid,
   .pulse-grid,
@@ -1271,6 +1348,7 @@ th {
   }
 
   .command-grid,
+  .decision-grid,
   .filters-grid,
   .profile-grid,
   .pulse-grid,
@@ -1287,6 +1365,7 @@ th {
 
   .span-2,
   .span-3,
+  .decision-card,
   .neighborhoods-field {
     grid-column: auto;
   }
