@@ -216,7 +216,39 @@ function zipToNeighborhood(zip) {
 }
 
 function areaSubKey(area, subArea) {
-  return `${String(area || "").trim()}::${String(subArea || "").trim()}`;
+  return `${normalizeSpace(area)}::${normalizeSpace(subArea)}`;
+}
+
+function hasAreaSubSignal(area, subArea) {
+  const areaText = normalizeSpace(area);
+  const subAreaText = normalizeSpace(subArea);
+  return !!areaText || (!!subAreaText && !looksNumeric(subAreaText));
+}
+
+function learnAreaSubNeighborhood(areaSubCounts, parcel, zip) {
+  const inferred = mappedZipNeighborhood(zip);
+  if (!inferred) return;
+
+  const area = normalizeSpace(parcel?.area);
+  const subArea = normalizeSpace(parcel?.subArea);
+  if (!hasAreaSubSignal(area, subArea)) return;
+
+  const k = areaSubKey(area, subArea);
+  if (!areaSubCounts.has(k)) areaSubCounts.set(k, new Map());
+  const byLabel = areaSubCounts.get(k);
+  byLabel.set(inferred, (byLabel.get(inferred) || 0) + 1);
+}
+
+function deriveNeighborhood(area, subArea, zip, areaSubNeighborhood = new Map()) {
+  const areaText = normalizeSpace(area);
+  const subAreaText = normalizeSpace(subArea);
+  if (subAreaText && !looksNumeric(subAreaText)) return subAreaText;
+
+  const neighborhoodFromArea = hasAreaSubSignal(areaText, subAreaText)
+    ? (areaSubNeighborhood.get(areaSubKey(areaText, subAreaText)) || "")
+    : "";
+
+  return neighborhoodFromArea || zipToNeighborhood(zip);
 }
 
 function normalizeHeader(text) {
@@ -421,12 +453,7 @@ async function buildSeattleAccountMap(parcelMap) {
       if (!isSeattle || !parcel) continue;
 
       const zip = clean(cols[idx.ZipCode]);
-      const inferred = mappedZipNeighborhood(zip);
-      if (!inferred) continue;
-      const k = areaSubKey(parcel.area, parcel.subArea);
-      if (!areaSubCounts.has(k)) areaSubCounts.set(k, new Map());
-      const byLabel = areaSubCounts.get(k);
-      byLabel.set(inferred, (byLabel.get(inferred) || 0) + 1);
+      learnAreaSubNeighborhood(areaSubCounts, parcel, zip);
     }
   }
 
@@ -471,10 +498,7 @@ async function buildSeattleAccountMap(parcelMap) {
     const zip = clean(cols[idx.ZipCode]);
     const subArea = parcel?.subArea || "";
     const area = parcel?.area || "";
-    const neighborhoodFromArea = areaSubNeighborhood.get(areaSubKey(area, subArea)) || "";
-    const neighborhood = subArea && !looksNumeric(subArea)
-      ? subArea
-      : (neighborhoodFromArea || zipToNeighborhood(zip));
+    const neighborhood = deriveNeighborhood(area, subArea, zip, areaSubNeighborhood);
 
     if (!existing || assessed > existing.assessedValue) {
       map.set(key, {
@@ -605,8 +629,20 @@ async function main() {
   console.log(`Wrote ${result.written} rows to ${OUTPUT_FILE} (rows with coords: ${result.withCoords})`);
 }
 
-main().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error(err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error(err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  areaSubKey,
+  deriveNeighborhood,
+  hasAreaSubSignal,
+  learnAreaSubNeighborhood,
+  main,
+  mappedZipNeighborhood,
+  zipToNeighborhood,
+};

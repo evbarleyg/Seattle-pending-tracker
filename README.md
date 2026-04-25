@@ -69,15 +69,23 @@ node scripts/build_mls_enriched_dataset.js
 node scripts/validate_data_refresh.js
 ```
 
-5. Start the local server:
+5. Sync deploy assets and start the Vite dev server:
 
 ```bash
-node scripts/serve.js
+npm run sync:public
+npm run dev
 ```
 
 6. Open:
 
-`http://localhost:4173`
+`http://127.0.0.1:4173`
+
+Preview the production build locally:
+
+```bash
+npm run build
+npm run preview
+```
 
 ## Quality Checks
 
@@ -93,6 +101,8 @@ Individual commands:
 npm run lint
 npm run typecheck
 npm run test
+npm run validate:data
+npm run sync:public
 npm run build
 ```
 
@@ -120,6 +130,22 @@ Refresh summary is saved to:
 
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/data_refresh_report.json`
 
+## 2026 Pending Context Export
+
+King County parcel links are for parcel/sale verification only; they do not provide true MLS pending dates or list-at-pending prices. For 2026 sold homes, extract the pending context from the local Realtor/MLS CSV exports:
+
+```bash
+npm run pending:2026
+```
+
+This writes:
+
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/tmp/sold_2026_pending_context.csv`
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/tmp/sold_2026_pending_context_missing.csv`
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/tmp/sold_2026_pending_context_report.json`
+
+Use `npm run scrape:pending2026` as an alias when the workflow is focused on collecting the export-derived pending fields.
+
 ## Bid Recommendations (Active MLS)
 
 - Scope: `MLS_ENRICHED` rows where `mlsStatus = Active` and no close price.
@@ -142,7 +168,8 @@ Refresh summary is saved to:
 ## Deployment
 
 - GitHub Pages deploys automatically from `main` via `.github/workflows/deploy-pages.yml`.
-- Deployment now runs a quality gate first (`npm run check`).
+- Deployment now runs a quality gate first (`npm run check`), rebuilds the Vite app, and uploads `dist/`.
+- Netlify builds with `npm run build` and publishes `dist/`.
 - Separate CI workflow runs on push/PR via `.github/workflows/ci.yml`.
 - Push updates with:
 
@@ -172,7 +199,11 @@ git push -u origin main
 
 ## Key Files
 
-- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/index.html` - App UI + logic
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/index.html` - Vite shell
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/src/main.mjs` - App UI, events, targeted rendering, and lazy view mounting
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/src/workers/dataWorker.mjs` - CSV fetch/parse/normalization worker
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/src/domain/` - Data normalization, selectors, Pulse, and buyer-profile logic
+- `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public/` - Vite public deploy assets copied from generated root outputs
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_public_proxy_csv.js` - Public dataset builder
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/build_parcel_coord_lookup.js` - Normalize GIS export to `major,minor,lat,lon` join file
 - `/Users/evanbarley-greenfield/Documents/Evan Tester Project/public_sales_proxy_mls_enriched_last12mo.csv` - Default loaded dataset

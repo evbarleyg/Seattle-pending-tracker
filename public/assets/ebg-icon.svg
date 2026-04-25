@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="EBG icon">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2d80d7"/>
+      <stop offset="100%" stop-color="#42bde7"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0b452"/>
+      <stop offset="100%" stop-color="#cc8030"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#0d1730"/>
+  <rect x="18" y="18" width="220" height="220" rx="40" fill="url(#g1)" opacity="0.22"/>
+  <path d="M56 78h86v24H84v26h48v24H84v26h58v24H56z" fill="#ecf3ff"/>
+  <path d="M152 78h45c18 0 29 11 29 27 0 11-6 18-13 22 12 4 18 13 18 25 0 18-13 30-34 30h-45zm28 21v20h14c6 0 10-4 10-10s-4-10-10-10zm0 39v22h17c7 0 12-5 12-11s-5-11-12-11z" fill="url(#g2)"/>
+  <circle cx="192" cy="66" r="10" fill="#f3d291"/>
+</svg>

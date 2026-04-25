@@ -7,6 +7,11 @@ const path = require("path");
 
 const indexPath = path.resolve(__dirname, "..", "index.html");
 const html = fs.readFileSync(indexPath, "utf8");
+const source = [
+  html,
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "main.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "domain", "selectors.mjs"), "utf8"),
+].join("\n");
 
 test("tabs and tabpanels are mapped for accessibility", () => {
   const pairs = [
@@ -22,13 +27,13 @@ test("tabs and tabpanels are mapped for accessibility", () => {
 
   pairs.forEach(([tabId, panelId]) => {
     assert.match(
-      html,
-      new RegExp(`id=\\"${tabId}\\"[^>]*aria-controls=\\"${panelId}\\"`),
+      source,
+      new RegExp(`id=\\"${tabId}\\"[\\s\\S]*?aria-controls=\\"${panelId}\\"`),
       `Expected ${tabId} to control ${panelId}`
     );
     assert.match(
-      html,
-      new RegExp(`id=\\"${panelId}\\"[^>]*role=\\"tabpanel\\"[^>]*aria-labelledby=\\"${tabId}\\"`),
+      source,
+      new RegExp(`id=\\"${panelId}\\"[\\s\\S]*?role=\\"tabpanel\\"[\\s\\S]*?aria-labelledby=\\"${tabId}\\"`),
       `Expected ${panelId} to be labelled by ${tabId}`
     );
   });
@@ -36,13 +41,24 @@ test("tabs and tabpanels are mapped for accessibility", () => {
 
 test("geo legend uses fixed numeric range labels", () => {
   ["0.90x", "1.00x", "1.10x", "1.20x"].forEach((label) => {
-    assert.match(html, new RegExp(label.replace(".", "\\.")));
+    assert.match(source, new RegExp(label.replace(".", "\\.")));
   });
+  assert.match(source, /Sale-to-list color legend/);
+  assert.match(source, /Colors show sale\/list pressure/);
+});
+
+test("geo map lifecycle handles rerenders without stale Leaflet containers", () => {
+  assert.match(source, /getContainer\(\) !== mapEl/);
+  assert.match(source, /state\.geo\.map\.remove\(\)/);
+  assert.match(source, /popupPropertyKey/);
+  assert.match(source, /marker\.openPopup\(\)/);
+  assert.match(source, /ensureGeoShell/);
+  assert.match(source, /updateGeoShell/);
 });
 
 test("manual bids can load active listing from bids table", () => {
-  assert.match(html, /id=\"manualBidSource\"/);
-  assert.match(html, /data-use-active-bid/);
+  assert.match(source, /id=\"manualBidSource\"/);
+  assert.match(source, /data-use-active-bid/);
 });
 
 test("pulse tab exposes local controls and visualization anchors", () => {
@@ -60,7 +76,7 @@ test("pulse tab exposes local controls and visualization anchors", () => {
     "pulseChartClosePrice",
     "pulseTrajectory",
   ].forEach((id) => {
-    assert.match(html, new RegExp(`id=\\"${id}\\"`));
+    assert.match(source, new RegExp(`id=\\"${id}\\"`));
   });
 
   [
@@ -71,12 +87,12 @@ test("pulse tab exposes local controls and visualization anchors", () => {
     "Magnolia",
   ].forEach((group) => {
     const escaped = group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    assert.match(html, new RegExp(`data-pulse-group=\\\"${escaped}\\\"`));
+    assert.match(source, new RegExp(`data-pulse-group=\\\"\\$\\{esc\\(group\\.id\\)\\}|data-pulse-group=\\\"${escaped}\\\"`));
   });
 
-  assert.match(html, /<script src=\"\.\/pulse_metrics\.js\"><\/script>/);
-  assert.match(html, /data-pulse-mode=\"compare\"/);
-  assert.match(html, /data-pulse-mode=\"combined\"/);
+  assert.match(source, /from "\.\/domain\/pulseMetrics\.mjs"/);
+  assert.match(source, /data-pulse-mode=\"compare\"/);
+  assert.match(source, /data-pulse-mode=\"combined\"/);
 });
 
 test("overview exposes buyer profile and micromarket anchors", () => {
@@ -91,22 +107,52 @@ test("overview exposes buyer profile and micromarket anchors", () => {
     "micromarketIntro",
     "micromarketProfiles",
   ].forEach((id) => {
-    assert.match(html, new RegExp(`id=\\"${id}\\"`));
+    assert.match(source, new RegExp(`id=\\"${id}\\"`));
   });
 
-  assert.match(html, /Micromarket Profiles/);
-  assert.match(html, /<script src=\"\.\/buyer_profile\.js\"><\/script>/);
-  assert.match(html, /data-buyer-profile-toggle=\"1\"/);
+  assert.match(source, /Micromarket Profiles/);
+  assert.match(source, /from "\.\/domain\/buyerProfile\.mjs"/);
+  assert.match(source, /data-buyer-profile-toggle=\"1\"/);
 });
 
 test("pulse charts wire month interactions through SVG points", () => {
-  assert.match(html, /function pulseChartSvg[\s\S]*?data-set-interaction=\"month\"/);
-  assert.match(html, /function pulseTrajectorySvg[\s\S]*?data-set-interaction=\"month\"/);
+  assert.match(source, /function pulseChartSvg[\s\S]*?data-set-interaction=\"month\"/);
+  assert.match(source, /function pulseTrajectoryCards[\s\S]*?data-set-interaction=\"month\"/);
+});
+
+test("charts expose readable axes and data labels", () => {
+  [
+    "chart-summary",
+    "chart-guide",
+    "legend-swatch",
+    "chart-y-tick",
+    "chart-x-tick",
+    "axis-title",
+    "chart-value-label",
+  ].forEach((token) => {
+    assert.match(source, new RegExp(token));
+  });
+  assert.match(source, /Y-axis shows/);
+  assert.match(source, /X-axis shows sale month/);
+  assert.match(source, /Blue line: monthly value/);
+  assert.match(source, /Green line: 3-month average/);
 });
 
 test("records filters expose MLS special-sale control and coverage cue", () => {
-  assert.match(html, /id=\"fSpecialSale\"/);
-  assert.match(html, /MLS-only extras are neighborhood-scoped/i);
+  assert.match(source, /id=\"fSpecialSale\"/);
+  assert.match(source, /MLS-only extras are neighborhood-scoped/i);
+});
+
+test("property surfaces keep Zillow links available", () => {
+  [
+    "propertyAddressLink",
+    "Open Zillow for",
+    "mrow-address-link",
+    "mini-record-link",
+    "map-popup-zillow",
+  ].forEach((token) => {
+    assert.match(source, new RegExp(token));
+  });
 });
 
 test("bids table headers expose sortable controls", () => {
@@ -118,7 +164,7 @@ test("bids table headers expose sortable controls", () => {
     "confidence",
     "compCount",
   ].forEach((key) => {
-    assert.match(html, new RegExp(`data-bid-sort=\\\"${key}\\\"`));
+    assert.match(source, new RegExp(`data-bid-sort=\\\"\\$\\{esc\\(key\\)\\}|data-bid-sort=\\\"${key}\\\"`));
   });
 });
 
@@ -131,6 +177,15 @@ test("data tab exposes refresh metadata placeholders", () => {
     "dataOutputRows",
     "dataRealtorFileCount",
   ].forEach((id) => {
-    assert.match(html, new RegExp(`id=\\"${id}\\"`));
+    assert.match(source, new RegExp(`id=\\"\\$\\{esc\\(id\\)\\}|id=\\"${id}\\"`));
   });
+});
+
+test("vite shell and public assets are wired", () => {
+  assert.match(html, /<div id=\"app\"><\/div>/);
+  assert.match(html, /<script type=\"module\" src=\"\/src\/main\.mjs\"><\/script>/);
+  assert.doesNotMatch(source, /unpkg\.com\/leaflet|cdn\.jsdelivr\.net\/npm\/leaflet/i);
+  assert.match(source, /import\("leaflet"\)/);
+  assert.match(source, /new Worker\(new URL\("\.\/workers\/dataWorker\.mjs"/);
+  assert.match(source, /id=\"csvFile\"/);
 });

@@ -1,6 +1,17 @@
 # macOS
 .DS_Store
 
+# Node / Vite
+node_modules/
+dist/
+.vite/
+
+# Keep scratch refresh outputs local, except the generated 2026 pending-context deliverable.
+tmp/*
+!tmp/sold_2026_pending_context.csv
+!tmp/sold_2026_pending_context_missing.csv
+!tmp/sold_2026_pending_context_report.json
+
 # Raw downloads and extracted bulk county datasets (too large for repo)
 *.zip
 EXTR_*.csv

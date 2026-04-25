@@ -1,0 +1,25 @@
+{
+  "year": "2026",
+  "sourceDir": "realtor_exports",
+  "filesScanned": 8,
+  "filesSkipped": 0,
+  "parsedRows": 4789,
+  "soldRows": 477,
+  "rowsWithPendingContext": 442,
+  "rowsMissingPendingContext": 35,
+  "rowsMissingPendingDate": 35,
+  "rowsMissingListingPrice": 0,
+  "sourceFiles": [
+    "Central Seattle Rich Snapshot.csv",
+    "Central_South Seattle Sale Stats.csv",
+    "NE Seattle Rich Snapshot.csv",
+    "NE Seattle Sale Stats.csv",
+    "NW Seattle Rich Snapshot.csv",
+    "NW Seattle Sale Stats.csv",
+    "QA_Magnolia Rich Snapshot.csv",
+    "QA_Magnolia Sale Stats.csv"
+  ],
+  "skippedFiles": [],
+  "outFile": "tmp/sold_2026_pending_context.csv",
+  "missingOutFile": "tmp/sold_2026_pending_context_missing.csv"
+}
