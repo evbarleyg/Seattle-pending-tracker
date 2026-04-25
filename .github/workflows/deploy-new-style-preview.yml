@@ -16,9 +16,6 @@ concurrency:
 
 jobs:
   deploy-preview:
-    environment:
-      name: github-pages
-      url: https://evbarleyg.github.io/Seattle-pending-tracker/new-style/
     runs-on: ubuntu-latest
     steps:
       - name: Checkout preview branch
