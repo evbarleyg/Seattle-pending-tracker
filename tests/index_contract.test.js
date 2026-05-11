@@ -168,7 +168,7 @@ test("property surfaces keep Zillow links available", () => {
     "Open Zillow for",
     "mrow-address-link",
     "mini-record-link",
-    "map-popup-zillow",
+    "map-popup-link",
     "KC Parcel",
   ].forEach((token) => {
     assert.match(source, new RegExp(token));

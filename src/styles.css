@@ -362,6 +362,71 @@ body.dark .bid-card-bid {
   justify-content: flex-end;
 }
 
+.geo-marker-tooltip {
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.97);
+  color: #111827;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  max-inline-size: 240px;
+  pointer-events: none;
+}
+
+.geo-marker-tooltip strong {
+  display: block;
+  margin-block-end: 2px;
+  font-size: 0.9rem;
+}
+
+.map-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 6px;
+}
+
+.map-popup-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--brand);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.12s ease;
+}
+
+.map-popup-link:hover {
+  background: rgba(0, 0, 0, 0.1);
+  text-decoration: none;
+}
+
+body.dark .map-popup-link {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+body.dark .map-popup-link:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.geo-marker-tooltip::before {
+  border-top-color: rgba(0, 0, 0, 0.12);
+}
+
+body.dark .geo-marker-tooltip {
+  background: rgba(20, 22, 28, 0.97);
+  color: #f3f4f6;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--brand);

@@ -278,7 +278,10 @@ function propertyAddressLink(row, extraClass = "") {
 }
 
 function propertyPopupLink(row) {
-  return `<a class="map-popup-zillow" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer">Open on Zillow</a>`;
+  const kc = countyRecordUrl(row);
+  const zillowLink = `<a class="map-popup-link" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer">Zillow</a>`;
+  const kcLink = kc ? `<a class="map-popup-link" href="${esc(kc)}" target="_blank" rel="noopener noreferrer">KC parcel</a>` : "";
+  return `<div class="map-popup-actions">${zillowLink}${kcLink}</div>`;
 }
 
 function applyTheme(theme) {
@@ -1911,7 +1914,16 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
       fillOpacity: selected ? 0.95 : 0.7,
       weight: selected ? 3 : 1,
     });
-    marker.bindPopup(`<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${formatMoneyOrNa(row.closePrice || row.pendingListPrice)} · ${formatRatio(row.saleToList)}<br>${propertyPopupLink(row)}`);
+    const priceText = formatMoneyOrNa(row.closePrice || row.pendingListPrice);
+    const ratioText = row.saleToList > 0 ? `${formatRatio(row.saleToList)} sale/list` : "";
+    const dom = domMetric(row);
+    const domText = dom !== null && dom !== undefined ? `${dom}d DOM` : "";
+    const facts = [priceText, ratioText, domText].filter(Boolean).join(" · ");
+    marker.bindTooltip(
+      `<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}`,
+      { direction: "top", offset: [0, -4], className: "geo-marker-tooltip", sticky: true }
+    );
+    marker.bindPopup(`<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${facts}<br>${propertyPopupLink(row)}`);
     marker.on("click", () => {
       toggleMapSelection(row.mapPropertyKey);
     });
