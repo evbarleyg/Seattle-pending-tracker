@@ -39,6 +39,7 @@ function parseArgs(argv) {
     const next = argv[i + 1];
     if (a === "--dest") { opts.dest = next; i += 1; }
     else if (a === "--show-browser") { opts.headless = false; }
+    else if (a === "--list-links") { opts.listLinks = true; opts.headless = false; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
   }
   return opts;
@@ -46,7 +47,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log([
-    "Usage: node scripts/download_kc_zips.js [--dest DIR] [--show-browser]",
+    "Usage: node scripts/download_kc_zips.js [--dest DIR] [--show-browser] [--list-links]",
     "",
     "First-time setup:",
     "  npm install playwright --save-dev",
@@ -59,7 +60,56 @@ function printHelp() {
     "Options:",
     "  --dest DIR        Save downloads here (default: ~/Downloads)",
     "  --show-browser    Run with a visible browser window (default: headless)",
+    "  --list-links      Open the portal, accept any disclaimer, and dump all",
+    "                    visible link text/href to help debug selector drift.",
+    "",
+    "Source: https://info.kingcounty.gov/assessor/datadownload/default.aspx",
+    "Subject to King County's RCW 42.56.070(9) restriction — non-commercial",
+    "use only. The script accepts the disclaimer programmatically; this is",
+    "the same one-click dialog a manual user sees.",
   ].join("\n"));
+}
+
+// Try common disclaimer / consent buttons. KC sometimes injects a modal with
+// "I Agree" / "Continue" / "Accept" before exposing download links.
+async function dismissDisclaimers(page) {
+  const candidates = [
+    'button:has-text("I Agree")',
+    'button:has-text("I agree")',
+    'button:has-text("Accept")',
+    'button:has-text("Continue")',
+    'a:has-text("I Agree")',
+    'a:has-text("Accept")',
+    'input[type="submit"][value*="Agree" i]',
+    'input[type="submit"][value*="Accept" i]',
+    'input[type="button"][value*="Agree" i]',
+  ];
+  for (const sel of candidates) {
+    const btn = page.locator(sel).first();
+    if (await btn.count()) {
+      try {
+        await btn.click({ timeout: 3000 });
+        await page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
+        console.log(`  dismissed disclaimer via ${sel}`);
+        return true;
+      } catch {}
+    }
+  }
+  return false;
+}
+
+async function listVisibleLinks(page) {
+  return page.evaluate(() => {
+    const out = [];
+    for (const a of document.querySelectorAll("a")) {
+      const text = (a.textContent || "").replace(/\s+/g, " ").trim();
+      const href = a.getAttribute("href") || "";
+      if (text || /\.(zip|csv|aspx|exe)/i.test(href)) {
+        out.push({ text: text.slice(0, 80), href });
+      }
+    }
+    return out;
+  });
 }
 
 async function main() {
@@ -86,10 +136,13 @@ async function main() {
   console.log(`Navigating to ${KC_DATA_DOWNLOAD_PAGE}`);
   await page.goto(KC_DATA_DOWNLOAD_PAGE, { waitUntil: "domcontentloaded", timeout: 30000 });
 
+  // KC may show a disclaimer/consent dialog (RCW 42.56.070(9) — non-commercial
+  // use only). Dismiss it programmatically — same click a manual user makes.
+  await dismissDisclaimers(page);
+
   // The data-download portal links to "Assessment Mainframe File Extracts"
-  // which is a separate page (the modern URL is unstable; navigate via the
-  // visible link text rather than guessing).
-  const mfLink = page.locator("a", { hasText: /Mainframe File Extracts/i }).first();
+  // (sometimes labelled "Mainframe Download" / "MFExtracts").
+  const mfLink = page.locator("a", { hasText: /Mainframe (File )?Extracts?|MFExtracts/i }).first();
   if (await mfLink.count()) {
     console.log("Following 'Mainframe File Extracts' link...");
     const [popup] = await Promise.all([
@@ -97,14 +150,28 @@ async function main() {
       mfLink.click(),
     ]);
     if (popup) await popup.waitForLoadState("domcontentloaded").catch(() => {});
-    // Some clicks open same-window; wait for nav settling either way.
     await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+    // Disclaimer may appear on the destination page too.
+    const activePage = popup || page;
+    await dismissDisclaimers(activePage);
   } else {
     console.warn("'Mainframe File Extracts' link not found on data-download page.");
   }
 
+  // If --list-links, dump everything and bail before attempting downloads.
+  if (opts.listLinks) {
+    for (const p of context.pages()) {
+      const url = p.url();
+      const links = await listVisibleLinks(p);
+      console.log(`\n=== ${url} (${links.length} links) ===`);
+      for (const l of links.slice(0, 200)) console.log(`  [${l.text}] -> ${l.href}`);
+    }
+    await browser.close();
+    return;
+  }
+
   // Now we should be on (or have a popup of) the mainframe-extracts page.
-  // Try both contexts when looking for zip links.
+  // Try every open page in the context when looking for zip links.
   const pages = context.pages();
   const downloaded = [];
   const skipped = [];

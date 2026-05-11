@@ -72,6 +72,9 @@ if [[ "$DOWNLOAD" -eq 1 ]]; then
   else
     node scripts/download_kc_zips.js --dest "$SRC_DIR"
   fi
+  echo ""
+  echo "Tip: if 0 zips downloaded, run 'node scripts/download_kc_zips.js --list-links'"
+  echo "to see what the KC portal currently exposes (selectors may have drifted)."
 fi
 
 KC_FILES=(EXTR_RPSale EXTR_RPAcct_NoName EXTR_ResBldg EXTR_LookUp EXTR_Parcel)
