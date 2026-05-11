@@ -1,0 +1,61 @@
+{
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "throttleMs": 2500,
+  "maxHomesPerQuery": 350,
+  "filters": {
+    "uiPropertyTypes": [1, 3],
+    "minPrice": 0,
+    "maxPrice": 99999999
+  },
+  "queries": [
+    {
+      "label": "NW Seattle",
+      "regionId": 37603,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/37603/WA/Seattle/Northwest-Seattle"
+    },
+    {
+      "label": "NE Seattle",
+      "regionId": 36541,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/36541/WA/Seattle/Northeast-Seattle"
+    },
+    {
+      "label": "Central Seattle",
+      "regionId": 760187,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/760187/WA/Seattle/Central-Seattle"
+    },
+    {
+      "label": "Queen Anne",
+      "regionId": 2212,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/2212/WA/Seattle/Queen-Anne"
+    },
+    {
+      "label": "Magnolia",
+      "regionId": 1604,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1604/WA/Seattle/Magnolia"
+    },
+    {
+      "label": "Beacon Hill",
+      "regionId": 1853,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1853/WA/Seattle/Beacon-Hill"
+    },
+    {
+      "label": "West Seattle",
+      "regionId": 3040,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/3040/WA/Seattle/West-Seattle"
+    }
+  ]
+}

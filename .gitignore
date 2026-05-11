@@ -27,3 +27,17 @@ realtor_exports/
 # Local Codex export artifacts
 codex_context_export_sanitized/
 codex_context_export_structured_sanitized/
+
+# Local Claude Code preferences and experiments
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Redfin scrape outputs (regenerated from API)
+redfin_active_listings.csv
+redfin_fetch_report.json
+redfin_merge_report.json
+redfin_url_index.json
+redfin_history_cache.json
+redfin_backfill_report.json
+redfin_transitions_report.json
+redfin_active_snapshots/
