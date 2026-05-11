@@ -47,12 +47,14 @@ jobs:
       - name: Compose root plus preview path
         run: |
           mkdir -p site/new-style
+          # Old-style markup from main; data from staging so both views read
+          # the same enriched dataset (Redfin actives + bid-up backfill).
           cp main-src/index.html site/
           cp main-src/favicon.ico site/
           cp main-src/favicon.svg site/
           cp -R main-src/assets site/assets
-          cp main-src/*.csv site/
-          cp main-src/*.json site/
+          cp preview-src/public/*.csv site/
+          cp preview-src/public/*.json site/
           cp -R preview-src/dist/. site/new-style/
           cat > site/new-style-preview.html <<'HTML'
           <!doctype html>
@@ -61,6 +63,11 @@ jobs:
           <title>Seattle Pending Tracker New Style Preview</title>
           <a href="./new-style/">Open the new style preview</a>
           HTML
+
+      - name: Inject view-toggle into both styles
+        run: |
+          node preview-src/scripts/inject_view_toggle.js site/index.html new
+          node preview-src/scripts/inject_view_toggle.js site/new-style/index.html old
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
