@@ -98,6 +98,97 @@
       "regionType": 1,
       "market": "seattle",
       "referer": "https://www.redfin.com/neighborhood/10943/WA/Seattle/Laurelhurst"
+    },
+    {
+      "label": "Eastlake",
+      "regionId": 815,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/815/WA/Seattle/Eastlake"
+    },
+    {
+      "label": "First Hill",
+      "regionId": 974,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/974/WA/Seattle/First-Hill"
+    },
+    {
+      "label": "Madison Park",
+      "regionId": 1601,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1601/WA/Seattle/Madison-Park"
+    },
+    {
+      "label": "Madrona",
+      "regionId": 1602,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1602/WA/Seattle/Madrona"
+    },
+    {
+      "label": "Montlake",
+      "regionId": 1760,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1760/WA/Seattle/Montlake"
+    },
+    {
+      "label": "Greenwood",
+      "regionId": 1166,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1166/WA/Seattle/Greenwood"
+    },
+    {
+      "label": "Phinney Ridge",
+      "regionId": 8119,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/8119/WA/Seattle/Phinney-Ridge"
+    },
+    {
+      "label": "Maple Leaf",
+      "regionId": 1620,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1620/WA/Seattle/Maple-Leaf"
+    },
+    {
+      "label": "Wedgwood",
+      "regionId": 2956,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/2956/WA/Seattle/Wedgwood"
+    },
+    {
+      "label": "Ravenna",
+      "regionId": 2248,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/2248/WA/Seattle/Ravenna"
+    },
+    {
+      "label": "Roosevelt",
+      "regionId": 2323,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/2323/WA/Seattle/Roosevelt"
+    },
+    {
+      "label": "University District",
+      "regionId": 2803,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/2803/WA/Seattle/University-District"
+    },
+    {
+      "label": "Northgate",
+      "regionId": 1894,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1894/WA/Seattle/Northgate"
     }
   ]
 }
