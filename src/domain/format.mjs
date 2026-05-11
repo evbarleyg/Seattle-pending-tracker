@@ -114,8 +114,10 @@ export function formatMoney(value) {
 }
 
 export function formatMoneyOrNa(value) {
-  const n = Number(value || 0);
-  return n > 0 ? formatMoney(n) : "n/a";
+  if (value === null || value === undefined || value === "") return "n/a";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "n/a";
+  return formatMoney(n);
 }
 
 export function formatMoneyCompact(value, digits = 2) {

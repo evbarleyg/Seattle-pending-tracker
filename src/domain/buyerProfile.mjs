@@ -218,54 +218,90 @@ function priceBandLabel(value) {
   return "Below core watchlist pricing";
 }
 
-function describeMicromarket(summary, profileShare) {
+function formatShortMoney(value) {
+  const v = Number(value || 0);
+  if (!Number.isFinite(v) || v === 0) return "$0";
+  const abs = Math.abs(v);
+  if (abs >= 1000000) return `${v < 0 ? "-" : ""}$${(abs / 1000000).toFixed(abs >= 10000000 ? 1 : 2)}M`;
+  if (abs >= 1000) return `${v < 0 ? "-" : ""}$${Math.round(abs / 1000)}K`;
+  return `${v < 0 ? "-" : ""}$${Math.round(abs)}`;
+}
+
+function describeMicromarket(summary, profileShare, comparison = {}) {
   if (!summary || !summary.salesCount) {
-    return "Not enough recent MLS-enriched sales yet to form a reliable micromarket read.";
+    return "Too few recent MLS-enriched sales for a confident read.";
+  }
+  if (summary.salesCount < 5) {
+    return `Only ${summary.salesCount} recent sales — read with caution.`;
   }
   const dom = Number(summary.medianDom || 0);
   const hotShare = Number(summary.hotShare || 0);
   const bidUp = Number(summary.medianBidUp || 0);
   const ratio = Number(summary.medianSaleToList || 0);
-  let pace = "Balanced-to-firm pocket";
-  if (hotShare >= 0.65 && dom > 0 && dom <= 8 && bidUp >= 100000) {
-    pace = "Fast, escalation-heavy pocket";
-  } else if (hotShare >= 0.5 && dom > 0 && dom <= 10) {
-    pace = "Competitive, fast-moving pocket";
-  } else if ((hotShare > 0 && hotShare < 0.3) || dom >= 15) {
-    pace = "More selective pocket";
-  }
+  const watchDom = Number(comparison.medianDom || 0);
+  const watchBidUp = Number(comparison.medianBidUp || 0);
+  const watchRatio = Number(comparison.medianSaleToList || 0);
 
-  let pricing = "best homes still separate from the pack";
-  if (ratio >= 1.06 || bidUp >= 125000) {
-    pricing = "buyers are regularly stretching above ask";
-  } else if (ratio >= 1.02 || bidUp >= 50000) {
-    pricing = "well-presented homes still earn meaningful premiums";
-  } else if (ratio > 0 && ratio < 1) {
-    pricing = "buyers are more selective and not every listing gets chased";
+  // Lead with the strongest comparative signal vs the watchlist baseline.
+  if (watchDom > 0 && dom > 0 && dom <= Math.max(2, watchDom - 2)) {
+    return `Fastest-moving in your watchlist — typical home pends in ${dom}d (vs ${watchDom}d watchlist median).`;
   }
+  if (watchDom > 0 && dom >= watchDom + 4) {
+    return `Slowest pace in your watchlist — ${dom}d typical DOM (vs ${watchDom}d median). Less competition.`;
+  }
+  if (bidUp > 0 && watchBidUp >= 0 && bidUp >= Math.max(25000, watchBidUp + 15000)) {
+    return `Bid-up runs hot — median ${formatShortMoney(bidUp)} over ask (vs ${formatShortMoney(watchBidUp)} watchlist median).`;
+  }
+  if (ratio > 0 && watchRatio > 0 && ratio >= watchRatio + 0.02) {
+    return `Pays a premium — sale/list ${ratio.toFixed(2)}x (vs ${watchRatio.toFixed(2)}x watchlist median).`;
+  }
+  if (ratio > 0 && ratio < 0.99) {
+    return `Buyers winning under ask — median sells ${((1 - ratio) * 100).toFixed(1)}% below list.`;
+  }
+  if (hotShare >= 0.65 && dom > 0 && dom <= 8) {
+    return `${Math.round(hotShare * 100)}% of homes pend within 10 days — sustained pressure.`;
+  }
+  if (hotShare > 0 && hotShare < 0.3 && dom >= 15) {
+    return `Slower pocket — ${Math.round(hotShare * 100)}% pend within 10d, ${dom}d typical DOM.`;
+  }
+  // Last-resort: profile-fit framing (only when nothing else stood out).
+  if (profileShare >= 0.5) {
+    return `${Math.round(profileShare * 100)}% of recent sales match your saved-home profile.`;
+  }
+  return `${summary.salesCount} sales · ${dom}d typical DOM · ${ratio.toFixed(2)}x sale/list. In line with your watchlist.`;
+}
 
-  const fit = profileShare >= 0.32
-    ? "A big share of recent winners look like your saved-home profile."
-    : "Only part of your saved-home profile shows up here.";
-  return `${pace} where ${pricing}. ${fit}`;
+function watchlistBaseline(perGroup) {
+  return {
+    medianDom: median(perGroup.map((g) => Number(g.summary?.medianDom || 0)).filter((n) => n > 0)),
+    medianBidUp: median(perGroup.map((g) => Number(g.summary?.medianBidUp || 0))),
+    medianSaleToList: median(perGroup.map((g) => Number(g.summary?.medianSaleToList || 0)).filter((n) => n > 0)),
+  };
 }
 
 export function buildMicromarketProfiles(rows, rawProfile, nowValue) {
   const profile = normalizeProfileMemory(rawProfile);
   const sourceRows = Array.isArray(rows) ? rows : [];
-  return MICRO_GROUPS.map((group) => {
+
+  // First pass: collect summaries per group.
+  const stage1 = MICRO_GROUPS.map((group) => {
     const groupRows = sourceRows.filter((row) => String(row?.pulseWatchlistGroup || "").trim() === group);
     const recent = recentRows(groupRows, nowValue || new Date(), 90);
     const summary = summarizeCompetition(recent);
     const recentMatches = recent.filter((row) => rowMatchesProfile(row, profile));
     const profileShare = summary.salesCount ? recentMatches.length / summary.salesCount : 0;
-    return {
-      group,
-      summary,
-      profileMatchShare: profileShare,
-      fitLabel: fitLabel(profileShare),
-      descriptor: describeMicromarket(summary, profileShare),
-      priceBandLabel: priceBandLabel(summary.medianClosePrice),
-    };
+    return { group, summary, profileShare };
   });
+
+  // Second pass: derive watchlist-wide medians for comparative descriptors.
+  const baseline = watchlistBaseline(stage1);
+
+  return stage1.map(({ group, summary, profileShare }) => ({
+    group,
+    summary,
+    profileMatchShare: profileShare,
+    fitLabel: fitLabel(profileShare),
+    descriptor: describeMicromarket(summary, profileShare, baseline),
+    priceBandLabel: priceBandLabel(summary.medianClosePrice),
+  }));
 }

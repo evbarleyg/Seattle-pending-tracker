@@ -119,6 +119,50 @@ const LUCIDE_ICONS = {
 const PUBLIC_BASE = import.meta.env.BASE_URL || "./";
 const BUYER_PROFILE_TOGGLE_STORAGE_KEY = "buyer_lens_profile_views_enabled";
 const THEME_STORAGE_KEY = "buyer_lens_theme";
+const LAST_VISIT_STORAGE_KEY = "buyer_lens_last_visit_iso";
+const SESSION_FLAG_STORAGE_KEY = "buyer_lens_session_started";
+const WATCHED_STORAGE_KEY = "buyer_lens_watched_ids_v1";
+
+function loadWatchedIds() {
+  try {
+    const raw = localStorage.getItem(WATCHED_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveWatchedIds(set) {
+  try {
+    localStorage.setItem(WATCHED_STORAGE_KEY, JSON.stringify([...set]));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function initVisitBaseline() {
+  let baseline = null;
+  try {
+    if (!sessionStorage.getItem(SESSION_FLAG_STORAGE_KEY)) {
+      const previous = localStorage.getItem(LAST_VISIT_STORAGE_KEY);
+      baseline = previous ? new Date(previous) : null;
+      if (baseline && Number.isNaN(baseline.getTime())) baseline = null;
+      localStorage.setItem(LAST_VISIT_STORAGE_KEY, new Date().toISOString());
+      sessionStorage.setItem(SESSION_FLAG_STORAGE_KEY, "1");
+    } else {
+      const previous = localStorage.getItem(LAST_VISIT_STORAGE_KEY);
+      baseline = previous ? new Date(previous) : null;
+      if (baseline && Number.isNaN(baseline.getTime())) baseline = null;
+    }
+  } catch {
+    baseline = null;
+  }
+  return baseline;
+}
+
+const VISIT_BASELINE = initVisitBaseline();
 
 const app = document.getElementById("app");
 const state = {
@@ -134,7 +178,7 @@ const state = {
   flags: {
     projection: false,
     excludeLikelyPresoldNewBuild: false,
-    includeOpenMls: false,
+    includeOpenMls: true,
   },
   dataSource: {
     datasetName: DEFAULT_DATASET,
@@ -154,11 +198,14 @@ const state = {
   bid: {
     strategy: "balanced",
     highConfidenceOnly: false,
+    watchedOnly: false,
+    viewMode: "cards",
     manualEnabled: false,
     compSearchEnabled: false,
     manualSourceKey: "",
     activeLookup: new Map(),
   },
+  watched: loadWatchedIds(),
   manualBid: {
     address: "",
     pendingListPrice: "",
@@ -523,11 +570,10 @@ function commandCenterCardsHtml() {
 
 function commandCenterSectionHtml() {
   return `
-    <section class="command-center" id="commandCenter" aria-label="Buyer command center">
-      <div class="hero-copy">
-        <p class="eyebrow">MLS-enriched Seattle pending and sold lens</p>
-        <h1>Command center for the next offer.</h1>
-        <p class="lead">Defaulting to Single Family homes in the $1.1M-$1.4M band, with market pressure, saved-home fit, and direct jumps into Pulse, Bids, Geo, and Records.</p>
+    <section class="command-center compact" id="commandCenter" aria-label="Buyer command center">
+      <div class="hero-strip">
+        <p class="eyebrow">Buyer command center</p>
+        <h2 class="hero-line">${esc(filtersToSummary(state.filters).join(" + "))} · ${formatWholeNumber((state.derived?.slices?.closedSlice || []).length)} comps in slice</h2>
       </div>
       <div class="command-grid" id="commandGrid">
         ${commandCenterCardsHtml()}
@@ -695,6 +741,82 @@ function renderView(view) {
   state.dirtyViews.delete(view);
 }
 
+function computeRecentChanges(rows, baseline) {
+  if (!baseline) return null;
+  const baseTime = baseline.getTime();
+  const now = Date.now();
+  const minutes = Math.max(0, Math.round((now - baseTime) / 60000));
+  const result = {
+    baseline,
+    minutesSince: minutes,
+    newActives: 0,
+    wentPending: 0,
+    newSold: 0,
+    sampleActive: null,
+  };
+  const list = Array.isArray(rows) ? rows : [];
+  for (const row of list) {
+    if (row?.dataMode !== "MLS_ENRICHED") continue;
+    const isActive = String(row.mlsStatusNorm || row.mlsStatus || "").toUpperCase() === "ACTIVE";
+    if (isActive) {
+      const listDate = row.listDate || row.mlsListDate;
+      const listTime = listDate ? new Date(listDate).getTime() : NaN;
+      if (Number.isFinite(listTime) && listTime >= baseTime) {
+        result.newActives += 1;
+        if (!result.sampleActive) result.sampleActive = row;
+      }
+    }
+    const pendingDate = row.pendingDate || row.mlsPendingDate;
+    if (pendingDate) {
+      const pendingTime = new Date(pendingDate).getTime();
+      if (Number.isFinite(pendingTime) && pendingTime >= baseTime) result.wentPending += 1;
+    }
+    const saleDate = row.saleDate;
+    if (saleDate && Number(row.closePrice) > 0) {
+      const saleTime = new Date(saleDate).getTime();
+      if (Number.isFinite(saleTime) && saleTime >= baseTime) result.newSold += 1;
+    }
+  }
+  return result;
+}
+
+function sinceLastVisitSectionHtml(changes) {
+  if (!changes) {
+    return `
+      <section class="section-block since-visit">
+        <p class="eyebrow">Since you last looked</p>
+        <p class="note">First visit on this device — we'll start tracking new actives, pendings, and sales for next time.</p>
+      </section>
+    `;
+  }
+  if (changes.minutesSince < 360) {
+    const label = changes.minutesSince < 1 ? "moments ago" : changes.minutesSince < 60 ? `${changes.minutesSince} min ago` : `${Math.round(changes.minutesSince / 60)}h ago`;
+    return `
+      <section class="section-block since-visit">
+        <p class="eyebrow">Since you last looked</p>
+        <p class="note">Last looked ${esc(label)} — wait a bit and check back to see new movement.</p>
+      </section>
+    `;
+  }
+  const sample = changes.sampleActive
+    ? `Newest: ${esc(changes.sampleActive.address || "address unavailable")} at ${esc(formatMoneyOrNa(Number(changes.sampleActive.pendingListPrice || changes.sampleActive.listPriceAtPending || 0)))}`
+    : "";
+  const baselineLabel = changes.minutesSince < 1440
+    ? `${Math.round(changes.minutesSince / 60)}h ago`
+    : `${Math.round(changes.minutesSince / 1440)}d ago`;
+  return `
+    <section class="section-block since-visit">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Since you last looked (${esc(baselineLabel)})</p>
+          <h3>${formatWholeNumber(changes.newActives)} new active · ${formatWholeNumber(changes.wentPending)} went pending · ${formatWholeNumber(changes.newSold)} newly sold</h3>
+        </div>
+      </div>
+      <p class="note">Filtered to your current slice. ${esc(sample)}</p>
+    </section>
+  `;
+}
+
 function renderOverviewView() {
   const wrap = qs("#view-overview");
   if (!wrap || !state.derived) return;
@@ -702,6 +824,8 @@ function renderOverviewView() {
   const profile = state.buyerProfile.memory;
   const cohort = buildProfileCohort(slices.closedSlice, profile);
   const profiles = buildMicromarketProfiles(slices.closedSlice, profile, new Date());
+  const allSliceRows = [...(slices.closedSlice || []), ...(slices.openRows || []), ...(slices.projectedRows || [])];
+  const recentChanges = computeRecentChanges(allSliceRows, VISIT_BASELINE);
   const stats = slices.stats;
   const pulse90 = state.derived.pulse.recentComparisons.find((entry) => entry.windowDays === 90);
   const fastSaleText = pulse90?.current?.hotShare !== null && pulse90?.current?.hotShare !== undefined
@@ -711,6 +835,8 @@ function renderOverviewView() {
   wrap.innerHTML = `
     <div class="view-band">
       ${commandCenterSectionHtml()}
+
+      ${sinceLastVisitSectionHtml(recentChanges)}
 
       <section class="section-block decision-brief" id="decisionBrief">
         <div class="section-head compact">
@@ -925,11 +1051,15 @@ function pulseMetricCard(key, recent) {
   const direction = metricDirection(key, current[key], previous[key]);
   const delta = competitiveDelta(key, current[key], previous[key]);
   const tone = direction > 0 ? "hotter" : direction < 0 ? "cooler" : "flat";
+  let deltaLabel;
+  if (delta === null) deltaLabel = "n/a vs prior";
+  else if (Math.abs(delta) < 1e-9) deltaLabel = "no change vs prior";
+  else deltaLabel = `${esc(config.delta(delta))} vs prior`;
   return `
     <article class="metric-card ${tone}">
       <span>${esc(config.label)}</span>
       <strong>${esc(config.format(current[key]))}</strong>
-      <small>${delta === null ? "n/a vs prior" : `${esc(config.delta(delta))} vs prior`}</small>
+      <small>${deltaLabel}</small>
     </article>
   `;
 }
@@ -1262,11 +1392,17 @@ function groupRows(rows, keyFn) {
 function renderBidsView() {
   const wrap = qs("#view-bids");
   if (!wrap || !state.derived) return;
-  const sorted = sortRows(state.derived.bidRows, state.bidSort, getBidSortValue);
+  let baseRows = state.derived.bidRows || [];
+  if (state.bid.watchedOnly) {
+    baseRows = baseRows.filter((row) => state.watched.has(row.id));
+  }
+  const sorted = sortRows(baseRows, state.bidSort, getBidSortValue);
   const pageSize = currentPageSize();
   const page = paginateRows(sorted, state.bidsPage, pageSize);
   state.bidsPage = page.page;
   const stats = state.derived.bidStatsView;
+  const watchedCount = state.watched.size;
+  const useCards = state.bid.viewMode !== "table";
   wrap.innerHTML = `
     <div class="view-band">
       <section class="section-head">
@@ -1284,6 +1420,7 @@ function renderBidsView() {
         ${miniMetric("Active listings", formatWholeNumber(stats.activeCount))}
         ${miniMetric("Scored", formatWholeNumber(stats.scoredCount))}
         ${miniMetric("High confidence", formatWholeNumber(stats.highConfidenceCount))}
+        ${miniMetric("Watched", formatWholeNumber(watchedCount))}
         ${miniMetric("Median over ask", `${(stats.medianOverAskPct || 0).toFixed(1)}%`)}
       </div>
       <section class="section-block">
@@ -1292,36 +1429,95 @@ function renderBidsView() {
             <p class="eyebrow">Active listing queue</p>
             <h3>Listings ready for scenario review</h3>
           </div>
-          <label class="check inline"><input type="checkbox" id="bidHighConfidenceOnly" ${state.bid.highConfidenceOnly ? "checked" : ""} /> High confidence only</label>
+          <div class="bid-toolbar">
+            <label class="check inline"><input type="checkbox" id="bidHighConfidenceOnly" ${state.bid.highConfidenceOnly ? "checked" : ""} /> High confidence only</label>
+            <label class="check inline"><input type="checkbox" id="bidWatchedOnly" ${state.bid.watchedOnly ? "checked" : ""} /> Watched only</label>
+            <div class="segmented small">
+              <button type="button" class="scope-pill ${useCards ? "active" : ""}" data-bid-view-mode="cards">Cards</button>
+              <button type="button" class="scope-pill ${!useCards ? "active" : ""}" data-bid-view-mode="table">Table</button>
+            </div>
+          </div>
         </div>
       <div class="table-head">
         <p class="note">Showing ${page.start}-${page.end} of ${page.total}. Sorting uses the full filtered active-listing set.</p>
         ${paginationControls("bids", page)}
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              ${bidTh("address", "Address")}
-              ${bidTh("neighborhood", "Neighborhood")}
-              ${bidTh("type", "Type")}
-              ${bidTh("originalListPrice", "Original List")}
-              ${bidTh("pendingListPrice", "List@Pending")}
-              ${bidTh("dom", "DOM/CDOM")}
-              ${bidTh("suggestedBid", "Suggested Bid")}
-              ${bidTh("bidRange", "Bid Range")}
-              ${bidTh("ratio", "Suggested S/List")}
-              ${bidTh("confidence", "Confidence")}
-              ${bidTh("compCount", "Comp Count")}
-              ${bidTh("compTier", "Comp Tier")}
-            </tr>
-          </thead>
-          <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="12">No active listings match the current filters.</td></tr>`}</tbody>
-        </table>
-      </div>
-      <div class="mobile-card-list" id="bidMobileList">${page.rows.map(bidMobileCard).join("")}</div>
+      ${useCards ? `
+        <div class="bid-card-grid" id="bidCards">
+          ${page.rows.map(bidCardHtml).join("") || `<p class="empty-state">No active listings match the current filters.</p>`}
+        </div>
+      ` : `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                ${bidTh("address", "Address")}
+                ${bidTh("neighborhood", "Neighborhood")}
+                ${bidTh("type", "Type")}
+                ${bidTh("originalListPrice", "Original List")}
+                ${bidTh("pendingListPrice", "List@Pending")}
+                ${bidTh("dom", "DOM/CDOM")}
+                ${bidTh("suggestedBid", "Suggested Bid")}
+                ${bidTh("bidRange", "Bid Range")}
+                ${bidTh("ratio", "Suggested S/List")}
+                ${bidTh("confidence", "Confidence")}
+                ${bidTh("compCount", "Comp Count")}
+                ${bidTh("compTier", "Comp Tier")}
+              </tr>
+            </thead>
+            <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="12">No active listings match the current filters.</td></tr>`}</tbody>
+          </table>
+        </div>
+        <div class="mobile-card-list" id="bidMobileList">${page.rows.map(bidMobileCard).join("")}</div>
+      `}
       </section>
     </div>
+  `;
+}
+
+function bidCardHtml(row) {
+  const isWatched = state.watched.has(row.id);
+  const scored = row.bidStatus === "SCored";
+  const suggested = scored ? formatMoneyCompact(row.bidSuggested) : "n/a";
+  const range = scored ? `${formatMoneyCompact(row.bidLow)} – ${formatMoneyCompact(row.bidHigh)}` : "Insufficient comps";
+  const ratio = scored && row.bidRatio > 0 ? `${row.bidRatio.toFixed(2)}x` : "—";
+  const confTone = (row.bidConfidenceLabel || "").toLowerCase();
+  const dom = domMetric(row);
+  const overAsk = scored && row.pendingListPrice > 0
+    ? Math.round(((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100)
+    : null;
+  const overAskBadge = overAsk === null
+    ? ""
+    : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${overAsk > 0 ? "+" : ""}${overAsk}% vs ask</span>`;
+  return `
+    <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
+      <header class="bid-card-head">
+        <button type="button" class="watch-star ${isWatched ? "active" : ""}" data-toggle-watch="${esc(row.id)}" aria-label="${isWatched ? "Unwatch" : "Watch"} ${esc(row.address || "listing")}" title="${isWatched ? "Unwatch" : "Watch"}">★</button>
+        <div class="bid-card-address">
+          ${propertyAddressLink(row, "bid-card-address-link")}
+          <span class="bid-card-meta">${esc(row.neighborhoodLabel || "")}${row.typeLabel ? ` · ${esc(row.typeLabel)}` : ""}</span>
+        </div>
+      </header>
+      <div class="bid-card-bid">
+        <div class="bid-suggested-block">
+          <span class="bid-suggested-label">Suggested bid</span>
+          <strong class="bid-suggested-value">${suggested}</strong>
+          ${overAskBadge}
+        </div>
+        <span class="conf-pill ${esc(confTone)}">${esc(row.bidConfidenceLabel || "n/a")} (${row.bidConfidence || 0})</span>
+      </div>
+      <div class="bid-card-grid-meta">
+        <div><span>Range</span><strong>${range}</strong></div>
+        <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
+        <div><span>Original list</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
+        <div><span>DOM</span><strong>${dom ?? "n/a"}</strong></div>
+        <div><span>Sugg S/List</span><strong>${ratio}</strong></div>
+        <div><span>Comps</span><strong>${row.bidCompCount || 0} (${esc(bidTierLabel(row.bidCompTier))})</strong></div>
+      </div>
+      <footer class="bid-card-footer">
+        <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
+      </footer>
+    </article>
   `;
 }
 
@@ -1894,6 +2090,11 @@ function bindEvents() {
     if (target.id === "ffIncludeOpenMls") state.flags.includeOpenMls = target.checked;
     if (target.id === "ffExcludePresold") state.flags.excludeLikelyPresoldNewBuild = target.checked;
     if (target.id === "bidHighConfidenceOnly") state.bid.highConfidenceOnly = target.checked;
+    if (target.id === "bidWatchedOnly") {
+      state.bid.watchedOnly = target.checked;
+      state.bidsPage = 1;
+      markDirty("bids");
+    }
     if (target.id === "geoViewportFilter") {
       state.geo.viewportFilter = target.checked;
       if (target.checked && state.geo.map) {
@@ -1990,6 +2191,19 @@ function bindEvents() {
     if (bidStrategy) {
       state.bid.strategy = bidStrategy.dataset.bidStrategy;
       return markDirty();
+    }
+    const bidViewMode = target.closest("[data-bid-view-mode]");
+    if (bidViewMode) {
+      state.bid.viewMode = bidViewMode.dataset.bidViewMode === "table" ? "table" : "cards";
+      return markDirty("bids");
+    }
+    const watchToggle = target.closest("[data-toggle-watch]");
+    if (watchToggle) {
+      const id = watchToggle.dataset.toggleWatch;
+      if (state.watched.has(id)) state.watched.delete(id);
+      else state.watched.add(id);
+      saveWatchedIds(state.watched);
+      return markDirty("bids");
     }
     const profileToggle = target.closest("[data-buyer-profile-toggle]");
     if (profileToggle) return setBuyerProfileToggle(!state.buyerProfile.enabled);
@@ -2089,7 +2303,7 @@ function resetFilters() {
   state.flags = {
     projection: false,
     excludeLikelyPresoldNewBuild: false,
-    includeOpenMls: false,
+    includeOpenMls: true,
   };
   clearCrossFilters(false);
   markDirty();
