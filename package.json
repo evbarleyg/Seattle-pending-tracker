@@ -16,6 +16,7 @@
     "build:url-index": "node scripts/build_redfin_url_index.js",
     "backfill:history": "node scripts/backfill_redfin_history.js",
     "detect:transitions": "node scripts/detect_listing_transitions.js",
+    "refresh:kc": "bash scripts/refresh_kc_data.sh",
     "sync:public": "node scripts/sync_public_assets.js",
     "validate:data": "node scripts/run_checks.js build",
     "build": "npm run validate:data && npm run sync:public && vite build",
