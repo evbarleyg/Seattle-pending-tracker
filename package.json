@@ -17,6 +17,8 @@
     "backfill:history": "node scripts/backfill_redfin_history.js",
     "detect:transitions": "node scripts/detect_listing_transitions.js",
     "refresh:kc": "bash scripts/refresh_kc_data.sh",
+    "refresh:kc-fresh": "bash scripts/refresh_kc_data.sh --download",
+    "download:kc": "node scripts/download_kc_zips.js",
     "sync:public": "node scripts/sync_public_assets.js",
     "validate:data": "node scripts/run_checks.js build",
     "build": "npm run validate:data && npm run sync:public && vite build",

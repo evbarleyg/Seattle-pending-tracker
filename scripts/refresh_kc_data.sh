@@ -2,8 +2,16 @@
 # Refresh the full pipeline: King County source -> public proxy -> MLS-enriched
 # -> Redfin actives merge -> bid-up backfill (cached) -> /public sync.
 #
-# KC requires manual download (no stable programmatic URL). The expected flow:
-#   1. Open https://info.kingcounty.gov/assessor/datadownload/default.aspx
+# Three modes:
+#   1. Browser-driven download + refresh (Playwright):
+#        npm install playwright --save-dev   # one-time
+#        npx playwright install chromium      # one-time
+#        npm run refresh:kc-fresh
+#      This drives the KC portal in a headless Chromium, downloads the 5
+#      mainframe-extract zips, then runs the pipeline.
+#
+#   2. Manual download + refresh:
+#      Open https://info.kingcounty.gov/assessor/datadownload/default.aspx
 #      Click through to "Assessment Mainframe File Extracts" and download
 #      these 5 zips into ~/Downloads (or pass --src):
 #         EXTR_RPSale.zip
@@ -11,34 +19,41 @@
 #         EXTR_ResBldg.zip
 #         EXTR_LookUp.zip
 #         EXTR_Parcel.zip      (optional, only needed for parcel coordinates)
-#   2. Run this script. It:
-#         - moves any matching .zip from --src into the project root, unzips
-#           and overwrites the EXTR_*.csv files in place
-#         - runs scripts/refresh_data_pipeline.js which rebuilds:
-#             public_sales_proxy_all_prices_last12mo.csv  (county base)
-#             public_sales_proxy_mls_enriched_last12mo.csv (with realtor MLS)
-#         - re-merges Redfin actives back in (npm run merge:actives)
-#         - re-applies the bid-up backfill cache (npm run backfill:history)
-#         - syncs the result into /public for the dashboard
+#      Then: npm run refresh:kc
+#
+#   3. Rebuild from existing source CSVs (no fresh KC data; useful for
+#      pipeline / Redfin work):
+#        npm run refresh:kc -- --force
+#
+# What the script does (after any zips are unpacked):
+#   - runs scripts/refresh_data_pipeline.js which rebuilds:
+#       public_sales_proxy_all_prices_last12mo.csv  (county base)
+#       public_sales_proxy_mls_enriched_last12mo.csv (with realtor MLS)
+#   - re-merges Redfin actives back in (npm run merge:actives)
+#   - re-applies the bid-up backfill cache (npm run backfill:history)
+#   - syncs the result into /public for the dashboard
 #
 # Why the Redfin re-merge: build_mls_enriched_dataset.js produces a fresh CSV
 # from county + realtor sources only. Without re-merging, every refresh would
 # wipe REDFIN_ACTIVE rows and REDFIN_HISTORY enrichments. The backfill cache
 # means re-application is fast (no fresh property fetches needed).
 #
-# Usage: scripts/refresh_kc_data.sh [--src ~/Downloads] [--force]
-#   --force: skip the no-fresh-zips check; rebuild from existing source CSVs.
+# Usage: scripts/refresh_kc_data.sh [--src DIR] [--download] [--show-browser] [--force]
 
 set -euo pipefail
 
 PROJECT_DIR="/Users/evanbarley-greenfield/Documents/Evan Tester Project"
 SRC_DIR="${HOME}/Downloads"
 FORCE=0
+DOWNLOAD=0
+SHOW_BROWSER=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --src) SRC_DIR="$2"; shift 2 ;;
     --force) FORCE=1; shift ;;
+    --download) DOWNLOAD=1; shift ;;
+    --show-browser) SHOW_BROWSER=1; shift ;;
     -h|--help)
       sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -49,6 +64,15 @@ done
 
 cd "$PROJECT_DIR"
 mkdir -p tmp
+
+if [[ "$DOWNLOAD" -eq 1 ]]; then
+  echo "===== 0/5  Driving browser to download fresh KC zips ====="
+  if [[ "$SHOW_BROWSER" -eq 1 ]]; then
+    node scripts/download_kc_zips.js --dest "$SRC_DIR" --show-browser
+  else
+    node scripts/download_kc_zips.js --dest "$SRC_DIR"
+  fi
+fi
 
 KC_FILES=(EXTR_RPSale EXTR_RPAcct_NoName EXTR_ResBldg EXTR_LookUp EXTR_Parcel)
 
