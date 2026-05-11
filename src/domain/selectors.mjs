@@ -52,6 +52,7 @@ export const BID_STRATEGIES = {
 export const DEFAULT_FILTERS = {
   neighborhoods: [],
   type: "Single Family",
+  excludeTypes: [],
   mode: "All",
   mlsStatus: "All",
   specialSale: "all",
@@ -59,6 +60,8 @@ export const DEFAULT_FILTERS = {
   recordView: "all",
   minClose: DEFAULT_MIN_CLOSE,
   maxClose: DEFAULT_MAX_CLOSE,
+  minLot: 0,
+  maxLot: 0,
   dateFrom: "",
   dateTo: "",
 };
@@ -103,7 +106,13 @@ export function filtersToSummary(filters) {
   const entries = [];
   const f = filters || DEFAULT_FILTERS;
   if (f.type && f.type !== "All") entries.push(f.type);
+  if (Array.isArray(f.excludeTypes) && f.excludeTypes.length) entries.push(`Excl: ${f.excludeTypes.join(", ")}`);
   entries.push(`${formatPriceSummary(f.minClose)}-${f.maxClose === null ? "No max" : formatPriceSummary(f.maxClose)}`);
+  if (f.minLot > 0 || f.maxLot > 0) {
+    const lo = f.minLot > 0 ? `${f.minLot.toLocaleString()} sf` : "0";
+    const hi = f.maxLot > 0 ? `${f.maxLot.toLocaleString()} sf` : "no max";
+    entries.push(`Lot ${lo}-${hi}`);
+  }
   if (f.neighborhoods?.length) entries.push(`${f.neighborhoods.length} neighborhoods`);
   if (f.scope === "hot10") entries.push("Hot <=10 DOM");
   if (f.scope === "ultra5") entries.push("Ultra <=5 DOM");
@@ -126,11 +135,14 @@ export function normalizeFilters(filters, options = {}) {
     ...DEFAULT_FILTERS,
     ...filters,
     neighborhoods: Array.isArray(filters?.neighborhoods) ? filters.neighborhoods.slice() : [],
+    excludeTypes: Array.isArray(filters?.excludeTypes) ? filters.excludeTypes.slice() : [],
   };
   if (!next.type) next.type = findDefaultSingleFamilyLabel(typeOptions);
   if (next.maxClose !== null && Number(next.maxClose) >= PRICE_SLIDER_CAP) next.maxClose = null;
   if (!Number.isFinite(Number(next.minClose))) next.minClose = DEFAULT_MIN_CLOSE;
   if (next.maxClose !== null && !Number.isFinite(Number(next.maxClose))) next.maxClose = DEFAULT_MAX_CLOSE;
+  next.minLot = Number.isFinite(Number(next.minLot)) ? Math.max(0, Number(next.minLot)) : 0;
+  next.maxLot = Number.isFinite(Number(next.maxLot)) ? Math.max(0, Number(next.maxLot)) : 0;
   return next;
 }
 
@@ -160,6 +172,9 @@ export function matchesSharedGlobalFilters(row, filterState, opts = {}) {
   const date = String(row[dateField] || "");
   if (f.neighborhoods.length && !f.neighborhoods.includes(row.neighborhoodLabel)) return false;
   if (f.type !== "All" && row.typeLabel !== f.type) return false;
+  if (f.excludeTypes.length && f.excludeTypes.includes(row.typeLabel)) return false;
+  if (f.minLot > 0 && (Number(row.lotSize) || 0) < f.minLot) return false;
+  if (f.maxLot > 0 && (Number(row.lotSize) || 0) > f.maxLot) return false;
   if (f.mode !== "All" && row.dataMode !== f.mode) return false;
   if (!matchesSpecialSaleFilter(row, f.specialSale)) return false;
   if (f.minClose && price < f.minClose) return false;

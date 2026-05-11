@@ -600,6 +600,17 @@ function renderFilterControls() {
     <div class="field">
       <label for="fType">Property type</label>
       <select id="fType">${optionHtml(state.options.types, f.type)}</select>
+      <details class="exclude-types-field" id="fExcludeTypes">
+        <summary>${(f.excludeTypes || []).length ? `Excluding ${(f.excludeTypes || []).length}` : "Exclude types..."}</summary>
+        <div class="multi-options" id="fExcludeTypesOptions">
+          ${(state.options.types || []).filter((t) => t && t !== "All").map((name) => `
+            <label class="multi-opt">
+              <input type="checkbox" data-exclude-type="${esc(name)}" ${(f.excludeTypes || []).includes(name) ? "checked" : ""} />
+              <span>${esc(name)}</span>
+            </label>
+          `).join("")}
+        </div>
+      </details>
     </div>
     <div class="field">
       <label for="fMlsStatus">MLS status</label>
@@ -629,6 +640,14 @@ function renderFilterControls() {
       <label for="fMaxClose">Max close</label>
       <input id="fMaxClose" type="range" min="${PRICE_SLIDER_MIN}" max="${PRICE_SLIDER_CAP}" step="${PRICE_SLIDER_STEP}" value="${esc(maxValue)}" />
       <output id="fMaxCloseValue">${f.maxClose === null ? "No max" : esc(formatMoney(f.maxClose))}</output>
+    </div>
+    <div class="field">
+      <label for="fMinLot">Min lot size (sq ft)</label>
+      <input id="fMinLot" type="number" min="0" step="500" value="${esc(f.minLot || "")}" placeholder="0" />
+    </div>
+    <div class="field">
+      <label for="fMaxLot">Max lot size (sq ft)</label>
+      <input id="fMaxLot" type="number" min="0" step="500" value="${esc(f.maxLot || "")}" placeholder="No max" />
     </div>
     <div class="field">
       <label for="fDateFrom">From sale date</label>
@@ -2116,6 +2135,14 @@ function bindEvents() {
     }
     if (target.id === "fDateFrom") state.filters.dateFrom = target.value;
     if (target.id === "fDateTo") state.filters.dateTo = target.value;
+    if (target.id === "fMinLot") state.filters.minLot = Math.max(0, Number(target.value) || 0);
+    if (target.id === "fMaxLot") state.filters.maxLot = Math.max(0, Number(target.value) || 0);
+    if (target.dataset?.excludeType !== undefined) {
+      const t = target.dataset.excludeType;
+      const set = new Set(state.filters.excludeTypes || []);
+      if (target.checked) set.add(t); else set.delete(t);
+      state.filters.excludeTypes = [...set];
+    }
     if (target.id === "ffProjection") state.flags.projection = target.checked;
     if (target.id === "ffIncludeOpenMls") state.flags.includeOpenMls = target.checked;
     if (target.id === "ffExcludePresold") state.flags.excludeLikelyPresoldNewBuild = target.checked;

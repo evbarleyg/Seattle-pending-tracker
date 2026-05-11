@@ -410,6 +410,29 @@ body.dark .bid-up-tooltip.up { background: rgba(251, 146, 60, 0.18); color: #fdb
 body.dark .bid-up-tooltip.down { background: rgba(74, 222, 128, 0.18); color: #86efac; }
 body.dark .bid-up-tooltip.flat { background: rgba(255, 255, 255, 0.08); color: var(--muted); }
 
+.exclude-types-field {
+  margin-block-start: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.exclude-types-field summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.exclude-types-field[open] summary {
+  margin-block-end: 6px;
+}
+
+.exclude-types-field .multi-options {
+  grid-template-columns: 1fr;
+  max-block-size: 180px;
+}
+
 .map-popup-actions {
   display: flex;
   flex-wrap: wrap;
