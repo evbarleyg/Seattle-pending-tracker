@@ -1919,11 +1919,29 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     const dom = domMetric(row);
     const domText = dom !== null && dom !== undefined ? `${dom}d DOM` : "";
     const facts = [priceText, ratioText, domText].filter(Boolean).join(" · ");
+
+    // For active rows with a scored bid suggestion: project bid-up over ask.
+    // For sold rows: show actual bid-up if available.
+    const isActive = row.mlsStatusNorm === "ACTIVE" || (!row.hasActualClose && row.pendingListPrice > 0);
+    let bidLine = "";
+    if (isActive && row.bidStatus === "SCored" && row.pendingListPrice > 0) {
+      const overAsk = row.bidSuggested - row.pendingListPrice;
+      const overPct = (overAsk / row.pendingListPrice) * 100;
+      const sign = overAsk > 0 ? "+" : overAsk < 0 ? "" : "";
+      const cls = overAsk > 0 ? "bid-up-tooltip up" : overAsk < 0 ? "bid-up-tooltip down" : "bid-up-tooltip flat";
+      bidLine = `<br><span class="${cls}">Suggested bid: ${formatMoneyOrNa(row.bidSuggested)} (${sign}${formatMoneyCompact(overAsk)} / ${sign}${overPct.toFixed(1)}%)</span>`;
+    } else if (row.hasActualClose && Number.isFinite(row.delta) && row.delta !== 0) {
+      const cls = row.delta > 0 ? "bid-up-tooltip up" : "bid-up-tooltip down";
+      const pct = row.pendingListPrice > 0 ? (row.delta / row.pendingListPrice) * 100 : 0;
+      const sign = row.delta > 0 ? "+" : "";
+      bidLine = `<br><span class="${cls}">Bid-up: ${sign}${formatMoneyCompact(row.delta)} (${sign}${pct.toFixed(1)}%)</span>`;
+    }
+
     marker.bindTooltip(
-      `<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}`,
+      `<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}${bidLine}`,
       { direction: "top", offset: [0, -4], className: "geo-marker-tooltip", sticky: true }
     );
-    marker.bindPopup(`<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${facts}<br>${propertyPopupLink(row)}`);
+    marker.bindPopup(`<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${facts}${bidLine}<br>${propertyPopupLink(row)}`);
     marker.on("click", () => {
       toggleMapSelection(row.mapPropertyKey);
     });
