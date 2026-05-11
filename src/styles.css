@@ -687,7 +687,7 @@ h3 {
   font-weight: 800;
 }
 
-.field input,
+.field input:not([type="checkbox"]):not([type="radio"]),
 .field select {
   min-block-size: 38px;
   inline-size: 100%;
@@ -696,6 +696,16 @@ h3 {
   background: var(--surface);
   color: var(--text);
   padding: 0 9px;
+}
+
+.field input[type="checkbox"],
+.field input[type="radio"] {
+  inline-size: 16px;
+  block-size: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  accent-color: var(--brand);
 }
 
 .range-field output,
