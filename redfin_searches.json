@@ -56,6 +56,48 @@
       "regionType": 1,
       "market": "seattle",
       "referer": "https://www.redfin.com/neighborhood/3040/WA/Seattle/West-Seattle"
+    },
+    {
+      "label": "Wallingford",
+      "regionId": 2912,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/2912/WA/Seattle/Wallingford"
+    },
+    {
+      "label": "Fremont",
+      "regionId": 1042,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1042/WA/Seattle/Fremont"
+    },
+    {
+      "label": "Green Lake",
+      "regionId": 1151,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/1151/WA/Seattle/Green-Lake"
+    },
+    {
+      "label": "Ballard (specific)",
+      "regionId": 121,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/121/WA/Seattle/Ballard"
+    },
+    {
+      "label": "Capitol Hill",
+      "regionId": 56947,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/56947/WA/Seattle/Capitol-Hill"
+    },
+    {
+      "label": "Laurelhurst",
+      "regionId": 10943,
+      "regionType": 1,
+      "market": "seattle",
+      "referer": "https://www.redfin.com/neighborhood/10943/WA/Seattle/Laurelhurst"
     }
   ]
 }
