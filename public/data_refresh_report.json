@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-11T04:12:48.841Z",
+  "generatedAt": "2026-05-13T05:04:49.991Z",
   "source": {
     "baseFile": "public_sales_proxy_all_prices_last12mo.csv",
     "realtorDir": "realtor_exports",
@@ -21,32 +21,32 @@
     "mlsDuplicateRowsCollapsed": 412,
     "mlsApnConflictListings": 0,
     "mlsApnConflictRows": 0,
-    "mlsRowsWithResolvedApn": 4143,
-    "mlsRowsMissingApn": 234,
-    "mlsClosedRows": 3396,
+    "mlsRowsWithResolvedApn": 4147,
+    "mlsRowsMissingApn": 230,
+    "mlsClosedRows": 3399,
     "mlsActiveRows": 489,
-    "mlsOpenStatusRows": 747,
-    "baseRows": 15984,
-    "matchedCountyRows": 2267,
-    "countyRowsEnrichedWithListingStub": 264,
-    "mlsOnlySoldRowsAdded": 1129,
-    "mlsOnlyOpenRowsAdded": 483,
-    "outputRows": 17596
+    "mlsOpenStatusRows": 748,
+    "baseRows": 15967,
+    "matchedCountyRows": 2265,
+    "countyRowsEnrichedWithListingStub": 266,
+    "mlsOnlySoldRowsAdded": 1134,
+    "mlsOnlyOpenRowsAdded": 482,
+    "outputRows": 17583
   },
   "apnResolution": {
     "directApn": 3776,
-    "previousListingNumber": 355,
+    "previousListingNumber": 371,
     "resBldgExact": 0,
-    "accountExact": 11,
+    "accountExact": 0,
     "resBldgNoUnit": 0,
-    "accountNoUnit": 1,
-    "unresolved": 234
+    "accountNoUnit": 0,
+    "unresolved": 230
   },
   "outputs": {
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-05-11T04:12:48.879Z",
+    "generatedAt": "2026-05-13T05:04:50.044Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
@@ -57,14 +57,14 @@
       "realtorSource": "local"
     },
     "counts": {
-      "outputRows": 17596,
+      "outputRows": 17583,
       "modes": {
-        "PUBLIC_PROXY": 13453,
-        "MLS_ENRICHED": 4143
+        "PUBLIC_PROXY": 13436,
+        "MLS_ENRICHED": 4147
       },
-      "mlsRows": 4143,
-      "mlsSoldRows": 3660,
-      "mlsOpenRows": 483,
+      "mlsRows": 4147,
+      "mlsSoldRows": 3665,
+      "mlsOpenRows": 482,
       "mlsActiveRows": 404
     }
   }
