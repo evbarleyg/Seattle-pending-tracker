@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-13T05:04:49.991Z",
+  "generatedAt": "2026-06-08T16:03:27.222Z",
   "source": {
     "baseFile": "public_sales_proxy_all_prices_last12mo.csv",
     "realtorDir": "realtor_exports",
@@ -21,32 +21,32 @@
     "mlsDuplicateRowsCollapsed": 412,
     "mlsApnConflictListings": 0,
     "mlsApnConflictRows": 0,
-    "mlsRowsWithResolvedApn": 4147,
-    "mlsRowsMissingApn": 230,
-    "mlsClosedRows": 3399,
+    "mlsRowsWithResolvedApn": 4159,
+    "mlsRowsMissingApn": 218,
+    "mlsClosedRows": 3406,
     "mlsActiveRows": 489,
-    "mlsOpenStatusRows": 748,
-    "baseRows": 15967,
-    "matchedCountyRows": 2265,
-    "countyRowsEnrichedWithListingStub": 266,
-    "mlsOnlySoldRowsAdded": 1134,
-    "mlsOnlyOpenRowsAdded": 482,
-    "outputRows": 17583
+    "mlsOpenStatusRows": 753,
+    "baseRows": 15674,
+    "matchedCountyRows": 2007,
+    "countyRowsEnrichedWithListingStub": 284,
+    "mlsOnlySoldRowsAdded": 1399,
+    "mlsOnlyOpenRowsAdded": 469,
+    "outputRows": 17542
   },
   "apnResolution": {
     "directApn": 3776,
-    "previousListingNumber": 371,
+    "previousListingNumber": 372,
     "resBldgExact": 0,
-    "accountExact": 0,
+    "accountExact": 11,
     "resBldgNoUnit": 0,
     "accountNoUnit": 0,
-    "unresolved": 230
+    "unresolved": 218
   },
   "outputs": {
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-05-13T05:04:50.044Z",
+    "generatedAt": "2026-06-08T16:03:27.266Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
@@ -57,15 +57,15 @@
       "realtorSource": "local"
     },
     "counts": {
-      "outputRows": 17583,
+      "outputRows": 17542,
       "modes": {
-        "PUBLIC_PROXY": 13436,
-        "MLS_ENRICHED": 4147
+        "PUBLIC_PROXY": 13383,
+        "MLS_ENRICHED": 4159
       },
-      "mlsRows": 4147,
-      "mlsSoldRows": 3665,
-      "mlsOpenRows": 482,
-      "mlsActiveRows": 404
+      "mlsRows": 4159,
+      "mlsSoldRows": 3690,
+      "mlsOpenRows": 469,
+      "mlsActiveRows": 388
     }
   }
 }
