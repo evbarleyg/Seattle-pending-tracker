@@ -1954,6 +1954,11 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
       const pct = row.pendingListPrice > 0 ? (row.delta / row.pendingListPrice) * 100 : 0;
       const sign = row.delta > 0 ? "+" : "";
       bidLine = `<br><span class="${cls}">Bid-up: ${sign}${formatMoneyCompact(row.delta)} (${sign}${pct.toFixed(1)}%)</span>`;
+    } else if (row.hasActualClose && !row.hasMarketListPrice) {
+      // County deed only — no MLS/Redfin listing matched, so list price (and
+      // therefore bid-up) is genuinely unavailable. Label it so it doesn't
+      // read as missing/broken data.
+      bidLine = `<br><span class="bid-up-tooltip flat">Bid-up: list price not on record (county sale only)</span>`;
     }
 
     marker.bindTooltip(
