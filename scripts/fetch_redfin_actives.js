@@ -303,6 +303,15 @@ async function main() {
   const allRows = [];
   const queryStats = [];
 
+  // Note: Redfin's gis endpoint ignores uipt/min_price/max_price server-side
+  // and hard-caps each region response at 350 homes (verified empirically).
+  // So the only way to avoid dropping listings in a dense region is to query
+  // narrower sub-regions. Central Seattle (760187) exceeds 350 SFR/townhouse
+  // listings, but its major sub-areas (Capitol Hill, Madison Park, Madrona,
+  // First Hill, Eastlake, Montlake) are queried separately below, which
+  // recovers the overflow via dedupe. The residual cap loss is limited to the
+  // lowest Redfin-recommended listings in Central District / Leschi / Madison
+  // Valley that aren't separately queryable.
   const fetchOptions = {
     userAgent: config.userAgent || "Mozilla/5.0",
     maxHomes: Number(config.maxHomesPerQuery) || 350,
