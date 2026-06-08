@@ -334,6 +334,14 @@ export function normalizeRow(source) {
   const originalListPriceRaw = num(source.mlsOriginalPrice || source.originalListPrice);
   const originalListPrice = originalListPriceRaw > 0 ? originalListPriceRaw : 0;
   const listPriceAtPending = pendingListPrice;
+  // A *genuine* market list price exists only when an MLS/Redfin listing price
+  // is present. For PUBLIC_PROXY (county-only) rows, pendingListPrice falls back
+  // to the tax-assessed value, which is NOT a list price — so sale/list ratio
+  // and bid-up computed against it are meaningless and must not be shown.
+  const hasMarketListPrice = num(source.mlsListingPrice) > 0
+    || num(source.mlsListPriceAtPending) > 0
+    || num(source.saleToListRatio) > 0
+    || num(source.bidUpAmount) !== 0;
   const daysToPendingRaw = daysBetween(listDate, pendingDate);
   const daysToPending = dataMode === "MLS_ENRICHED" ? daysToPendingRaw : null;
   const mlsDOMRaw = String(source.mlsDOMRaw ?? source.mlsDOM ?? "").trim();
@@ -343,10 +351,17 @@ export function normalizeRow(source) {
   const hasMlsCdomValue = mlsCDOMRaw !== "";
   const mlsCDOM = num(mlsCDOMRaw);
   const marketDomDays = hasMlsCdomValue ? mlsCDOM : (hasMlsDomValue ? mlsDOM : daysToPending);
-  const saleToList = num(source.saleToListRatio) || (pendingListPrice > 0 ? closePrice / pendingListPrice : 0);
-  const saleToOriginalList = num(source.saleToOriginalListRatio) || (originalListPrice > 0 ? closePrice / originalListPrice : 0);
-  const delta = num(source.bidUpAmount) || (closePrice - listPriceAtPending);
-  const deltaPct = num(source.bidUpPct) || (listPriceAtPending > 0 ? delta / listPriceAtPending : 0);
+  // Only derive sale/list + bid-up when we have a real market list price.
+  // Otherwise leave them at 0 so every surface (map color, Records, Pulse,
+  // tooltips) treats them as unavailable rather than charting close-vs-assessed.
+  const saleToList = num(source.saleToListRatio)
+    || (hasMarketListPrice && pendingListPrice > 0 ? closePrice / pendingListPrice : 0);
+  const saleToOriginalList = num(source.saleToOriginalListRatio)
+    || (originalListPrice > 0 ? closePrice / originalListPrice : 0);
+  const delta = num(source.bidUpAmount)
+    || (hasMarketListPrice ? (closePrice - listPriceAtPending) : 0);
+  const deltaPct = num(source.bidUpPct)
+    || (hasMarketListPrice && listPriceAtPending > 0 ? delta / listPriceAtPending : 0);
   const tagRaw = String(source.hotMarketTag || "").toUpperCase();
   const ultraByTag = /ULTRA[_\s]?HOT/.test(tagRaw);
   const hotByTag = /HOT_MARKET/.test(tagRaw) || ultraByTag;
@@ -443,6 +458,7 @@ export function normalizeRow(source) {
     lotSize,
     yearBuilt: num(source.yearBuilt),
     daysToPending,
+    hasMarketListPrice,
     saleToList,
     saleToOriginalList,
     delta,

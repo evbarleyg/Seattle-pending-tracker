@@ -1949,7 +1949,7 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
       const sign = overAsk > 0 ? "+" : overAsk < 0 ? "" : "";
       const cls = overAsk > 0 ? "bid-up-tooltip up" : overAsk < 0 ? "bid-up-tooltip down" : "bid-up-tooltip flat";
       bidLine = `<br><span class="${cls}">Suggested bid: ${formatMoneyOrNa(row.bidSuggested)} (${sign}${formatMoneyCompact(overAsk)} / ${sign}${overPct.toFixed(1)}%)</span>`;
-    } else if (row.hasActualClose && Number.isFinite(row.delta) && row.delta !== 0) {
+    } else if (row.hasActualClose && row.hasMarketListPrice && Number.isFinite(row.delta) && row.delta !== 0) {
       const cls = row.delta > 0 ? "bid-up-tooltip up" : "bid-up-tooltip down";
       const pct = row.pendingListPrice > 0 ? (row.delta / row.pendingListPrice) * 100 : 0;
       const sign = row.delta > 0 ? "+" : "";
@@ -1976,8 +1976,11 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
   renderGeoSelectedRows();
 }
 
+const RATIO_NEUTRAL_COLOR = "#9ca3af";
+
 function ratioColor(value) {
   const n = Number(value || 0);
+  if (n <= 0) return RATIO_NEUTRAL_COLOR; // no real list price -> unknown pressure
   if (n >= 1.1) return "#b91c1c";
   if (n >= 1.03) return "#c77700";
   if (n >= 1) return "#2563eb";
