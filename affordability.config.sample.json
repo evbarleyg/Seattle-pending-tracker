@@ -1,0 +1,80 @@
+{
+  "_meta": {
+    "source": "claude_cowork_model_v2.xlsx -> Inputs tab",
+    "note": "SAMPLE SCHEMA ONLY — all values are placeholders. Copy this file to public/affordability.config.json (which is gitignored, never committed, never deployed) and fill in your real numbers. The app reads public/affordability.config.json at runtime on local `npm run dev`; on the public deploy that file is absent, so the Afford tab renders an inert 'configure locally' state.",
+    "asOf": "YYYY-MM"
+  },
+
+  "income": {
+    "anthropicBaseSalary": 0,
+    "partnerIncome": 0,
+    "otherRecurringIncome": 0,
+    "annualPretaxContributions": 0,
+    "effectiveTaxRate": 0.37
+  },
+
+  "expenses": {
+    "baselineNonHousingMonthly": 0,
+    "currentHousingMonthly": 0,
+    "luxuryRentMonthly": 0,
+    "storageMonthly": 0,
+    "annualExpenseInflation": 0.03
+  },
+
+  "assets": {
+    "bankCash": 0,
+    "housingGift": 0,
+    "brokerageCashEquiv": 0,
+    "brokerageNonCash": 0,
+    "retirement": 0,
+    "stripeVestedStock": 0,
+    "creditCardLiabilities": 0,
+    "reserveTarget": 150000,
+    "brokerageDrawablePct": 0.75,
+    "stripeDrawablePct": 0
+  },
+
+  "growth": {
+    "cashYield": 0.04,
+    "taxableReturn": 0.06,
+    "retirementReturn": 0.06,
+    "stripeGrowth": 0.05,
+    "homeAppreciation": 0.03
+  },
+
+  "anthropicEquity": {
+    "grantFairValue": 0,
+    "grantValuationBasis": 380000000000,
+    "selectedValuation": 965000000000,
+    "monthsSinceVestStartAtModelStart": 0,
+    "vestingMonths": 48,
+    "cliffMonths": 6,
+    "ipoMonthFromStart": 3,
+    "lockupMonths": 6,
+    "sellablePctAfterLockup": 1,
+    "afterTaxLiquidityPct": 0.55,
+    "proceedsDeployedToHomePct": 0.65
+  },
+
+  "housing": {
+    "purchaseMonthFromStart": 12,
+    "targetPrice": 2000000,
+    "targetDownPayment": 800000,
+    "mortgageRateBeforeDiscount": 0.065,
+    "bofaRateDiscount": 0.0075,
+    "loanTermYears": 30,
+    "propertyTaxAnnualRate": 0.01,
+    "insuranceMonthly": 300,
+    "hoaMonthly": 0,
+    "maintenanceAnnualRate": 0.01,
+    "closingCostPct": 0.02,
+    "comfortCapMonthly": 10000,
+    "stretchCapMonthly": 12000,
+    "minDownPaymentPct": 0.2
+  },
+
+  "scenarioGrid": {
+    "valuationsB": [380, 700, 965, 1500, 2000, 3000],
+    "waitMonths": [0, 6, 12, 18, 24, 36]
+  }
+}

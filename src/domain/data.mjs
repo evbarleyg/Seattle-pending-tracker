@@ -481,6 +481,10 @@ export function normalizeRow(source) {
     pricePerSqft,
     mapLat,
     mapLon,
+    // Affordability: price to tier a listing against (list price for active,
+    // close price for sold). Tier itself is filled in by mergeAffordabilityTier.
+    affordPriceBasis: pendingListPrice > 0 ? pendingListPrice : closePrice,
+    affordTier: null,
   };
 }
 

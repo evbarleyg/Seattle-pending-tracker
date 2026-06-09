@@ -34,6 +34,7 @@ import {
   normalizeSelectionId,
   summarizeRows,
 } from "./pulseMetrics.mjs";
+import { listingTier } from "./affordability.mjs";
 
 export const DESKTOP_PAGE_SIZE = 100;
 export const MOBILE_PAGE_SIZE = 40;
@@ -62,6 +63,7 @@ export const DEFAULT_FILTERS = {
   maxClose: DEFAULT_MAX_CLOSE,
   minLot: 0,
   maxLot: 0,
+  affordability: "all",
   dateFrom: "",
   dateTo: "",
 };
@@ -114,6 +116,8 @@ export function filtersToSummary(filters) {
     entries.push(`Lot ${lo}-${hi}`);
   }
   if (f.neighborhoods?.length) entries.push(`${f.neighborhoods.length} neighborhoods`);
+  if (f.affordability === "in_budget") entries.push("In budget");
+  if (f.affordability === "in_budget_stretch") entries.push("In budget + stretch");
   if (f.scope === "hot10") entries.push("Hot <=10 DOM");
   if (f.scope === "ultra5") entries.push("Ultra <=5 DOM");
   if (f.mlsStatus && f.mlsStatus !== "All") entries.push(f.mlsStatus);
@@ -143,6 +147,7 @@ export function normalizeFilters(filters, options = {}) {
   if (next.maxClose !== null && !Number.isFinite(Number(next.maxClose))) next.maxClose = DEFAULT_MAX_CLOSE;
   next.minLot = Number.isFinite(Number(next.minLot)) ? Math.max(0, Number(next.minLot)) : 0;
   next.maxLot = Number.isFinite(Number(next.maxLot)) ? Math.max(0, Number(next.maxLot)) : 0;
+  if (!["all", "in_budget", "in_budget_stretch"].includes(next.affordability)) next.affordability = "all";
   return next;
 }
 
@@ -175,6 +180,8 @@ export function matchesSharedGlobalFilters(row, filterState, opts = {}) {
   if (f.excludeTypes.length && f.excludeTypes.includes(row.typeLabel)) return false;
   if (f.minLot > 0 && (Number(row.lotSize) || 0) < f.minLot) return false;
   if (f.maxLot > 0 && (Number(row.lotSize) || 0) > f.maxLot) return false;
+  if (f.affordability === "in_budget" && row.affordTier !== "in_budget") return false;
+  if (f.affordability === "in_budget_stretch" && !(row.affordTier === "in_budget" || row.affordTier === "stretch")) return false;
   if (f.mode !== "All" && row.dataMode !== f.mode) return false;
   if (!matchesSpecialSaleFilter(row, f.specialSale)) return false;
   if (f.minClose && price < f.minClose) return false;
@@ -631,6 +638,24 @@ export function mergeBidFields(row, bidByKey) {
     bidCompTier: bid.bidCompTier || "NONE",
     bidStatus: bid.bidStatus || "",
   };
+}
+
+/**
+ * Tag every row with an affordability tier (in_budget|stretch|over|null) for
+ * the current scenario's price ceilings. Mutates in place for cheapness — the
+ * normalized rows are recomputed wholesale on each derive, so this is safe.
+ * `result` is a single computeAffordability() output; null when unconfigured.
+ */
+export function mergeAffordabilityTier(rows, result) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!result) {
+    for (const row of list) row.affordTier = null;
+    return list;
+  }
+  for (const row of list) {
+    row.affordTier = listingTier(result, Number(row.affordPriceBasis) || 0);
+  }
+  return list;
 }
 
 export function getRecordSortValue(row, key) {

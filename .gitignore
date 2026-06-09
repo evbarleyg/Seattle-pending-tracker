@@ -41,3 +41,11 @@ redfin_history_cache.json
 redfin_backfill_report.json
 redfin_transitions_report.json
 redfin_active_snapshots/
+
+# Private financial / affordability config (real balances, income, equity).
+# NEVER commit or sync to public/. The sample schema is tracked; the real
+# config is local-only and absent from CI builds, so the public deploy
+# renders an inert "configure locally" state.
+public/affordability.config.json
+affordability.config.json
+private/

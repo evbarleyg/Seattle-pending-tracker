@@ -21,6 +21,7 @@ import {
   Sun,
   Target,
   Upload,
+  Wallet,
   Waves,
   createIcons,
 } from "lucide";
@@ -65,6 +66,7 @@ import {
   normalizeProfileMemory,
   profileScore,
 } from "./domain/buyerProfile.mjs";
+import { computeAffordability, affordabilityGrid } from "./domain/affordability.mjs";
 import {
   BID_STRATEGIES,
   DESKTOP_PAGE_SIZE,
@@ -83,6 +85,7 @@ import {
   filtersToSummary,
   getBidSortValue,
   getRecordSortValue,
+  mergeAffordabilityTier,
   mergeBidFields,
   normalizeFilters,
   paginateRows,
@@ -113,6 +116,7 @@ const LUCIDE_ICONS = {
   Sun,
   Target,
   Upload,
+  Wallet,
   Waves,
 };
 
@@ -139,6 +143,28 @@ function saveWatchedIds(set) {
     localStorage.setItem(WATCHED_STORAGE_KEY, JSON.stringify([...set]));
   } catch {
     // Ignore storage errors.
+  }
+}
+
+const AFFORD_CONFIG_FILE = "affordability.config.json";
+const AFFORD_SCENARIO_KEY = "buyer_lens_afford_scenario_v1";
+
+function loadAffordScenario() {
+  try {
+    const raw = localStorage.getItem(AFFORD_SCENARIO_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAffordScenario(scenario) {
+  try {
+    localStorage.setItem(AFFORD_SCENARIO_KEY, JSON.stringify(scenario || {}));
+  } catch {
+    // Ignore storage errors (private browsing).
   }
 }
 
@@ -195,6 +221,13 @@ const state = {
     source: "embedded",
     ready: false,
   },
+  affordability: {
+    config: null,            // private config loaded from local file; null = unconfigured
+    result: null,            // computeAffordability() output for the current scenario
+    scenario: loadAffordScenario(), // persisted overrides (wait months, valuation, etc.)
+    ready: false,            // true once a config has loaded
+    source: "",
+  },
   bid: {
     strategy: "balanced",
     highConfidenceOnly: false,
@@ -221,7 +254,7 @@ const state = {
   bidsPage: 1,
   activeView: "overview",
   mountedViews: new Set(["overview"]),
-  dirtyViews: new Set(["overview", "pulse", "bids", "geo", "records", "data"]),
+  dirtyViews: new Set(["overview", "pulse", "bids", "afford", "geo", "records", "data"]),
   geo: {
     leaflet: null,
     map: null,
@@ -367,6 +400,7 @@ function renderShell() {
           ${tabButton("overview", "Overview", "home", true)}
           ${tabButton("pulse", "Pulse", "activity")}
           ${tabButton("bids", "Bids", "target")}
+          ${tabButton("afford", "Afford", "wallet")}
           ${tabButton("geo", "Geo", "map")}
           ${tabButton("records", "Records", "rows-3")}
           ${tabButton("data", "Data", "database")}
@@ -375,6 +409,7 @@ function renderShell() {
         <section class="view active" id="view-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0"></section>
         <section class="view" id="view-pulse" role="tabpanel" aria-labelledby="tab-pulse" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-bids" role="tabpanel" aria-labelledby="tab-bids" tabindex="0" aria-hidden="true"></section>
+        <section class="view" id="view-afford" role="tabpanel" aria-labelledby="tab-afford" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-geo" role="tabpanel" aria-labelledby="tab-geo" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-records" role="tabpanel" aria-labelledby="tab-records" tabindex="0" aria-hidden="true"></section>
         <section class="view" id="view-data" role="tabpanel" aria-labelledby="tab-data" tabindex="0" aria-hidden="true"></section>
@@ -435,6 +470,14 @@ function renderLoadingState() {
 function recomputeDerived() {
   const filters = normalizeFilters(state.filters, state.options);
   state.filters = filters;
+  // Affordability: compute one result for the current scenario, then tag every
+  // normalized row with its tier BEFORE slices/filters run (the affordability
+  // global filter reads row.affordTier). Null when no private config loaded.
+  const affordResult = state.affordability.ready && state.affordability.config
+    ? computeAffordability(state.affordability.config, {}, state.affordability.scenario || {})
+    : null;
+  state.affordability.result = affordResult;
+  mergeAffordabilityTier(state.normalizedRows, affordResult);
   const slices = computeSlices(filters, state.normalizedRows, {
     flags: state.flags,
     interactions: state.interactions,
@@ -650,6 +693,15 @@ function renderFilterControls() {
       <input id="fMaxLot" type="number" min="0" step="500" value="${esc(f.maxLot || "")}" placeholder="No max" />
     </div>
     <div class="field">
+      <label for="fAffordability">Affordability</label>
+      <select id="fAffordability" ${state.affordability.ready ? "" : "disabled"}>
+        <option value="all" ${f.affordability === "all" ? "selected" : ""}>All listings</option>
+        <option value="in_budget" ${f.affordability === "in_budget" ? "selected" : ""}>In budget only</option>
+        <option value="in_budget_stretch" ${f.affordability === "in_budget_stretch" ? "selected" : ""}>In budget + stretch</option>
+      </select>
+      <span class="hint">${state.affordability.ready ? "Uses your Afford-tab scenario." : "Add a local affordability config to enable."}</span>
+    </div>
+    <div class="field">
       <label for="fDateFrom">From sale date</label>
       <input id="fDateFrom" type="date" value="${esc(f.dateFrom)}" />
     </div>
@@ -755,6 +807,7 @@ function renderView(view) {
   if (view === "overview") renderOverviewView();
   if (view === "pulse") renderPulseView();
   if (view === "bids") renderBidsView();
+  if (view === "afford") renderAffordView();
   if (view === "records") renderRecordsView();
   if (view === "data") renderDataView();
   if (view === "geo") {
@@ -1497,6 +1550,20 @@ function renderBidsView() {
   `;
 }
 
+const AFFORD_TIER_META = {
+  in_budget: { label: "In budget", cls: "afford-in" },
+  stretch: { label: "Stretch", cls: "afford-stretch" },
+  over: { label: "Over budget", cls: "afford-over" },
+};
+
+/** Small affordability pill for a row; empty string when unconfigured/untiered. */
+function affordTierBadge(row) {
+  if (!state.affordability.ready) return "";
+  const meta = AFFORD_TIER_META[row?.affordTier];
+  if (!meta) return "";
+  return `<span class="afford-pill ${meta.cls}" title="vs your affordability scenario">${meta.label}</span>`;
+}
+
 function bidCardHtml(row) {
   const isWatched = state.watched.has(row.id);
   const scored = row.bidStatus === "SCored";
@@ -1519,6 +1586,7 @@ function bidCardHtml(row) {
           ${propertyAddressLink(row, "bid-card-address-link")}
           <span class="bid-card-meta">${esc(row.neighborhoodLabel || "")}${row.typeLabel ? ` · ${esc(row.typeLabel)}` : ""}</span>
         </div>
+        ${affordTierBadge(row)}
       </header>
       <div class="bid-card-bid">
         <div class="bid-suggested-block">
@@ -1541,6 +1609,127 @@ function bidCardHtml(row) {
       </footer>
     </article>
   `;
+}
+
+function affordScenarioValue(key, fallback) {
+  const v = state.affordability.scenario?.[key];
+  return v === undefined || v === null || v === "" ? fallback : v;
+}
+
+function renderAffordView() {
+  const wrap = qs("#view-afford");
+  if (!wrap) return;
+
+  if (!state.affordability.ready) {
+    wrap.innerHTML = `
+      <div class="view-band">
+        <section class="section-head">
+          <div><p class="eyebrow">Afford</p><h2>What can I actually afford?</h2></div>
+        </section>
+        <section class="section-block">
+          <p class="note">Affordability is not configured on this device. To enable it, copy
+          <code>affordability.config.sample.json</code> to <code>public/affordability.config.json</code>
+          and fill in your numbers. That file is <strong>gitignored</strong> — it stays local, is never
+          committed, and is never served on the public site. Reload after adding it.</p>
+          <p class="note">This is a planning model, not tax or lender advice.</p>
+        </section>
+      </div>
+    `;
+    return;
+  }
+
+  const r = state.affordability.result || computeAffordability(state.affordability.config, {}, state.affordability.scenario || {});
+  const c = state.affordability.config;
+  const sc = state.affordability.scenario || {};
+  const waitMonths = affordScenarioValue("waitMonths", c.housing.purchaseMonthFromStart);
+  const valuationB = Math.round((affordScenarioValue("valuation", c.anthropicEquity.selectedValuation)) / 1e9);
+  const targetPrice = affordScenarioValue("targetPrice", c.housing.targetPrice);
+  const downPayment = affordScenarioValue("downPayment", c.housing.targetDownPayment);
+  const decisionTone = r.decision === "RENT_WAIT" ? "cool" : (r.decision.startsWith("BUY") ? "hot" : "warm");
+  const firedFlags = r.flags.filter((f) => f.triggered);
+  const grid = affordabilityGrid(c, {}, c.scenarioGrid?.valuationsB || [380, 700, 965, 1500, 2000, 3000], c.scenarioGrid?.waitMonths || [0, 6, 12, 18, 24, 36]);
+  const gridWaits = c.scenarioGrid?.waitMonths || [0, 6, 12, 18, 24, 36];
+  const gridVals = c.scenarioGrid?.valuationsB || [380, 700, 965, 1500, 2000, 3000];
+  const gridCell = (vB, w) => {
+    const cell = grid.find((g) => g.valuationB === vB && g.waitMonths === w);
+    return cell ? formatMoneyCompact(cell.maxComfortable) : "—";
+  };
+
+  wrap.innerHTML = `
+    <div class="view-band">
+      <section class="section-head">
+        <div><p class="eyebrow">Afford</p><h2>What can I actually afford?</h2></div>
+        <span class="note">Planning model — not tax or lender advice.</span>
+      </section>
+
+      <section class="state-panel heat-${decisionTone}" id="affordDecision">
+        <div class="panel-kicker">Decision</div>
+        <h2>${esc(r.decisionLabel)}</h2>
+        <p>${esc(r.rationale)}</p>
+      </section>
+
+      <div class="metric-row">
+        ${miniMetric("Max comfortable", formatMoneyCompact(r.maxComfortablePrice))}
+        ${miniMetric("Max stretch", formatMoneyCompact(r.maxStretchPrice))}
+        ${miniMetric("All-in carry / mo", `${formatMoneyOrNa(r.ownerCostMonthly)} vs ${formatMoneyCompact(c.housing.comfortCapMonthly)} cap`)}
+        ${miniMetric("Free cash flow / mo", formatMoneyOrNa(r.monthlyFreeCashFlow))}
+        ${miniMetric("Post-close liquidity", `${formatMoneyCompact(r.postCloseLiquidity)} vs ${formatMoneyCompact(c.assets.reserveTarget)} reserve`)}
+        ${miniMetric("Deployable for DP", formatMoneyCompact(r.dpFundingCapacity))}
+      </div>
+
+      ${firedFlags.length ? `
+      <section class="section-block">
+        <div class="section-head compact"><div><p class="eyebrow">Watch-outs</p><h3>${firedFlags.length} flag${firedFlags.length === 1 ? "" : "s"} triggered</h3></div></div>
+        <ul class="afford-flags">
+          ${firedFlags.map((f) => `<li class="afford-flag">${esc(f.message)}</li>`).join("")}
+        </ul>
+      </section>` : `<p class="note">No flags triggered at this scenario.</p>`}
+
+      <section class="section-block">
+        <div class="section-head compact"><div><p class="eyebrow">Scenario</p><h3>Adjust assumptions</h3></div></div>
+        <div class="controls-grid">
+          <div class="field">
+            <label for="affWaitMonths">Wait before buying (months)</label>
+            <input id="affWaitMonths" type="number" min="0" max="60" step="1" value="${esc(waitMonths)}" />
+          </div>
+          <div class="field">
+            <label for="affValuation">Anthropic valuation ($B)</label>
+            <input id="affValuation" type="number" min="0" step="5" value="${esc(valuationB)}" />
+          </div>
+          <div class="field">
+            <label for="affTargetPrice">Target home price ($)</label>
+            <input id="affTargetPrice" type="number" min="0" step="25000" value="${esc(targetPrice)}" />
+          </div>
+          <div class="field">
+            <label for="affDownPayment">Down payment ($)</label>
+            <input id="affDownPayment" type="number" min="0" step="25000" value="${esc(downPayment)}" />
+          </div>
+          <div class="filter-actions">
+            ${buttonIcon("Reset scenario", "refresh-ccw", "id=\"affResetBtn\"", "alt")}
+          </div>
+        </div>
+        <p class="note">Carry, max prices, liquidity and listing badges all recompute live from these. Saved to this browser only.</p>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head compact"><div><p class="eyebrow">When can we move up</p><h3>Max comfortable price by valuation × wait</h3></div></div>
+        <div class="table-wrap">
+          <table class="afford-grid">
+            <thead>
+              <tr><th>Valuation \\ wait</th>${gridWaits.map((w) => `<th>${w}mo</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${gridVals.map((vB) => `
+                <tr><th>$${vB}B</th>${gridWaits.map((w) => `<td>${gridCell(vB, w)}</td>`).join("")}</tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Each cell is the most expensive home whose all-in carry stays within your comfort cap, after the equity that is vested + sellable + after-tax at that wait.</p>
+      </section>
+    </div>
+  `;
+  refreshIcons();
 }
 
 function renderManualBidPanel() {
@@ -1778,7 +1967,7 @@ function recordRowHtml(row) {
   const countyUrl = countyRecordUrl(row);
   return `
     <tr>
-      <td>${propertyAddressLink(row)}${countyUrl ? `<a class="sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Parcel</a>` : ""}</td>
+      <td>${propertyAddressLink(row)}${countyUrl ? `<a class="sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Parcel</a>` : ""}${affordTierBadge(row)}</td>
       <td><button class="link-button" data-set-interaction="neighborhood" data-set-value="${esc(row.neighborhoodLabel)}">${esc(row.neighborhoodLabel)}</button></td>
       <td><button class="link-button" data-set-interaction="type" data-set-value="${esc(row.typeLabel)}">${esc(row.typeLabel)}</button></td>
       <td>${row.beds || 0}</td>
@@ -1961,11 +2150,18 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
       bidLine = `<br><span class="bid-up-tooltip flat">Bid-up: list price not on record (county sale only)</span>`;
     }
 
+    // Affordability tier line (only when a private config is loaded).
+    let affordLine = "";
+    if (state.affordability.ready && AFFORD_TIER_META[row.affordTier]) {
+      const meta = AFFORD_TIER_META[row.affordTier];
+      affordLine = `<br><span class="afford-pill ${meta.cls}">${meta.label}</span>`;
+    }
+
     marker.bindTooltip(
-      `<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}${bidLine}`,
+      `<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}${bidLine}${affordLine}`,
       { direction: "top", offset: [0, -4], className: "geo-marker-tooltip", sticky: true }
     );
-    marker.bindPopup(`<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${facts}${bidLine}<br>${propertyPopupLink(row)}`);
+    marker.bindPopup(`<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${facts}${bidLine}${affordLine}<br>${propertyPopupLink(row)}`);
     marker.on("click", () => {
       toggleMapSelection(row.mapPropertyKey);
     });
@@ -2145,6 +2341,17 @@ function bindEvents() {
     if (target.id === "fDateTo") state.filters.dateTo = target.value;
     if (target.id === "fMinLot") state.filters.minLot = Math.max(0, Number(target.value) || 0);
     if (target.id === "fMaxLot") state.filters.maxLot = Math.max(0, Number(target.value) || 0);
+    if (target.id === "fAffordability") state.filters.affordability = target.value;
+    if (target.id === "affWaitMonths" || target.id === "affValuation" || target.id === "affTargetPrice" || target.id === "affDownPayment") {
+      const scenario = { ...(state.affordability.scenario || {}) };
+      if (target.id === "affWaitMonths") scenario.waitMonths = Math.max(0, Number(target.value) || 0);
+      if (target.id === "affValuation") scenario.valuation = Math.max(0, Number(target.value) || 0) * 1e9;
+      if (target.id === "affTargetPrice") scenario.targetPrice = Math.max(0, Number(target.value) || 0);
+      if (target.id === "affDownPayment") scenario.downPayment = Math.max(0, Number(target.value) || 0);
+      state.affordability.scenario = scenario;
+      saveAffordScenario(scenario);
+      markDirty(); // affects badges everywhere + the Afford tab
+    }
     if (target.dataset?.excludeType !== undefined) {
       const t = target.dataset.excludeType;
       const set = new Set(state.filters.excludeTypes || []);
@@ -2269,6 +2476,11 @@ function bindEvents() {
       else state.watched.add(id);
       saveWatchedIds(state.watched);
       return markDirty("bids");
+    }
+    if (target.closest("#affResetBtn")) {
+      state.affordability.scenario = {};
+      saveAffordScenario({});
+      return markDirty();
     }
     const profileToggle = target.closest("[data-buyer-profile-toggle]");
     if (profileToggle) return setBuyerProfileToggle(!state.buyerProfile.enabled);
@@ -2467,6 +2679,27 @@ async function loadBuyerProfileMemory() {
   markDirty("overview");
 }
 
+// Private affordability config. Served only from a gitignored local file, so on
+// the public deploy this fetch 404s and the feature stays inert (ready=false).
+// A config with all-zero balances (the sample) is treated as unconfigured.
+async function loadAffordabilityConfig() {
+  try {
+    const response = await fetch(publicUrl(AFFORD_CONFIG_FILE), { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const config = await response.json();
+    const hasRealNumbers = config?.income?.anthropicBaseSalary > 0 || config?.assets?.bankCash > 0;
+    if (!config?.housing || !hasRealNumbers) throw new Error("config present but unconfigured");
+    state.affordability.config = config;
+    state.affordability.source = AFFORD_CONFIG_FILE;
+    state.affordability.ready = true;
+  } catch {
+    state.affordability.config = null;
+    state.affordability.ready = false;
+    state.affordability.source = "";
+  }
+  markDirty();
+}
+
 const dataWorker = new Worker(new URL("./workers/dataWorker.mjs", import.meta.url), { type: "module" });
 dataWorker.addEventListener("message", (event) => {
   const message = event.data || {};
@@ -2493,6 +2726,7 @@ function init() {
   bindEvents();
   loadRefreshReport();
   loadBuyerProfileMemory();
+  loadAffordabilityConfig();
   loadDefaultDataset();
 }
 
