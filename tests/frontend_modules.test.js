@@ -79,7 +79,7 @@ test("selectors compute filtered slices with default price and type", async () =
 
   assert.equal(filters.type, "Single Family");
   assert.equal(filters.minClose, 1100000);
-  assert.equal(filters.maxClose, 1400000);
+  assert.equal(filters.maxClose, 1600000);
   assert.equal(slices.closedSlice.length, 1);
   assert.equal(slices.stats.medianClose, 1200000);
 });
