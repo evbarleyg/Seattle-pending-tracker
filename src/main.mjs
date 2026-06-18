@@ -565,6 +565,7 @@ function insightTileHtml({ label, value, metricKey, series, switchView = "pulse"
         <strong>${esc(value)}</strong>
         <span class="tile-delta ${d.tone}">${esc(d.arrow)} ${esc(d.deltaLabel)}</span>
       </div>
+      ${d.secondaryLabel ? `<span class="tile-delta tile-delta-secondary ${d.secondaryTone}" title="latest month vs prior month — noisier; partial months distort it">${esc(d.secondaryArrow)} ${esc(d.secondaryLabel)}</span>` : ""}
       ${sparklineSvg(series, metricKey)}
       ${d.signal ? `<span class="tile-signal">${esc(d.signal)}</span>` : ""}
     </article>`;
@@ -604,6 +605,7 @@ function commandCenterCardsHtml() {
 
   return `
     <div class="insight-tile-grid span-3">${tiles}</div>
+    <p class="note tone-legend span-3"><span class="tone-chip cooler">●</span> Cooling — better for buyers &nbsp; <span class="tone-chip hotter">●</span> Heating — tougher for buyers</p>
     <article class="state-panel${staleDays !== null && staleDays > FRESHNESS_STALE_DAYS ? " stale" : ""}">
       <div class="panel-kicker">Freshness</div>
       <h2>${esc(latestSale ? formatDateShort(latestSale) : "n/a")}</h2>
@@ -910,6 +912,15 @@ function renderOverviewView() {
   const wrap = qs("#view-overview");
   if (!wrap || !state.derived) return;
   const { slices } = state.derived;
+  const gatedSlice = (state.derived.sliceMonthlySeries || []).filter((e) => (e.sampleSize ?? e.salesCount ?? 0) >= MIN_TILE_COMPS);
+  const gatedCounts = gatedSlice.map((e) => e.sampleSize ?? e.salesCount ?? 0).slice().sort((a, b) => a - b);
+  const medGatedCount = gatedCounts.length ? gatedCounts[Math.floor(gatedCounts.length / 2)] : 0;
+  const latestGated = gatedSlice[gatedSlice.length - 1] || null;
+  const latestGatedCount = latestGated ? (latestGated.sampleSize ?? latestGated.salesCount ?? 0) : 0;
+  const latestPartial = !!latestGated && medGatedCount > 0 && latestGatedCount < 0.5 * medGatedCount;
+  const freshnessLine = latestGated
+    ? `Charts show data through ${monthLabelCompact(latestGated.month)}${latestPartial ? ` (partial — only ${latestGatedCount} comps so far; treat its swing as noise)` : ""}.`
+    : "No qualifying months in this slice yet.";
   const profile = state.buyerProfile.memory;
   const cohort = buildProfileCohort(slices.closedSlice, profile);
   const profiles = buildMicromarketProfiles(slices.closedSlice, profile, new Date());
@@ -923,6 +934,7 @@ function renderOverviewView() {
   const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${formatMoneyOrNa(stats.medianBidUp)} median bid-up · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median DOM`;
   wrap.innerHTML = `
     <div class="view-band">
+      ${marketDirectionBannerHtml()}
       ${commandCenterSectionHtml()}
 
       ${sinceLastVisitSectionHtml(recentChanges)}
@@ -1006,7 +1018,7 @@ function renderOverviewView() {
         <div class="section-head compact">
           <div><p class="eyebrow">Market trends</p><h3>Trailing 12 months in this slice</h3></div>
         </div>
-        <p class="note">Months with fewer than ${MIN_TILE_COMPS} comps are omitted. The current month is partial (data is typically ~15 days behind).</p>
+        <p class="note">${esc(freshnessLine)} Months with fewer than ${MIN_TILE_COMPS} comps are omitted.</p>
         <div class="trend-strip">
           ${["medianPsf", "medianSaleToList"].map((k) => `
             <article class="trend-mini"><div class="chart-title">${esc(chartMetricLabel(k))}</div>${sparklineSvg(state.derived.sliceMonthlySeries, k, { width: 240, height: 64 })}</article>
@@ -1169,24 +1181,62 @@ function pulseMetricCard(key, recent) {
 
 function tileDelta(series, metricKey) {
   const gated = (series || []).filter((entry) => (entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS && Number.isFinite(Number(entry[metricKey])));
-  if (gated.length < 2) return { arrow: "", tone: "flat", deltaLabel: "insufficient history", signal: "" };
-  const latest = gated[gated.length - 1];
-  const prior = gated[gated.length - 2];
-  const dir = metricDirection(metricKey, latest[metricKey], prior[metricKey]);
-  const delta = competitiveDelta(metricKey, latest[metricKey], prior[metricKey]);
-  const tone = dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat";
-  const arrow = dir > 0 ? "↑" : dir < 0 ? "↓" : "→";
+  if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
   const cfg = pulseMetricConfig(metricKey);
-  const deltaLabel = delta === null ? "n/a" : `${cfg.delta(delta)} MoM`;
-  const signalMap = {
+  const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
+  const arrowFor = (dir) => (dir > 0 ? "↑" : dir < 0 ? "↓" : "→");
+  const signalFor = (dir) => ({
     medianClosePrice: dir > 0 ? "prices rising" : dir < 0 ? "prices easing" : "prices flat",
     medianPsf: dir > 0 ? "$/sqft climbing" : dir < 0 ? "$/sqft softening" : "$/sqft steady",
     medianSaleToList: dir > 0 ? "bidding up" : dir < 0 ? "bidding cooling" : "at ask",
     medianDom: dir > 0 ? "selling faster" : dir < 0 ? "sitting longer" : "steady pace",
     hotShare: dir > 0 ? "heating up" : dir < 0 ? "cooling" : "holding",
-    activeInventory: dir > 0 ? "more choice" : dir < 0 ? "tightening supply" : "flat supply",
+    activeInventory: dir < 0 ? "more choice" : dir > 0 ? "tightening supply" : "flat supply",
+  })[metricKey] || "";
+  // Month-over-month (latest gated month vs the one before): noisy, partial months distort it — muted secondary.
+  const momDir = metricDirection(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
+  const momDelta = competitiveDelta(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
+  const momLabel = momDelta === null ? "n/a" : `${cfg.delta(momDelta)} MoM`;
+  // 3-month vs prior-3-month median: robust to a thin/partial latest month — the PRIMARY signal when available.
+  if (gated.length >= 6) {
+    const windowMedian = (entries) => medianValue(entries.map((e) => Number(e[metricKey])));
+    const tDir = metricDirection(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
+    const tDelta = competitiveDelta(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
+    if (tDelta !== null) {
+      return {
+        tone: toneFor(tDir), arrow: arrowFor(tDir), deltaLabel: `${cfg.delta(tDelta)} vs prior 3mo`, signal: signalFor(tDir),
+        secondaryArrow: arrowFor(momDir), secondaryTone: toneFor(momDir), secondaryLabel: momLabel,
+      };
+    }
+  }
+  // Thin slice (<6 qualifying months): MoM is all we have, so it leads.
+  return {
+    tone: toneFor(momDir), arrow: arrowFor(momDir), deltaLabel: momLabel, signal: signalFor(momDir),
+    secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "",
   };
-  return { arrow, tone, deltaLabel, signal: signalMap[metricKey] || "" };
+}
+
+function marketDirectionVerdict(series) {
+  const metrics = ["medianClosePrice", "medianPsf", "medianSaleToList", "medianDom", "hotShare"];
+  const reads = metrics.map((k) => tileDelta(series, k)).filter((d) => d.tone === "hotter" || d.tone === "cooler");
+  if (reads.length < 2) return { tone: "flat", headline: "Direction unclear", detail: "Not enough recent comps in this slice to call a trend — widen the slice or compare to the whole market." };
+  const cooler = reads.filter((d) => d.tone === "cooler").length;
+  const hotter = reads.filter((d) => d.tone === "hotter").length;
+  if (cooler - hotter >= 2) return { tone: "cooler", headline: "Cooling — tilting toward buyers", detail: `${cooler} of ${reads.length} signals eased over the last 3 months (more room to negotiate).` };
+  if (hotter - cooler >= 2) return { tone: "hotter", headline: "Heating up — tougher for buyers", detail: `${hotter} of ${reads.length} signals tightened over the last 3 months (expect more competition).` };
+  return { tone: "flat", headline: "Mixed signals", detail: `Over the last 3 months ${cooler} signal(s) eased and ${hotter} tightened — no single direction. See the per-tile trends below.` };
+}
+
+function marketDirectionBannerHtml() {
+  const v = marketDirectionVerdict(state.derived?.sliceMonthlySeries || []);
+  const latest = state.derived?.latestSaleDate || "";
+  const asOf = latest ? ` As of ${formatDateShort(latest)} in this slice.` : "";
+  return `
+    <section class="section-block market-verdict ${v.tone}" aria-label="Market direction verdict">
+      <p class="eyebrow">Market direction</p>
+      <h2 class="hero-line">${esc(v.headline)}</h2>
+      <p class="note">${esc(v.detail)}${esc(asOf)}</p>
+    </section>`;
 }
 
 function pulseMetricConfig(key) {

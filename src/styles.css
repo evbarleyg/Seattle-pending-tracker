@@ -1951,3 +1951,21 @@ th {
   .insight-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trend-strip { grid-template-columns: 1fr; }
 }
+
+/* ---- Market-direction verdict banner ---- */
+.market-verdict { border-width: 1px; border-style: solid; }
+.market-verdict.hotter { border-color: color-mix(in srgb, var(--hot) 40%, var(--line)); }
+.market-verdict.hotter .hero-line { color: var(--hot); }
+.market-verdict.cooler { border-color: color-mix(in srgb, var(--cool) 38%, var(--line)); }
+.market-verdict.cooler .hero-line { color: var(--cool); }
+.market-verdict.flat { border-color: var(--line-strong); }
+.market-verdict.flat .hero-line { color: var(--muted); }
+
+/* ---- Secondary (3-mo vs prior-3-mo) tile delta: muted/smaller so 6 tiles stay clean ---- */
+.tile-delta.tile-delta-secondary { display: block; margin-block-start: 2px; font-size: 0.68rem; font-weight: 700; opacity: 0.85; }
+
+/* ---- Buyer-framed color legend ---- */
+.tone-legend { display: flex; align-items: center; gap: 4px; margin-block-start: 8px; }
+.tone-chip { font-size: 0.8rem; line-height: 1; }
+.tone-chip.cooler { color: var(--cool); }
+.tone-chip.hotter { color: var(--hot); }

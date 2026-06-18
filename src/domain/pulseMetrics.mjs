@@ -261,7 +261,7 @@ export function competitiveDelta(metricKey, currentValue, previousValue) {
   if (!Number.isFinite(Number(currentValue)) || !Number.isFinite(Number(previousValue))) return null;
   const current = Number(currentValue);
   const previous = Number(previousValue);
-  if (metricKey === "medianDom") return previous - current;
+  if (metricKey === "medianDom" || metricKey === "activeInventory") return previous - current;
   return current - previous;
 }
 
