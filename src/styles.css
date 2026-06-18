@@ -602,12 +602,11 @@ h3 {
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
-.afford-pill.afford-in { background: rgba(21, 128, 61, 0.14); color: #15803d; }
-.afford-pill.afford-stretch { background: rgba(180, 120, 10, 0.16); color: #b4780a; }
-.afford-pill.afford-over { background: rgba(120, 120, 130, 0.16); color: #6b7280; }
+.afford-pill.afford-in { background: color-mix(in srgb, var(--cool) 14%, var(--surface)); color: var(--cool); }
+.afford-pill.afford-stretch { background: color-mix(in srgb, var(--warm) 16%, var(--surface)); color: var(--warm); }
+.afford-pill.afford-over { background: color-mix(in srgb, var(--muted) 16%, var(--surface)); color: var(--muted); }
 body.dark .afford-pill.afford-in { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
 body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); color: #f4b43c; }
-body.dark .afford-pill.afford-over { background: rgba(160, 165, 175, 0.16); color: #9ca3af; }
 
 .afford-flags {
   margin: 6px 0 0;
@@ -1493,22 +1492,19 @@ th {
   font-weight: 850;
 }
 
-.hot-pill.hot,
-.conf-pill.medium {
+.hot-pill.hot {
   background: color-mix(in srgb, var(--warm) 16%, var(--surface));
   color: var(--warm);
 }
 
-.hot-pill.ultra,
-.conf-pill.high {
+.hot-pill.ultra {
   background: color-mix(in srgb, var(--hot) 14%, var(--surface));
   color: var(--hot);
 }
 
-.conf-pill.low {
-  background: color-mix(in srgb, var(--cool) 14%, var(--surface));
-  color: var(--cool);
-}
+.conf-pill.high   { background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); }
+.conf-pill.medium { background: color-mix(in srgb, var(--brand) 8%, var(--surface));  color: color-mix(in srgb, var(--brand) 70%, var(--muted)); }
+.conf-pill.low    { background: var(--surface-2); color: var(--muted); }
 
 .mobile-card-list {
   display: none;
@@ -1891,7 +1887,7 @@ th {
 /* ---- Overview market-trends small-multiples strip ---- */
 .trend-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
 .trend-mini {
@@ -1947,9 +1943,15 @@ th {
 }
 
 /* ---- Responsive: stack tiles / trends on narrow viewports ---- */
+@media (max-width: 1180px) {
+  .insight-tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
   .insight-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trend-strip { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .insight-tile-grid { grid-template-columns: 1fr; }
 }
 
 /* ---- Market-direction verdict banner ---- */
@@ -1960,6 +1962,12 @@ th {
 .market-verdict.cooler .hero-line { color: var(--cool); }
 .market-verdict.flat { border-color: var(--line-strong); }
 .market-verdict.flat .hero-line { color: var(--muted); }
+.market-verdict { border-inline-start-width: 4px; padding-block: 20px; }
+.market-verdict .hero-line { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.market-verdict.hotter { border-inline-start-color: var(--hot); }
+.market-verdict.cooler { border-inline-start-color: var(--cool); }
+.market-verdict.flat { border-inline-start-color: var(--line-strong); }
+.command-stack { display: flex; flex-direction: column; gap: 14px; }
 
 /* ---- Secondary (3-mo vs prior-3-mo) tile delta: muted/smaller so 6 tiles stay clean ---- */
 .tile-delta.tile-delta-secondary { display: block; margin-block-start: 2px; font-size: 0.68rem; font-weight: 700; opacity: 0.85; }

@@ -597,31 +597,33 @@ function commandCenterCardsHtml() {
   const tiles = [
     insightTileHtml({ label: "Median close", value: formatMoneyOrNa(stats.medianClose), metricKey: "medianClosePrice", series: sliceSeries }),
     insightTileHtml({ label: "Median $/sqft", value: stats.medianPsf ? `$${Math.round(stats.medianPsf)}` : "n/a", metricKey: "medianPsf", series: sliceSeries }),
-    insightTileHtml({ label: "Sale / list", value: formatRatio(stats.medianSaleToList), metricKey: "medianSaleToList", series: sliceSeries }),
+    insightTileHtml({ label: "Over-ask ratio", value: formatRatio(stats.medianSaleToList), metricKey: "medianSaleToList", series: sliceSeries }),
     insightTileHtml({ label: "Median DOM", value: stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`, metricKey: "medianDom", series: sliceSeries }),
     insightTileHtml({ label: "Fast-sale share", value: stats.hotShare === null ? "n/a" : formatPct(stats.hotShare), metricKey: "hotShare", series: sliceSeries }),
     insightTileHtml({ label: "Active + pending", value: formatWholeNumber(slices.openRows.length + slices.projectedRows.length), metricKey: "activeInventory", series: invSeries }),
   ].join("");
 
   return `
-    <div class="insight-tile-grid span-3">${tiles}</div>
-    <p class="note tone-legend span-3"><span class="tone-chip cooler">●</span> Cooling — better for buyers &nbsp; <span class="tone-chip hotter">●</span> Heating — tougher for buyers</p>
-    <article class="state-panel${staleDays !== null && staleDays > FRESHNESS_STALE_DAYS ? " stale" : ""}">
-      <div class="panel-kicker">Freshness</div>
-      <h2>${esc(latestSale ? formatDateShort(latestSale) : "n/a")}</h2>
-      <p>${latestSale ? `Newest sale ${staleDays}d ago` : "No sale dates"} · ${esc(validationStatus)} · ${formatWholeNumber(state.dataSource.rowCount)} rows</p>
-    </article>
-    <article class="state-panel">
-      <div class="panel-kicker">Saved-home lens</div>
-      <h2>${esc(savedStatus)}</h2>
-      <p>${esc(profile.name)} · ${cohort.summary.topMicromarket || "no top micromarket yet"}</p>
-    </article>
-    <article class="state-panel">
-      <div class="panel-kicker">Bid queue</div>
-      <h2>${formatWholeNumber(bidStatsView.activeCount)} active</h2>
-      <p>${formatWholeNumber(bidStatsView.scoredCount)} scored · ${formatWholeNumber(bidStatsView.highConfidenceCount)} high confidence</p>
-    </article>
-    <div class="quick-actions span-3">
+    <div class="insight-tile-grid">${tiles}</div>
+    <p class="note tone-legend"><span class="tone-chip cooler">●</span> Cooling — better for buyers &nbsp; <span class="tone-chip hotter">●</span> Heating — tougher for buyers</p>
+    <div class="command-grid">
+      <article class="state-panel${staleDays !== null && staleDays > FRESHNESS_STALE_DAYS ? " stale" : ""}">
+        <div class="panel-kicker">Freshness</div>
+        <h2>${esc(latestSale ? formatDateShort(latestSale) : "n/a")}</h2>
+        <p>${latestSale ? `Newest sale ${staleDays}d ago` : "No sale dates"} · ${esc(validationStatus)} · ${formatWholeNumber(state.dataSource.rowCount)} rows</p>
+      </article>
+      <article class="state-panel">
+        <div class="panel-kicker">Saved-home lens</div>
+        <h2>${esc(savedStatus)}</h2>
+        <p>${esc(profile.name)} · ${cohort.summary.topMicromarket || "no top micromarket yet"}</p>
+      </article>
+      <article class="state-panel">
+        <div class="panel-kicker">Bid queue</div>
+        <h2>${formatWholeNumber(bidStatsView.activeCount)} active</h2>
+        <p>${formatWholeNumber(bidStatsView.scoredCount)} scored · ${formatWholeNumber(bidStatsView.highConfidenceCount)} high confidence</p>
+      </article>
+    </div>
+    <div class="quick-actions">
       ${buttonIcon("Open Pulse", "activity", "data-switch-view=\"pulse\"")}
       ${buttonIcon("Open Bids", "target", "data-switch-view=\"bids\"")}
       ${buttonIcon("Open Geo", "map", "data-switch-view=\"geo\"")}
@@ -637,7 +639,7 @@ function commandCenterSectionHtml() {
         <p class="eyebrow">Buyer command center</p>
         <h2 class="hero-line">${esc(filtersToSummary(state.filters).join(" + "))} · ${formatWholeNumber((state.derived?.slices?.closedSlice || []).length)} comps in slice</h2>
       </div>
-      <div class="command-grid" id="commandGrid">
+      <div class="command-stack" id="commandGrid">
         ${commandCenterCardsHtml()}
       </div>
     </section>
@@ -1020,8 +1022,8 @@ function renderOverviewView() {
         </div>
         <p class="note">${esc(freshnessLine)} Months with fewer than ${MIN_TILE_COMPS} comps are omitted.</p>
         <div class="trend-strip">
-          ${["medianPsf", "medianSaleToList"].map((k) => `
-            <article class="trend-mini"><div class="chart-title">${esc(chartMetricLabel(k))}</div>${sparklineSvg(state.derived.sliceMonthlySeries, k, { width: 240, height: 64 })}</article>
+          ${["medianPsf", "medianSaleToList", "medianBidUp"].map((k) => `
+            <article class="trend-mini"><div class="chart-title">${esc(k === "medianBidUp" ? "Over-ask premium" : chartMetricLabel(k))}</div>${sparklineSvg(state.derived.sliceMonthlySeries, k, { width: 240, height: 64, sampleField: k === "medianBidUp" ? "bidUpSampleSize" : undefined })}</article>
           `).join("")}
           <article class="trend-mini"><div class="chart-title">${esc(chartMetricLabel("activeInventory"))}</div>${sparklineSvg(state.derived.inventoryMonthlySeries, "activeInventory", { width: 240, height: 64 })}</article>
         </div>
@@ -1179,8 +1181,8 @@ function pulseMetricCard(key, recent) {
   `;
 }
 
-function tileDelta(series, metricKey) {
-  const gated = (series || []).filter((entry) => (entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS && Number.isFinite(Number(entry[metricKey])));
+function tileDelta(series, metricKey, sampleField) {
+  const gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS && Number.isFinite(Number(entry[metricKey])));
   if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
   const cfg = pulseMetricConfig(metricKey);
   const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
@@ -1188,7 +1190,7 @@ function tileDelta(series, metricKey) {
   const signalFor = (dir) => ({
     medianClosePrice: dir > 0 ? "prices rising" : dir < 0 ? "prices easing" : "prices flat",
     medianPsf: dir > 0 ? "$/sqft climbing" : dir < 0 ? "$/sqft softening" : "$/sqft steady",
-    medianSaleToList: dir > 0 ? "bidding up" : dir < 0 ? "bidding cooling" : "at ask",
+    medianSaleToList: dir > 0 ? "buyers bidding over ask" : dir < 0 ? "buyers no longer over ask" : "clearing at ask",
     medianDom: dir > 0 ? "selling faster" : dir < 0 ? "sitting longer" : "steady pace",
     hotShare: dir > 0 ? "heating up" : dir < 0 ? "cooling" : "holding",
     activeInventory: dir < 0 ? "more choice" : dir > 0 ? "tightening supply" : "flat supply",
@@ -1455,7 +1457,7 @@ function lineSvg(series, metricKey, options = {}) {
 const MIN_TILE_COMPS = 5;
 
 function sparklineSvg(series, metricKey, options = {}) {
-  const gated = (series || []).filter((entry) => (entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS);
+  const gated = (series || []).filter((entry) => ((options.sampleField ? entry[options.sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS);
   const data = chartData(gated, metricKey);
   const w = options.width || 124;
   const h = options.height || 34;
@@ -1499,6 +1501,8 @@ function buildSliceMonthlySeries(rows) {
     medianPsf: medianValue(monthRows.map((row) => row.pricePerSqft).filter((value) => value > 0)),
     hotShare: monthRows.length ? monthRows.filter((row) => row.isHotMarket).length / monthRows.length : null,
     medianDom: medianValue(monthRows.map((row) => domMetric(row)).filter((value) => value !== null && value !== undefined)),
+    medianBidUp: (() => { const b = monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)); return b.length ? medianValue(b.map((row) => row.delta)) : null; })(),
+    bidUpSampleSize: monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)).length,
   }));
 }
 
