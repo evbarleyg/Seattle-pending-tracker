@@ -121,6 +121,25 @@ async function fetchGis(query, options) {
   return json.payload?.homes || [];
 }
 
+// Redfin's gis endpoint intermittently returns an empty payload under light
+// rate-limiting. Retry empty or errored responses a few times before accepting
+// a zero, so a transient blip doesn't silently drop a whole neighborhood.
+async function fetchGisWithRetry(query, options) {
+  const retries = Number(options.emptyRetries ?? 2);
+  const backoff = Number(options.retryBackoffMs ?? 4000);
+  let homes = [];
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      homes = await fetchGis(query, options);
+      if (homes.length > 0) return homes;
+    } catch (err) {
+      if (attempt === retries) throw err;
+    }
+    if (attempt < retries) await sleep(backoff * (attempt + 1));
+  }
+  return homes;
+}
+
 function homeToRow(home, query, fetchedAt) {
   const lat = home.latLong?.value?.latitude;
   const lon = home.latLong?.value?.longitude;
@@ -315,13 +334,15 @@ async function main() {
   const fetchOptions = {
     userAgent: config.userAgent || "Mozilla/5.0",
     maxHomes: Number(config.maxHomesPerQuery) || 350,
+    emptyRetries: config.emptyRetries ?? 2,
+    retryBackoffMs: config.retryBackoffMs ?? 4000,
   };
 
   for (let i = 0; i < (config.queries || []).length; i += 1) {
     const query = config.queries[i];
     const stat = { label: query.label, regionId: query.regionId, regionType: query.regionType };
     try {
-      const homes = await fetchGis(query, fetchOptions);
+      const homes = await fetchGisWithRetry(query, fetchOptions);
       const rows = homes.map((h) => homeToRow(h, query, fetchedAt));
       const passing = rows.filter((r) => passesFilters(r, config.filters || {}));
       stat.homesReturned = rows.length;
