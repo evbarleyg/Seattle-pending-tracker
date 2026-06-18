@@ -110,6 +110,7 @@ export function summarizeRows(rows) {
   const saleToListValues = data.map((row) => safeNumber(row.saleToList)).filter((value) => value !== null && value > 0);
   const bidUpValues = data.map((row) => safeNumber(row.delta)).filter((value) => value !== null);
   const closeValues = data.map((row) => safeNumber(row.closePrice)).filter((value) => value !== null && value > 0);
+  const psfValues = data.map((row) => safeNumber(row.pricePerSqft)).filter((value) => value !== null && value > 0);
 
   return {
     salesCount: count,
@@ -119,11 +120,13 @@ export function summarizeRows(rows) {
     medianSaleToList: nullableMedian(saleToListValues),
     medianBidUp: nullableMedian(bidUpValues),
     medianClosePrice: nullableMedian(closeValues),
+    medianPsf: nullableMedian(psfValues),
     sampleSize: count,
     domSampleSize: domValues.length,
     ratioSampleSize: saleToListValues.length,
     bidUpSampleSize: bidUpValues.length,
     closeSampleSize: closeValues.length,
+    psfSampleSize: psfValues.length,
   };
 }
 

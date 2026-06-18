@@ -1827,3 +1827,127 @@ th {
     min-block-size: 460px;
   }
 }
+
+/* ============================================================
+   Quick-hit insight tiles (command center)
+   ============================================================ */
+.insight-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.insight-tile {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  min-block-size: 118px;
+}
+.insight-tile:hover { border-color: var(--line-strong); }
+.insight-tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.insight-tile.hotter { border-color: color-mix(in srgb, var(--hot) 40%, var(--line)); }
+.insight-tile.cooler { border-color: color-mix(in srgb, var(--cool) 38%, var(--line)); }
+.insight-tile .tile-figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.insight-tile .tile-figure strong { font-size: 1.35rem; line-height: 1.1; }
+.tile-delta {
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.tile-delta.hotter { color: var(--hot); }
+.tile-delta.cooler { color: var(--cool); }
+.tile-signal {
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/* ---- Inline sparkline ---- */
+.sparkline { display: block; inline-size: 100%; block-size: auto; }
+.sparkline .spark-line {
+  stroke: var(--brand-2);
+  stroke-width: 1.6;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.sparkline .spark-dot { fill: var(--brand-2); }
+.insight-tile.hotter .sparkline .spark-line { stroke: var(--hot); }
+.insight-tile.hotter .sparkline .spark-dot { fill: var(--hot); }
+.insight-tile.cooler .sparkline .spark-line { stroke: var(--cool); }
+.insight-tile.cooler .sparkline .spark-dot { fill: var(--cool); }
+
+/* ---- Overview market-trends small-multiples strip ---- */
+.trend-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.trend-mini {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.trend-mini .chart-title { margin-block-end: 6px; }
+
+/* ---- Freshness staleness cue ---- */
+.state-panel.stale {
+  border-color: color-mix(in srgb, var(--hot) 45%, var(--line));
+}
+.state-panel.stale .panel-kicker::after {
+  content: " · stale";
+  color: var(--hot);
+  font-weight: 800;
+}
+
+/* ---- Records density secondary text ---- */
+.cell-sub {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* ---- Projected-row marker pill ---- */
+.proj-pill {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+/* ---- Low-sample chart point de-emphasis ---- */
+.chart-point.low-sample circle {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1.4;
+  opacity: 0.6;
+}
+
+/* ---- Responsive: stack tiles / trends on narrow viewports ---- */
+@media (max-width: 900px) {
+  .insight-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trend-strip { grid-template-columns: 1fr; }
+}

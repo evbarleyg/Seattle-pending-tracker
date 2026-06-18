@@ -155,6 +155,12 @@ export function formatLot(value) {
   return `${Math.round(n).toLocaleString("en-US")} sf`;
 }
 
+export function formatPricePerSqft(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return "n/a";
+  return `$${Math.round(n).toLocaleString("en-US")}/sf`;
+}
+
 export function formatDateShort(value) {
   const parsed = toDate(value);
   if (!parsed) return "n/a";

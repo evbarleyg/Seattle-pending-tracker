@@ -422,6 +422,7 @@ export function pulseRowSummary(row) {
     saleToList: row.saleToList,
     delta: row.delta,
     closePrice: row.closePrice,
+    pricePerSqft: row.pricePerSqft,
   };
 }
 
@@ -665,7 +666,9 @@ export function getRecordSortValue(row, key) {
   if (key === "beds") return Number(row.beds || 0);
   if (key === "baths") return Number(row.baths || 0);
   if (key === "sqft") return Number(row.sqft || 0);
+  if (key === "psf") return Number(row.pricePerSqft || 0);
   if (key === "lotSize") return Number(row.lotSize || 0);
+  if (key === "yearBuilt") return Number(row.yearBuilt || 0);
   if (key === "saleDate") return String(row.saleDate || "");
   if (key === "closePrice") return Number(row.closePrice || 0);
   if (key === "originalListPrice") return Number(row.originalListPrice || 0);
@@ -746,7 +749,7 @@ export function exportRowsToCsv(rows) {
     "mlsStatus", "mlsRegion", "mlsParkingType", "mlsParkingCoveredTotal", "mlsTaxesAnnual", "mlsBuildingCondition", "mlsView", "mlsBankOwned", "mlsThirdPartyApprovalRequired", "mlsNewConstructionState", "mlsSquareFootageSource", "isSpecialSale",
     "bidStrategy", "bidSuggested", "bidLow", "bidHigh", "bidRatio", "bidConfidence", "bidConfidenceLabel", "bidCompCount", "bidCompTier", "bidStatus",
     "hotCategory", "domDays", "isLikelyPresoldNewBuild", "presoldRuleReason", "isProjectionRow", "projectedClosePrice", "projectedCloseLow", "projectedCloseHigh", "projectionBasisCount",
-    "beds", "baths", "sqft", "lotSize", "yearBuilt", "zip",
+    "beds", "baths", "sqft", "pricePerSqft", "lotSize", "yearBuilt", "zip",
   ];
   const lines = [headers.join(",")];
   (rows || []).forEach((row) => {
@@ -804,6 +807,7 @@ export function exportRowsToCsv(rows) {
       row.beds,
       row.baths,
       row.sqft,
+      row.pricePerSqft > 0 ? row.pricePerSqft : "",
       row.lotSize,
       row.yearBuilt,
       row.zip,
