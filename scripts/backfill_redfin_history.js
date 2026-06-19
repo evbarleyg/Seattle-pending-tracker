@@ -174,6 +174,8 @@ function rowNeedsBackfill(row, opts) {
   const close = num(row.closePrice);
   if (close <= 0) return false;
   if (close < opts.minPrice || close > opts.maxPrice) return false;
+  // Recency scope: skip sales before --since (keeps the run to the recent cliff).
+  if (opts.since && (row.saleDate || row.mlsSellingDate || "") < opts.since) return false;
   // Only count the MLS-derived list fields. The generic `listPriceAtPending`
   // column is populated with county assessed value for PUBLIC_PROXY rows,
   // which is NOT a real MLS list price and shouldn't disqualify backfill.
@@ -205,6 +207,7 @@ function parseArgs(argv) {
     else if (a === "--url-index") { opts.urlIndex = next; i += 1; }
     else if (a === "--cache") { opts.cache = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
+    else if (a === "--since") { opts.since = next; i += 1; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
   }
   return opts;
