@@ -1052,18 +1052,23 @@ function buildMlsFieldValues(candidate, options = {}) {
   const saleToOriginalRatio = Number(options.saleToOriginalRatio || 0);
   const bidUpAmount = Number(options.bidUpAmount || 0);
   const bidUpPct = Number(options.bidUpPct || 0);
+  // Only treat a list price as genuine when it exists AND differs from close. The realtor
+  // "Sale Stats" export fills Listing Price = Selling Price for ~30% of sold rows, producing
+  // a fake sale/list = 1.000. If we emit any list-price field for those, the frontend
+  // recomputes close/list = 1.000 anyway — so blank the whole list-derived block.
+  const hasGenuineList = listPrice > 0 && Math.abs(listPrice - closePrice) >= 1;
 
   return {
     mlsListDate: candidate.listingDate || "",
     mlsPendingDate: candidate.pendingDate || "",
-    mlsListPriceAtPending: listPrice > 0 ? String(listPrice) : "",
+    mlsListPriceAtPending: hasGenuineList ? String(listPrice) : "",
     mlsClosePrice: closePrice > 0 ? String(closePrice) : "",
     mlsListingNumber: candidate.listingNumber || "",
     mlsStatus: candidate.status || "",
     mlsRegion: candidate.region || "",
     mlsSellingDate: candidate.sellingDate || "",
     mlsContractualDate: candidate.contractualDate || "",
-    mlsListingPrice: candidate.listingPrice > 0 ? String(candidate.listingPrice) : "",
+    mlsListingPrice: candidate.listingPrice > 0 && hasGenuineList ? String(candidate.listingPrice) : "",
     mlsSellingPrice: closePrice > 0 ? String(closePrice) : "",
     mlsOriginalPrice: originalPrice > 0 ? String(originalPrice) : "",
     mlsDOM: candidate.domRaw !== "" ? String(candidate.dom) : "",
@@ -1086,10 +1091,10 @@ function buildMlsFieldValues(candidate, options = {}) {
     mlsDaysToPending: daysToPending === null || daysToPending === undefined ? "" : String(daysToPending),
     mlsDaysPendingToSale: daysPendingToSale === null || daysPendingToSale === undefined ? "" : String(daysPendingToSale),
     hotMarketTag: buildHotMarketTag(candidate.dom, daysToPending),
-    saleToListRatio: includeOutcomeMetrics && saleToListRatio > 0 ? saleToListRatio.toFixed(4) : "",
+    saleToListRatio: includeOutcomeMetrics && saleToListRatio > 0 && hasGenuineList ? saleToListRatio.toFixed(4) : "",
     saleToOriginalListRatio: includeOutcomeMetrics && saleToOriginalRatio > 0 ? saleToOriginalRatio.toFixed(4) : "",
-    bidUpAmount: includeOutcomeMetrics ? String(Math.round(bidUpAmount)) : "",
-    bidUpPct: includeOutcomeMetrics && listPrice > 0 ? bidUpPct.toFixed(4) : "",
+    bidUpAmount: includeOutcomeMetrics && hasGenuineList ? String(Math.round(bidUpAmount)) : "",
+    bidUpPct: includeOutcomeMetrics && listPrice > 0 && hasGenuineList ? bidUpPct.toFixed(4) : "",
   };
 }
 
@@ -1165,7 +1170,7 @@ async function main() {
       const daysToPending = dayDiff(c.listingDate, c.pendingDate);
       const daysPendingToSale = dayDiff(c.pendingDate, c.sellingDate);
       const close = c.sellingPrice > 0 ? c.sellingPrice : Math.round(num(out.closePrice));
-      const list = c.listingPrice > 0 ? c.listingPrice : Math.round(num(out.listPriceAtPending));
+      const list = c.listingPrice > 0 ? c.listingPrice : 0;
       const original = c.originalPrice > 0 ? c.originalPrice : 0;
       const bidUp = (close > 0 && list > 0) ? (close - list) : 0;
       const bidUpPct = (close > 0 && list > 0) ? (bidUp / list) : 0;
@@ -1210,7 +1215,7 @@ async function main() {
         if (c.zip && !out.zip) out.zip = c.zip;
 
         const close = Math.round(num(out.closePrice));
-        const list = c.listingPrice > 0 ? c.listingPrice : Math.round(num(out.listPriceAtPending || out.assessedValue));
+        const list = c.listingPrice > 0 ? c.listingPrice : 0;
         const original = c.originalPrice > 0 ? c.originalPrice : 0;
         const daysToPending = dayDiff(c.listingDate, c.pendingDate);
         const daysPendingToSale = dayDiff(c.pendingDate, out.saleDate);
