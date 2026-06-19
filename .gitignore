@@ -34,7 +34,9 @@ CLAUDE.local.md
 
 # Redfin scrape outputs (regenerated from API)
 redfin_active_listings.csv
+redfin_sold_listings.csv
 redfin_fetch_report.json
+redfin_sold_report.json
 redfin_merge_report.json
 redfin_url_index.json
 redfin_history_cache.json

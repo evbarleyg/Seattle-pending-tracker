@@ -13,6 +13,7 @@
     "fetch:actives": "node scripts/fetch_redfin_actives.js",
     "merge:actives": "node scripts/merge_redfin_actives.js",
     "refresh:actives": "node scripts/fetch_redfin_actives.js && node scripts/merge_redfin_actives.js && node scripts/sync_public_assets.js",
+    "fetch:sold": "node scripts/fetch_redfin_sold.js",
     "build:url-index": "node scripts/build_redfin_url_index.js",
     "backfill:history": "node scripts/backfill_redfin_history.js",
     "detect:transitions": "node scripts/detect_listing_transitions.js",
