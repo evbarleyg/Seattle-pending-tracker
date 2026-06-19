@@ -36,6 +36,28 @@ body.dark {
   box-sizing: border-box;
 }
 
+/* Global focus-visible ring so keyboard operation is visible across every
+   interactive control, not just the few that defined their own. Uses --brand,
+   which contrasts in both themes, matching .insight-tile:focus-visible. */
+:where(
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  .tab,
+  .scope-pill,
+  .heat-row,
+  .link-button,
+  .icon-btn,
+  .watch-star
+):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -1564,9 +1586,18 @@ th {
   gap: 10px;
 }
 
+.geo-popup-row {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .geo-legend {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 
@@ -1869,6 +1900,14 @@ th {
   letter-spacing: 0.02em;
   color: var(--muted);
 }
+.tile-sub {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
 
 /* ---- Inline sparkline ---- */
 .sparkline { display: block; inline-size: 100%; block-size: auto; }
@@ -1883,6 +1922,25 @@ th {
 .insight-tile.hotter .sparkline .spark-dot { fill: var(--hot); }
 .insight-tile.cooler .sparkline .spark-line { stroke: var(--cool); }
 .insight-tile.cooler .sparkline .spark-dot { fill: var(--cool); }
+.sparkline .spark-endpoint-label {
+  fill: var(--text);
+  font-size: 9px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+.sparkline .spark-endpoint-label.big { font-size: 11px; }
+.sparkline .spark-endpoint-label.muted { fill: var(--muted); font-size: 9px; stroke-width: 0; font-weight: 700; }
+
+/* ---- Whole-slice trend grain toggle ---- */
+.trends-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: 8px;
+}
 
 /* ---- Overview market-trends small-multiples strip ---- */
 .trend-strip {
@@ -1940,6 +1998,23 @@ th {
   stroke: var(--line-strong);
   stroke-width: 1.4;
   opacity: 0.6;
+}
+.chart-bar.low-sample rect {
+  fill: var(--line-strong);
+  opacity: 0.5;
+}
+/* Trailing partial bucket (e.g. the still-filling current week) — de-weighted so
+   its swing isn't read as a real move; pairs with the chart's "partial" note. */
+.chart-point.partial circle {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2;
+  opacity: 0.5;
+}
+.chart-bar.partial rect {
+  fill: var(--line-strong);
+  opacity: 0.4;
 }
 
 /* ---- Responsive: stack tiles / trends on narrow viewports ---- */

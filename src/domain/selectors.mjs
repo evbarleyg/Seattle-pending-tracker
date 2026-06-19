@@ -159,13 +159,17 @@ export function recordViewLabel(value) {
 }
 
 export function computeBaseStats(rows) {
+  const list = rows || [];
+  const ratioCount = list.filter((row) => row.saleToList > 0).length;
   return {
-    medianClose: median((rows || []).map((row) => row.closePrice).filter((value) => Number.isFinite(value))),
-    medianPsf: median((rows || []).filter((row) => row.pricePerSqft > 0).map((row) => row.pricePerSqft)),
-    medianDom: nullableMedian((rows || []).map(domMetric).filter((value) => value !== null)),
-    medianSaleToList: nullableMedian((rows || []).map((row) => row.saleToList).filter((value) => value > 0)),
-    medianBidUp: nullableMedian((rows || []).map((row) => row.delta).filter((value) => Number.isFinite(value))),
-    hotShare: rows?.length ? rows.filter((row) => row.isHotMarket).length / rows.length : null,
+    medianClose: median(list.map((row) => row.closePrice).filter((value) => Number.isFinite(value))),
+    medianPsf: median(list.filter((row) => row.pricePerSqft > 0).map((row) => row.pricePerSqft)),
+    medianDom: nullableMedian(list.map(domMetric).filter((value) => value !== null)),
+    medianSaleToList: nullableMedian(list.map((row) => row.saleToList).filter((value) => value > 0)),
+    medianBidUp: nullableMedian(list.map((row) => row.delta).filter((value) => Number.isFinite(value))),
+    hotShare: list.length ? list.filter((row) => row.isHotMarket).length / list.length : null,
+    ratioSampleSize: ratioCount,
+    sampleSize: list.length,
   };
 }
 

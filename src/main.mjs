@@ -54,6 +54,7 @@ import {
   monthLabelCompact,
   num,
   esc,
+  toIso,
 } from "./domain/format.mjs";
 import {
   PULSE_GROUPS,
@@ -252,6 +253,7 @@ const state = {
     dom: "",
     cdom: "",
   },
+  pulseSliceGrain: "month",
   recordSort: { key: "saleDate", dir: "desc" },
   bidSort: { key: "confidence", dir: "desc" },
   recordsPage: 1,
@@ -556,16 +558,29 @@ function renderDashboard() {
   refreshIcons();
 }
 
-function insightTileHtml({ label, value, metricKey, series, switchView = "pulse" }) {
+// Coverage caption for the over-ask tile: county + REDFIN_SOLD rows carry no
+// genuine list price, so the median sale/list can rest on a small minority of
+// the displayed comps. Surface N of M so the precision isn't read as universal.
+function ratioCoverageSub(stats) {
+  const n = Number(stats.ratioSampleSize || 0);
+  const m = Number(stats.sampleSize || 0);
+  if (!m) return "";
+  if (!n) return "no comps with a real list price in this slice";
+  const base = `based on ${formatWholeNumber(n)} of ${formatWholeNumber(m)} comps with a real list`;
+  return n < MIN_TILE_COMPS ? `${base} — thin coverage` : base;
+}
+
+function insightTileHtml({ label, value, metricKey, series, switchView = "pulse", note = "", sub = "" }) {
   const d = tileDelta(series, metricKey);
   return `
-    <article class="insight-tile ${d.tone}" role="button" tabindex="0" data-switch-view="${esc(switchView)}">
+    <article class="insight-tile ${d.tone}" role="button" tabindex="0" data-switch-view="${esc(switchView)}"${note ? ` title="${esc(note)}"` : ""}>
       <div class="tile-head"><span class="panel-kicker">${esc(label)}</span></div>
       <div class="tile-figure">
         <strong>${esc(value)}</strong>
         <span class="tile-delta ${d.tone}">${esc(d.arrow)} ${esc(d.deltaLabel)}</span>
       </div>
       ${d.secondaryLabel ? `<span class="tile-delta tile-delta-secondary ${d.secondaryTone}" title="3-month median vs prior 3-month median (trend context)">${esc(d.secondaryArrow)} ${esc(d.secondaryLabel)}</span>` : ""}
+      ${sub ? `<span class="tile-sub">${esc(sub)}</span>` : ""}
       ${sparklineSvg(series, metricKey)}
       ${d.signal ? `<span class="tile-signal">${esc(d.signal)}</span>` : ""}
     </article>`;
@@ -597,10 +612,10 @@ function commandCenterCardsHtml() {
   const tiles = [
     insightTileHtml({ label: "Median close", value: formatMoneyOrNa(stats.medianClose), metricKey: "medianClosePrice", series: sliceSeries }),
     insightTileHtml({ label: "Median $/sqft", value: stats.medianPsf ? `$${Math.round(stats.medianPsf)}` : "n/a", metricKey: "medianPsf", series: sliceSeries }),
-    insightTileHtml({ label: "Over-ask ratio", value: formatRatio(stats.medianSaleToList), metricKey: "medianSaleToList", series: sliceSeries }),
+    insightTileHtml({ label: "Over-ask ratio", value: formatRatio(stats.medianSaleToList), metricKey: "medianSaleToList", series: sliceSeries, sub: ratioCoverageSub(stats) }),
     insightTileHtml({ label: "Median DOM", value: stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`, metricKey: "medianDom", series: sliceSeries }),
     insightTileHtml({ label: "Fast-sale share", value: stats.hotShare === null ? "n/a" : formatPct(stats.hotShare), metricKey: "hotShare", series: sliceSeries }),
-    insightTileHtml({ label: "Active + pending", value: formatWholeNumber(slices.openRows.length + slices.projectedRows.length), metricKey: "activeInventory", series: invSeries }),
+    insightTileHtml({ label: "Active + pending (MLS only)", value: formatWholeNumber(slices.openRows.length + slices.projectedRows.length), metricKey: "activeInventory", series: invSeries, note: "MLS/Redfin listings only — a flow proxy, not standing inventory (county rows excluded)." }),
   ].join("");
 
   return `
@@ -1069,6 +1084,13 @@ function renderPulseView() {
   const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
   const sliceRows = state.derived.slices.closedSlice;
   const sliceSeries = buildSliceMonthlySeries(sliceRows);
+  const weekly = state.pulseSliceGrain === "week";
+  const weeklySeries = weekly ? buildSliceWeeklySeries(sliceRows) : [];
+  // Volume + median price/$sqft support weekly grain (saleDate is reliable);
+  // sale/list does NOT (ratio coverage collapses to single digits weekly).
+  const volSeries = weekly ? weeklySeries : sliceSeries;
+  const priceSeries = weekly ? weeklySeries : sliceSeries;
+  const grainOpts = weekly ? { xAxisTitle: "Sale week" } : {};
   const pockets = competitionPocketEntries(sliceRows);
   wrap.innerHTML = `
     <div class="view-band">
@@ -1116,12 +1138,22 @@ function renderPulseView() {
             <h3>How the current filter band is moving</h3>
           </div>
         </div>
-        <p class="note">These are the old Charts view, kept here so the context sits beside the watchlist pulse.</p>
+        <div class="trends-controls">
+          <div class="segmented" id="pulseGrainToggles" role="group" aria-label="Trend grain">
+            <button type="button" class="scope-pill ${!weekly ? "active" : ""}" data-pulse-grain="month">Monthly</button>
+            <button type="button" class="scope-pill ${weekly ? "active" : ""}" data-pulse-grain="week">Weekly (rolling 28d)</button>
+          </div>
+        </div>
+        <p class="note">${weekly
+          ? "Weekly grain medians a trailing 28-day window keyed on sale date, advancing every 7 days — it surfaces softening weeks before a calendar month closes. The trailing partial week is de-weighted; only volume and median price/$sqft are shown weekly (sale/list ratio coverage is too thin to trust at this grain)."
+          : "These are the old Charts view, kept here so the context sits beside the watchlist pulse."}</p>
         <div class="chart-grid">
-          ${chartPanel("Monthly volume", "chartVolume", barSvg(sliceSeries, "salesCount"), chartSummary(sliceSeries, "salesCount"), chartGuide("salesCount", "bar"), chartInsight("salesCount"))}
-          ${chartPanel("Median close", "chartClose", lineSvg(sliceSeries, "medianClosePrice"), chartSummary(sliceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
-          ${chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
-          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(sliceSeries, "medianPsf"), chartSummary(sliceSeries, "medianPsf"), chartGuide("medianPsf", "line"), chartInsight("medianPsf"))}
+          ${chartPanel(weekly ? "Weekly volume (rolling 28d)" : "Monthly volume", "chartVolume", barSvg(volSeries, "salesCount", grainOpts), chartSummary(volSeries, "salesCount"), chartGuide("salesCount", "bar"), chartInsight("salesCount"))}
+          ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
+          ${weekly
+            ? `<article class="chart-panel"><div class="chart-title">Median sale/list</div><p class="chart-insight">Sale/list ratio stays on monthly grain: only a small minority of recent weekly sales carry a genuine list price, so a weekly ratio would jump on n&lt;5. Switch to Monthly to read it.</p>${lineSvg(sliceSeries, "medianSaleToList")}</article>`
+            : chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
+          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(priceSeries, "medianPsf", grainOpts), chartSummary(priceSeries, "medianPsf"), chartGuide("medianPsf", "line"), chartInsight("medianPsf"))}
         </div>
       </section>
       <section class="section-block" id="pulseCompetitionPockets">
@@ -1262,7 +1294,7 @@ function chartInsight(metricKey) {
     medianBidUp: "What this tells you: how many dollars buyers are adding over the pending ask price.",
     medianClosePrice: "What this tells you: whether the target band is drifting away from your budget.",
     medianPsf: "What this tells you: price intensity normalized for size — rising $/sqft means you pay more per foot even if list prices look flat.",
-    activeInventory: "What this tells you: how much competing supply is on the market — thinner supply tightens your negotiating room.",
+    activeInventory: "What this tells you: a flow proxy for MLS/Redfin listings observed each month (county rows excluded) — directional competing-supply signal, not a true standing-inventory snapshot.",
   };
   return `<p class="chart-insight">${esc(copy[metricKey] || "What this tells you: how the market is moving inside this slice.")}</p>`;
 }
@@ -1302,18 +1334,38 @@ function formatChartValue(metricKey, value) {
   return pulseMetricConfig(metricKey).format(value);
 }
 
-function chartData(series, metricKey) {
+// Default the per-point confidence count to the metric's real coverage where
+// it differs from total sales: sale/list ratio is only meaningful on rows that
+// carry a genuine list price, so the badge/gating must read ratioSampleSize,
+// not salesCount. Callers may override via options.sampleField.
+function defaultSampleField(metricKey) {
+  if (metricKey === "medianSaleToList") return "ratioSampleSize";
+  if (metricKey === "medianBidUp") return "bidUpSampleSize";
+  return undefined;
+}
+
+function chartData(series, metricKey, options = {}) {
+  const sampleField = options.sampleField || defaultSampleField(metricKey);
   return (series || [])
     .map((entry) => {
       const raw = entry[metricKey];
       const value = raw === null || raw === undefined || raw === "" ? Number.NaN : Number(raw);
-      return { month: entry.month, value, count: Number(entry.sampleSize ?? entry.salesCount) || 0 };
+      const count = sampleField && entry[sampleField] !== undefined
+        ? Number(entry[sampleField]) || 0
+        : Number(entry.sampleSize ?? entry.salesCount) || 0;
+      return { month: entry.month, value, count, label: entry.label || "", isPartial: !!entry.isPartial };
     })
     .filter((entry) => Number.isFinite(entry.value));
 }
 
-function chartSummary(series, metricKey) {
-  const data = chartData(series, metricKey);
+// X-axis label: weekly series carry an explicit short label (e.g. "6/8");
+// monthly series fall back to the YYYY-MM compact month label.
+function pointLabel(point) {
+  return point.label || monthLabelCompact(point.month);
+}
+
+function chartSummary(series, metricKey, options = {}) {
+  const data = chartData(series, metricKey, options);
   if (!data.length) return `<div class="chart-summary"><span>No plotted data</span></div>`;
   const latest = data[data.length - 1];
   const high = data.reduce((best, entry) => entry.value > best.value ? entry : best, data[0]);
@@ -1385,7 +1437,7 @@ function shouldLabelPoint(point, index, points) {
 }
 
 function lineSvg(series, metricKey, options = {}) {
-  const data = chartData(series, metricKey);
+  const data = chartData(series, metricKey, options);
   const width = 460;
   const height = 230;
   const padLeft = 62;
@@ -1431,20 +1483,22 @@ function lineSvg(series, metricKey, options = {}) {
         return `
           <g class="chart-x-tick">
             <path class="tickline" d="M${point.x.toFixed(1)},${padTop + plotHeight} V${padTop + plotHeight + 5}" />
-            <text x="${point.x.toFixed(1)}" y="${height - 14}" text-anchor="middle">${esc(monthLabelCompact(point.month))}</text>
+            <text x="${point.x.toFixed(1)}" y="${height - 14}" text-anchor="middle">${esc(pointLabel(point))}</text>
           </g>
         `;
       }).join("")}
       <text class="axis-title" x="${padLeft}" y="13">${esc(chartMetricLabel(metricKey))}</text>
-      <text class="axis-title" x="${width - padRight}" y="${height - 2}" text-anchor="end">Month</text>
+      <text class="axis-title" x="${width - padRight}" y="${height - 2}" text-anchor="end">${esc(options.xAxisTitle || "Month")}</text>
       <path class="trend" d="${esc(path)}" />
       ${smoothPoints ? `<path class="trend smooth" d="${esc(smoothPoints)}" />` : ""}
       ${points.map((point, index) => {
         const lowSample = Number(point.count || 0) > 0 && Number(point.count) < MIN_TILE_COMPS;
+        const partial = !!point.isPartial;
+        const note = `${lowSample ? ` (n=${point.count})` : ""}${partial ? " · partial — still filling" : ""}`;
         return `
-        <g class="chart-point${lowSample ? " low-sample" : ""}" role="button" tabindex="0" aria-label="${esc(`${monthLabelCompact(point.month)} ${formatChartValue(metricKey, point.value)}${lowSample ? ` (n=${point.count})` : ""}`)}" ${options.pointAttr || ""} data-set-value="${esc(point.month)}">
-          <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4"><title>${esc(`${monthLabelCompact(point.month)}: ${formatChartValue(metricKey, point.value)}${lowSample ? ` (n=${point.count})` : ""}`)}</title></circle>
-          ${!lowSample && shouldLabelPoint(point, index, points) ? `<text class="chart-value-label" x="${point.x.toFixed(1)}" y="${Math.max(12, point.y - 9).toFixed(1)}" text-anchor="middle">${esc(formatChartValue(metricKey, point.value))}</text>` : ""}
+        <g class="chart-point${lowSample ? " low-sample" : ""}${partial ? " partial" : ""}" role="button" tabindex="0" aria-label="${esc(`${pointLabel(point)} ${formatChartValue(metricKey, point.value)}${note}`)}" ${options.pointAttr || ""} data-set-value="${esc(point.month)}">
+          <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4"><title>${esc(`${pointLabel(point)}: ${formatChartValue(metricKey, point.value)}${note}`)}</title></circle>
+          ${!lowSample && !partial && shouldLabelPoint(point, index, points) ? `<text class="chart-value-label" x="${point.x.toFixed(1)}" y="${Math.max(12, point.y - 9).toFixed(1)}" text-anchor="middle">${esc(formatChartValue(metricKey, point.value))}</text>` : ""}
         </g>`;
       }).join("")}
     </svg>
@@ -1454,26 +1508,46 @@ function lineSvg(series, metricKey, options = {}) {
 const MIN_TILE_COMPS = 5;
 
 function sparklineSvg(series, metricKey, options = {}) {
-  const gated = (series || []).filter((entry) => ((options.sampleField ? entry[options.sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS);
-  const data = chartData(gated, metricKey);
+  const sampleField = options.sampleField || defaultSampleField(metricKey);
+  const gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS);
+  const data = chartData(gated, metricKey, { sampleField });
   const w = options.width || 124;
   const h = options.height || 34;
+  const big = w >= 200;
   const pad = 3;
-  if (data.length < 2) return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" aria-hidden="true"></svg>`;
+  const label = chartMetricLabel(metricKey);
+  if (data.length < 2) {
+    // Speak the gated-empty case rather than hiding it: a tile that softens to
+    // "no plottable trend" is itself a signal a screen-reader user should hear.
+    return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(`${label}: not enough recent comps to plot a trend`)}"><title>${esc(`${label}: not enough recent comps (n<${MIN_TILE_COMPS}) to plot`)}</title></svg>`;
+  }
   const domain = chartDomain(data, metricKey);
   const span = Math.max(domain.max - domain.min, 0.0001);
-  const pts = data.map((entry, index) => {
-    const x = pad + (index / (data.length - 1)) * (w - pad * 2);
-    const y = pad + (h - pad * 2) - ((entry.value - domain.min) / span) * (h - pad * 2);
-    return `${index ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+  // Reserve room on the right for the endpoint value label so it isn't clipped.
+  const rightPad = big ? 48 : 34;
+  const xAt = (index) => pad + (index / (data.length - 1)) * (w - pad - rightPad);
+  const yAt = (value) => pad + (h - pad * 2) - ((value - domain.min) / span) * (h - pad * 2);
+  const pts = data.map((entry, index) => `${index ? "L" : "M"}${xAt(index).toFixed(1)},${yAt(entry.value).toFixed(1)}`).join(" ");
+  const first = data[0];
   const last = data[data.length - 1];
-  const lastX = w - pad;
-  const lastY = pad + (h - pad * 2) - ((last.value - domain.min) / span) * (h - pad * 2);
+  const lastX = xAt(data.length - 1);
+  const lastY = yAt(last.value);
+  const firstStr = formatChartValue(metricKey, first.value);
+  const lastStr = formatChartValue(metricKey, last.value);
+  const months = data.length;
+  const dir = last.value > first.value ? "up" : last.value < first.value ? "down" : "flat";
+  const pctChange = first.value ? ((last.value - first.value) / Math.abs(first.value)) * 100 : 0;
+  const pctStr = Number.isFinite(pctChange) && Math.abs(pctChange) >= 0.05 ? ` (${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%)` : "";
+  const summary = `${label}: ${firstStr} → ${lastStr} over ${months} mo${pctStr}`;
+  const ariaTrend = `${label}: ${dir === "up" ? "up" : dir === "down" ? "down" : "flat"} from ${firstStr} to ${lastStr} over ${months} months`;
+  const labelClass = big ? "spark-endpoint-label big" : "spark-endpoint-label";
   return `
-    <svg class="sparkline" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(chartMetricLabel(metricKey))} trailing trend">
+    <svg class="sparkline" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(ariaTrend)}">
+      <title>${esc(summary)}</title>
       <path class="spark-line" d="${esc(pts)}" fill="none" />
       <circle class="spark-dot" cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="2" />
+      <text class="${labelClass}" x="${(lastX + 4).toFixed(1)}" y="${Math.min(h - 2, Math.max(8, lastY + 3)).toFixed(1)}" text-anchor="start">${esc(lastStr)}</text>
+      ${big ? `<text class="spark-endpoint-label muted" x="${pad}" y="${(h - 2).toFixed(1)}" text-anchor="start">${esc(monthLabelCompact(first.month))}</text><text class="spark-endpoint-label muted" x="${(lastX).toFixed(1)}" y="${(h - 2).toFixed(1)}" text-anchor="end">${esc(monthLabelCompact(last.month))}</text>` : ""}
     </svg>`;
 }
 
@@ -1500,7 +1574,45 @@ function buildSliceMonthlySeries(rows) {
     medianDom: medianValue(monthRows.map((row) => domMetric(row)).filter((value) => value !== null && value !== undefined)),
     medianBidUp: (() => { const b = monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)); return b.length ? medianValue(b.map((row) => row.delta)) : null; })(),
     bidUpSampleSize: monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)).length,
+    ratioSampleSize: monthRows.filter((row) => row.saleToList > 0).length,
   }));
+}
+
+// Weekly rolling-window grain, keyed STRICTLY on saleDate (reliable on
+// REDFIN_SOLD / MLS rows; county pendingDate is faked). For each week-ending
+// anchor over the last `weeks` weeks we median over a trailing `windowDays`
+// window so sparse weekly n is smoothed while the read still advances every 7
+// days — surfacing softening weeks before a calendar month closes. Only VOLUME
+// and MEDIAN PRICE / $sqft are exposed at this grain; sale/list, pending and
+// DOM collapse to single-digit coverage in the newest weeks and are NOT offered.
+function buildSliceWeeklySeries(rows, { weeks = 13, windowDays = 28 } = {}) {
+  const dated = (rows || [])
+    .filter((row) => row.closePrice > 0 && row.saleDate)
+    .map((row) => ({ row, t: new Date(`${row.saleDate}T00:00:00`).getTime() }))
+    .filter((entry) => Number.isFinite(entry.t));
+  if (!dated.length) return [];
+  const latest = dated.reduce((max, entry) => Math.max(max, entry.t), dated[0].t);
+  const anchor = new Date(latest);
+  anchor.setHours(0, 0, 0, 0);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const windowMs = windowDays * dayMs;
+  const series = [];
+  for (let i = weeks - 1; i >= 0; i -= 1) {
+    const end = anchor.getTime() - i * 7 * dayMs;
+    const start = end - windowMs + dayMs;
+    const windowRows = dated.filter((entry) => entry.t >= start && entry.t <= end).map((entry) => entry.row);
+    const endDate = new Date(end);
+    series.push({
+      month: toIso(endDate),
+      label: `${endDate.getMonth() + 1}/${endDate.getDate()}`,
+      salesCount: windowRows.length,
+      sampleSize: windowRows.length,
+      isPartial: i === 0,
+      medianClosePrice: medianValue(windowRows.map((row) => row.closePrice)),
+      medianPsf: medianValue(windowRows.map((row) => row.pricePerSqft).filter((value) => value > 0)),
+    });
+  }
+  return series;
 }
 
 function buildInventoryMonthlySeries(normalizedRows, filterState) {
@@ -1525,8 +1637,8 @@ function medianValue(values) {
   return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
 }
 
-function barSvg(series, metricKey) {
-  const data = chartData(series, metricKey);
+function barSvg(series, metricKey, options = {}) {
+  const data = chartData(series, metricKey, options);
   if (!data.length) return `<div class="empty-state">No chart data.</div>`;
   const width = 460;
   const height = 230;
@@ -1560,21 +1672,24 @@ function barSvg(series, metricKey) {
         return `
           <g class="chart-x-tick">
             <path class="tickline" d="M${x.toFixed(1)},${padTop + plotHeight} V${padTop + plotHeight + 5}" />
-            <text x="${x.toFixed(1)}" y="${height - 14}" text-anchor="middle">${esc(monthLabelCompact(data[index].month))}</text>
+            <text x="${x.toFixed(1)}" y="${height - 14}" text-anchor="middle">${esc(pointLabel(data[index]))}</text>
           </g>
         `;
       }).join("")}
       <text class="axis-title" x="${padLeft}" y="13">${esc(chartMetricLabel(metricKey))}</text>
-      <text class="axis-title" x="${width - padRight}" y="${height - 2}" text-anchor="end">Month</text>
+      <text class="axis-title" x="${width - padRight}" y="${height - 2}" text-anchor="end">${esc(options.xAxisTitle || "Month")}</text>
       ${data.map((entry, index) => {
         const h = ((entry.value - domain.min) / span) * plotHeight;
         const x = padLeft + index * barWidth + 3;
         const barBodyWidth = Math.max(2, barWidth - 6);
         const y = padTop + plotHeight - h;
+        const lowSample = Number(entry.count || 0) > 0 && Number(entry.count) < MIN_TILE_COMPS;
+        const partial = !!entry.isPartial;
+        const note = `${lowSample ? ` (n=${entry.count}, thin)` : ""}${partial ? " · partial — still filling" : ""}`;
         return `
-          <g>
-            <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barBodyWidth.toFixed(1)}" height="${h.toFixed(1)}"><title>${esc(`${monthLabelCompact(entry.month)}: ${formatChartValue(metricKey, entry.value)}`)}</title></rect>
-            ${data.length <= 12 ? `<text class="chart-value-label" x="${(x + barBodyWidth / 2).toFixed(1)}" y="${Math.max(12, y - 7).toFixed(1)}" text-anchor="middle">${esc(formatChartValue(metricKey, entry.value))}</text>` : ""}
+          <g class="chart-bar${lowSample ? " low-sample" : ""}${partial ? " partial" : ""}" role="button" tabindex="0" aria-label="${esc(`${pointLabel(entry)} ${formatChartValue(metricKey, entry.value)}${note}`)}" ${options.pointAttr || ""} data-set-value="${esc(entry.month)}">
+            <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barBodyWidth.toFixed(1)}" height="${h.toFixed(1)}"><title>${esc(`${pointLabel(entry)}: ${formatChartValue(metricKey, entry.value)}${note}`)}</title></rect>
+            ${!lowSample && !partial && data.length <= 12 ? `<text class="chart-value-label" x="${(x + barBodyWidth / 2).toFixed(1)}" y="${Math.max(12, y - 7).toFixed(1)}" text-anchor="middle">${esc(formatChartValue(metricKey, entry.value))}</text>` : ""}
           </g>
         `;
       }).join("")}
@@ -2235,9 +2350,9 @@ function ensureGeoShell(wrap) {
       <div class="geo-layout">
         <div id="map" class="map-surface" aria-label="Seattle sales map"></div>
         <aside class="geo-side">
-          <div id="geoStatus" class="note"></div>
+          <div id="geoStatus" class="note" aria-live="polite"></div>
           ${geoLegendHtml()}
-          <div id="geoSelectedRows"></div>
+          <div id="geoSelectedRows" aria-live="polite"></div>
         </aside>
       </div>
     </div>
@@ -2255,11 +2370,68 @@ function updateGeoShell(rows) {
   const drawnCount = Math.min(rows.length, 1200);
   if (status) {
     const applied = state.geo.filterPropertyKeys.length ? ` ${formatWholeNumber(state.geo.filterPropertyKeys.length)} map-selected properties are filtering the dashboard.` : " Marker clicks inspect properties only until you apply them as a filter.";
-    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Colors show sale/list pressure.${applied}`;
+    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Color = sale/list pressure; grey = no list price on record.${applied}`;
   }
   const legend = qs(".geo-legend");
   if (legend) legend.outerHTML = geoLegendHtml();
   renderGeoSelectedRows();
+}
+
+// Recency line for a property card: shows the dates we genuinely have, omitting
+// gracefully. Pending is gated on hasGenuinePendingDate (county rows fake
+// pendingDate=saleDate); list on hasGenuineListDate. Returns "" when no date.
+function geoDatesLineHtml(row) {
+  const parts = [
+    row.saleDate ? `Sold ${formatDateShort(row.saleDate)}` : "",
+    row.hasGenuineListDate ? `Listed ${formatDateShort(row.listDate)}` : "",
+    row.hasGenuinePendingDate ? `Pending ${formatDateShort(row.pendingDate)}` : "",
+  ].filter(Boolean);
+  if (!parts.length) return "";
+  return `<span class="geo-popup-row">${esc(parts.join(" · "))}</span>`;
+}
+
+function geoCardHtml(row, { withLinks = false } = {}) {
+  const priceText = row.isProjectionRow
+    ? `~${formatMoneyOrNa(row.projectedClosePrice || row.closePrice)} (est. close)`
+    : formatMoneyOrNa(row.closePrice || row.pendingListPrice);
+  const ratioText = row.saleToList > 0 ? `${formatRatio(row.saleToList)} sale/list` : "";
+  const dom = domMetric(row);
+  const domText = dom !== null && dom !== undefined ? `${dom}d DOM` : "";
+  const facts = [priceText, ratioText, domText].filter(Boolean).join(" · ");
+  const datesLine = geoDatesLineHtml(row);
+
+  // For active rows with a scored bid suggestion: project bid-up over ask.
+  // For sold rows: show actual bid-up if available.
+  const isActive = row.mlsStatusNorm === "ACTIVE" || (!row.hasActualClose && row.pendingListPrice > 0);
+  let bidLine = "";
+  if (isActive && row.bidStatus === "SCored" && row.pendingListPrice > 0) {
+    const overAsk = row.bidSuggested - row.pendingListPrice;
+    const overPct = (overAsk / row.pendingListPrice) * 100;
+    const sign = overAsk > 0 ? "+" : overAsk < 0 ? "" : "";
+    const cls = overAsk > 0 ? "bid-up-tooltip up" : overAsk < 0 ? "bid-up-tooltip down" : "bid-up-tooltip flat";
+    bidLine = `<br><span class="${cls}">Suggested bid: ${formatMoneyOrNa(row.bidSuggested)} (${sign}${formatMoneyCompact(overAsk)} / ${sign}${overPct.toFixed(1)}%)</span>`;
+  } else if (row.hasActualClose && row.hasMarketListPrice && Number.isFinite(row.delta) && row.delta !== 0) {
+    const cls = row.delta > 0 ? "bid-up-tooltip up" : "bid-up-tooltip down";
+    const pct = row.pendingListPrice > 0 ? (row.delta / row.pendingListPrice) * 100 : 0;
+    const sign = row.delta > 0 ? "+" : "";
+    bidLine = `<br><span class="${cls}">Bid-up: ${sign}${formatMoneyCompact(row.delta)} (${sign}${pct.toFixed(1)}%)</span>`;
+  } else if (row.hasActualClose && !row.hasMarketListPrice) {
+    // County deed only — no MLS/Redfin listing matched, so list price (and
+    // therefore bid-up) is genuinely unavailable. Label it so it doesn't
+    // read as missing/broken data.
+    bidLine = `<br><span class="bid-up-tooltip flat">Bid-up: list price not on record (county sale only)</span>`;
+  }
+
+  // Affordability tier line (only when a private config is loaded).
+  let affordLine = "";
+  if (state.affordability.ready && AFFORD_TIER_META[row.affordTier]) {
+    const meta = AFFORD_TIER_META[row.affordTier];
+    affordLine = `<br><span class="afford-pill ${meta.cls}">${meta.label}</span>`;
+  }
+
+  const proj = row.isProjectionRow ? `<span class="proj-pill">Projected</span><br>` : "";
+  const linkLine = withLinks ? `<br>${propertyPopupLink(row)}` : "";
+  return `${proj}<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}${datesLine ? `<br>${datesLine}` : ""}${bidLine}${affordLine}${linkLine}`;
 }
 
 function geoLegendHtml() {
@@ -2269,6 +2441,7 @@ function geoLegendHtml() {
       <span><i style="--legend-color:#2563eb"></i><strong>At ask</strong><small>1.00x-1.02x</small></span>
       <span><i style="--legend-color:#c77700"></i><strong>Over ask</strong><small>1.03x-1.09x</small></span>
       <span><i style="--legend-color:#b91c1c"></i><strong>Hot</strong><small>1.10x-1.20x+</small></span>
+      <span><i style="--legend-color:#9ca3af"></i><strong>No list price</strong><small>sale/list n/a (county or sold-only)</small></span>
     </div>
   `;
 }
@@ -2320,48 +2493,11 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
       weight: selected ? 3 : 1,
       dashArray: row.isProjectionRow ? "3 3" : null,
     });
-    const priceText = row.isProjectionRow
-      ? `~${formatMoneyOrNa(row.projectedClosePrice || row.closePrice)} (est. close)`
-      : formatMoneyOrNa(row.closePrice || row.pendingListPrice);
-    const ratioText = row.saleToList > 0 ? `${formatRatio(row.saleToList)} sale/list` : "";
-    const dom = domMetric(row);
-    const domText = dom !== null && dom !== undefined ? `${dom}d DOM` : "";
-    const facts = [priceText, ratioText, domText].filter(Boolean).join(" · ");
-
-    // For active rows with a scored bid suggestion: project bid-up over ask.
-    // For sold rows: show actual bid-up if available.
-    const isActive = row.mlsStatusNorm === "ACTIVE" || (!row.hasActualClose && row.pendingListPrice > 0);
-    let bidLine = "";
-    if (isActive && row.bidStatus === "SCored" && row.pendingListPrice > 0) {
-      const overAsk = row.bidSuggested - row.pendingListPrice;
-      const overPct = (overAsk / row.pendingListPrice) * 100;
-      const sign = overAsk > 0 ? "+" : overAsk < 0 ? "" : "";
-      const cls = overAsk > 0 ? "bid-up-tooltip up" : overAsk < 0 ? "bid-up-tooltip down" : "bid-up-tooltip flat";
-      bidLine = `<br><span class="${cls}">Suggested bid: ${formatMoneyOrNa(row.bidSuggested)} (${sign}${formatMoneyCompact(overAsk)} / ${sign}${overPct.toFixed(1)}%)</span>`;
-    } else if (row.hasActualClose && row.hasMarketListPrice && Number.isFinite(row.delta) && row.delta !== 0) {
-      const cls = row.delta > 0 ? "bid-up-tooltip up" : "bid-up-tooltip down";
-      const pct = row.pendingListPrice > 0 ? (row.delta / row.pendingListPrice) * 100 : 0;
-      const sign = row.delta > 0 ? "+" : "";
-      bidLine = `<br><span class="${cls}">Bid-up: ${sign}${formatMoneyCompact(row.delta)} (${sign}${pct.toFixed(1)}%)</span>`;
-    } else if (row.hasActualClose && !row.hasMarketListPrice) {
-      // County deed only — no MLS/Redfin listing matched, so list price (and
-      // therefore bid-up) is genuinely unavailable. Label it so it doesn't
-      // read as missing/broken data.
-      bidLine = `<br><span class="bid-up-tooltip flat">Bid-up: list price not on record (county sale only)</span>`;
-    }
-
-    // Affordability tier line (only when a private config is loaded).
-    let affordLine = "";
-    if (state.affordability.ready && AFFORD_TIER_META[row.affordTier]) {
-      const meta = AFFORD_TIER_META[row.affordTier];
-      affordLine = `<br><span class="afford-pill ${meta.cls}">${meta.label}</span>`;
-    }
-
     marker.bindTooltip(
-      `${row.isProjectionRow ? `<span class="proj-pill">Projected</span><br>` : ""}<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}${bidLine}${affordLine}`,
+      geoCardHtml(row, { withLinks: false }),
       { direction: "top", offset: [0, -4], className: "geo-marker-tooltip", sticky: true }
     );
-    marker.bindPopup(`${row.isProjectionRow ? `<span class="proj-pill">Projected</span><br>` : ""}<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel)}<br>${facts}${bidLine}${affordLine}<br>${propertyPopupLink(row)}`);
+    marker.bindPopup(geoCardHtml(row, { withLinks: true }));
     marker.on("click", () => {
       toggleMapSelection(row.mapPropertyKey);
     });
@@ -2394,7 +2530,7 @@ function renderGeoSelectedRows() {
   const selected = state.derived.viewRows.filter((row) => state.geo.selectedPropertyKeys.includes(row.mapPropertyKey));
   const filterCount = state.geo.filterPropertyKeys.length;
   wrap.innerHTML = selected.length
-    ? `<div class="geo-selected-status">${formatWholeNumber(selected.length)} selected for inspection${filterCount ? ` · ${formatWholeNumber(filterCount)} applied as dashboard filter` : ""}</div>${selected.map((row) => `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span></article>`).join("")}`
+    ? `<div class="geo-selected-status">${formatWholeNumber(selected.length)} selected for inspection${filterCount ? ` · ${formatWholeNumber(filterCount)} applied as dashboard filter` : ""}</div>${selected.map((row) => { const dates = geoDatesLineHtml(row); return `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span>${dates}</article>`; }).join("")}`
     : `<div class="empty-state">Click map points to inspect properties. Use "Filter dashboard to selected" only when you want the rest of the app to narrow.</div>`;
 }
 
@@ -2697,6 +2833,11 @@ function bindEvents() {
       state.pulseTimelineMode = pulseMode.dataset.pulseMode;
       return markDirty("pulse");
     }
+    const pulseGrain = target.closest("[data-pulse-grain]");
+    if (pulseGrain) {
+      state.pulseSliceGrain = pulseGrain.dataset.pulseGrain === "week" ? "week" : "month";
+      return markDirty("pulse");
+    }
     const recordSort = target.closest("[data-record-sort]");
     if (recordSort) return setSort("records", recordSort.dataset.recordSort);
     const bidSort = target.closest("[data-bid-sort]");
@@ -2759,6 +2900,26 @@ function bindEvents() {
     if (target.closest("[data-clear-bid-highconf]")) {
       state.bid.highConfidenceOnly = false;
       return markDirty();
+    }
+  });
+
+  app.addEventListener("keydown", (event) => {
+    // Enter/Space activate keyboard-focusable role=button tiles and clickable
+    // chart points/bars. el.click() re-enters the click delegation above, so
+    // activation logic lives in exactly one place.
+    if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+      const activatable = event.target.closest('[role="button"][tabindex], .chart-point, .insight-tile');
+      if (activatable && !activatable.closest(".tab")) {
+        event.preventDefault();
+        if (typeof activatable.click === "function") {
+          activatable.click();
+        } else {
+          // SVG <g> elements may not have a click() that dispatches delegation;
+          // synthesize a bubbling click so the app-level handler runs.
+          activatable.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        }
+        return;
+      }
     }
   });
 
