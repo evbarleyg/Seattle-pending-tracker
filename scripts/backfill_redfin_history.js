@@ -120,11 +120,15 @@ function applyHistoryToRow(row, summary) {
   if (!summary || !summary.listPriceAtPending) return false;
   const list = summary.listPriceAtPending;
   const close = summary.soldPrice;
-  // The scraped "list" sometimes equals sold (Redfin history shows only the final
-  // price, or a missing list event defaults to sold) -> a fake sale/list = 1.000.
-  // Only treat list as genuine when it differs from close; otherwise keep the real
-  // dates / DOM / sold price but do NOT fabricate a list price or sale-to-list ratio.
-  const hasGenuineList = list > 0 && close > 0 && Math.abs(list - close) >= 1;
+  // The scraped "list" sometimes equals sold (Redfin shows only the final price)
+  // -> a fake sale/list = 1.000. Treat list==close as a GENUINE sold-at-asking
+  // ONLY when a real list->pending->sold timeline exists; without that timeline
+  // it's a price-only artifact, so keep the dates but emit no list/ratio.
+  const dayGap = (a, b) => (Date.parse(a) - Date.parse(b)) / 86400000;
+  const genuineTimeline = !!(summary.listDate && summary.pendingDate && summary.soldDate
+    && dayGap(summary.pendingDate, summary.listDate) >= 1
+    && dayGap(summary.soldDate, summary.pendingDate) >= 0);
+  const hasGenuineList = list > 0 && close > 0 && (Math.abs(list - close) >= 1 || genuineTimeline);
   const audit = isImplausibleMatch(row, summary);
   if (audit.suspect) {
     row.mlsJoinMethod = "REDFIN_HISTORY_SUSPECT";
@@ -181,9 +185,10 @@ function rowNeedsBackfill(row, opts) {
   // which is NOT a real MLS list price and shouldn't disqualify backfill.
   const mlsList = num(row.mlsListingPrice) || num(row.mlsListPriceAtPending);
   if (mlsList > 0) return false;
-  // Skip rows already cleanly enriched. Allow re-attempting suspect rows since
-  // a code update (e.g. unit-aware matching) may now produce a clean match.
-  if (row.mlsJoinMethod === "REDFIN_HISTORY") return false;
+  // Skip rows already cleanly enriched (unless --reapply re-runs the parse logic
+  // over the cached history, e.g. to admit genuine sold-at-list). Suspect rows
+  // are always re-attempted.
+  if (!opts.reapply && row.mlsJoinMethod === "REDFIN_HISTORY") return false;
   return true;
 }
 
@@ -208,6 +213,7 @@ function parseArgs(argv) {
     else if (a === "--cache") { opts.cache = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
     else if (a === "--since") { opts.since = next; i += 1; }
+    else if (a === "--reapply") { opts.reapply = true; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
   }
   return opts;
@@ -301,6 +307,7 @@ async function main() {
     let summary = cache.entries[c.url]?.summary;
     let used = "cache";
     if (summary === undefined) {
+      if (opts.reapply) { continue; } // --reapply is cache-only: never re-fetch
       try {
         const html = await fetchPropertyHtml(c.url);
         const events = parsePropertyHistory(html);
