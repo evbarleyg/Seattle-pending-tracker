@@ -7,7 +7,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/evanbarley-greenfield/Documents/Evan Tester Project/scripts/refresh_actives_daily.sh</string>
+    <string>/Users/evanbarley-greenfield/repos/seattle-tracker/scripts/refresh_actives_daily.sh</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
@@ -24,10 +24,10 @@
   <key>RunAtLoad</key>
   <false/>
   <key>WorkingDirectory</key>
-  <string>/Users/evanbarley-greenfield/Documents/Evan Tester Project</string>
+  <string>/Users/evanbarley-greenfield/repos/seattle-tracker</string>
   <key>StandardOutPath</key>
-  <string>/Users/evanbarley-greenfield/Documents/Evan Tester Project/tmp/launchd_actives.out.log</string>
+  <string>/Users/evanbarley-greenfield/repos/seattle-tracker/tmp/launchd_actives.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/evanbarley-greenfield/Documents/Evan Tester Project/tmp/launchd_actives.err.log</string>
+  <string>/Users/evanbarley-greenfield/repos/seattle-tracker/tmp/launchd_actives.err.log</string>
 </dict>
 </plist>
