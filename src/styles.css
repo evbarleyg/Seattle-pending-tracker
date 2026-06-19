@@ -1726,7 +1726,10 @@ th {
   .command-center,
   .overview-grid,
   .geo-layout {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr) — not plain 1fr — so the single column follows the
+       viewport instead of inheriting a min-content floor (Leaflet container /
+       nested-grid auto-min) that pushed the panel past the screen edge. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .command-center {
@@ -1758,7 +1761,7 @@ th {
   }
 
   .geo-side {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1766,11 +1769,43 @@ th {
   main {
     inline-size: min(100% - 20px, 680px);
     padding-block-start: 12px;
+    /* Backstop: never let a stray wide descendant scroll the whole page
+       sideways. `clip` (not `hidden`) doesn't create a scroll container, so the
+       sticky tab bar keeps working. */
+    overflow-x: clip;
+  }
+
+  /* Root cause of most mobile horizontal-overflow: flex/grid items default to
+     min-width:auto (a min-content floor), so long content (segmented toggles,
+     metric grids, dense cards) pushes a view wider than the viewport. Release
+     the floor app-wide so items shrink to fit. Zero-specificity :where() means
+     this can never override an intentional min-width elsewhere. */
+  :where(.view *) {
+    min-width: 0;
   }
 
   .topbar {
-    align-items: flex-start;
+    align-items: center;
+    gap: 10px;
     padding: 10px;
+  }
+
+  /* Let the brand shrink so the action buttons keep their single row instead of
+     wrapping the last one (Dark) onto a second line. */
+  .brand {
+    min-width: 0;
+  }
+
+  .brand strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-actions {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .brand small,
@@ -1835,6 +1870,18 @@ th {
 
   .tabs {
     inset-block-start: 55px;
+    gap: 6px;
+    padding: 6px;
+    scroll-snap-type: x proximity;
+    /* Fade the trailing edge so the 7-tab scroller reads as scrollable rather
+       than abruptly cut off ("selector too broad"). */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  }
+
+  .tab {
+    padding: 0 11px;
+    scroll-snap-align: start;
   }
 
   .table-wrap {
@@ -1850,8 +1897,30 @@ th {
     grid-template-columns: 1fr;
   }
 
+  /* Geo: reflow the 5-up legend to fewer columns instead of cramming five
+     price-ratio labels across the narrow panel, and let the action toolbar wrap
+     so its buttons keep full size rather than shrinking. */
+  .geo-legend {
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  }
+
+  .geo-actions {
+    flex-wrap: wrap;
+  }
+
   .map-surface {
     min-block-size: 460px;
+  }
+
+  /* Data: break long unbreakable tokens (dataset filenames) and let the mono
+     CSV-schema header wrap instead of running thousands of px wide — nowrap text
+     is the one overflow `min-width: 0` can't resolve. */
+  #view-data {
+    overflow-wrap: anywhere;
+  }
+
+  #view-data .mono {
+    white-space: normal;
   }
 }
 
