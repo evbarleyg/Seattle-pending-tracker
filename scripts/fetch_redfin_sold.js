@@ -24,6 +24,9 @@ const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_sold_report.json");
 const GIS_ENDPOINT = "https://www.redfin.com/stingray/api/gis";
 const REDFIN_ORIGIN = "https://www.redfin.com";
 const DEFAULT_SOLD_WITHIN_DAYS = 365;
+const PRICE_CAP_CEILING = 100000000; // sentinel "no upper bound" for price banding
+const DEFAULT_MIN_BAND_WIDTH = 25000;
+const DEFAULT_MAX_BAND_DEPTH = 12;
 
 const UI_PROPERTY_TYPE_LABELS = {
   1: "Single Family",
@@ -126,7 +129,7 @@ function snapSoldWithinDays(requested) {
 
 // Verified sold param set — see file header. No `sf`, no include_nearby_homes.
 function buildSoldParams(query, options) {
-  return new URLSearchParams({
+  const params = new URLSearchParams({
     al: "1",
     market: query.market || "seattle",
     mpt: "99",
@@ -141,6 +144,23 @@ function buildSoldParams(query, options) {
     uipt: query.uiptParam || "1,2,3,4,5,6,7,8",
     v: "8",
   });
+  // Price banding: Redfin DOES honor min_price/max_price on the sold search
+  // (verified — unlike the actives endpoint, which ignores them). This lets us
+  // subdivide a region that exceeds the 350-row cap so deep windows (e.g. 18
+  // months) stay complete.
+  if (Number(options.minPrice) > 0) params.set("min_price", String(Math.round(options.minPrice)));
+  if (Number(options.maxPrice) > 0 && Number(options.maxPrice) < PRICE_CAP_CEILING) {
+    params.set("max_price", String(Math.round(options.maxPrice)));
+  }
+  return params;
+}
+
+// Pick a price split point strictly inside (lo, hi). Uses the median of the
+// returned (capped) sample so the split adapts to the band's price density.
+function splitBandPoint(lo, hi, prices) {
+  const sorted = (prices || []).filter((p) => p > lo && p < hi).sort((a, b) => a - b);
+  const mid = sorted.length ? sorted[Math.floor(sorted.length / 2)] : Math.floor((lo + hi) / 2);
+  return Math.max(lo + 1, Math.min(hi - 1, mid));
 }
 
 async function fetchSoldGis(query, options) {
@@ -186,12 +206,55 @@ async function fetchSoldGisWithRetry(query, options) {
   return homes;
 }
 
+// Fetch one region completely by recursively price-banding around the 350-row
+// cap: query [lo, hi]; if it caps, split at the sample median and recurse on
+// each half. Dedups raw homes by listing across bands; throttles each gis call.
+// Returns { homes, residualCaps, calls } — residualCaps flags any band that
+// still capped at the minimum width (true coverage gap).
+async function fetchRegionBanded(query, options) {
+  const collected = new Map();
+  const residualCaps = [];
+  let calls = 0;
+  const minBand = Number(options.minBandWidth) > 0 ? options.minBandWidth : DEFAULT_MIN_BAND_WIDTH;
+  const maxDepth = Number(options.maxBandDepth) > 0 ? options.maxBandDepth : DEFAULT_MAX_BAND_DEPTH;
+
+  async function band(lo, hi, depth) {
+    const homes = await fetchSoldGisWithRetry(query, {
+      ...options,
+      minPrice: lo > 0 ? lo : 0,
+      maxPrice: hi < PRICE_CAP_CEILING ? hi : 0,
+    });
+    calls += 1;
+    if (options.throttleMs) await sleep(Number(options.throttleMs));
+    for (const h of homes) {
+      const key = h.listingId || h.propertyId
+        || `${strFromLeveled(h.streetLine)}|${h.zip}|${h.soldDate}`;
+      if (!collected.has(key)) collected.set(key, h);
+    }
+    const capped = homes.length >= options.maxHomes;
+    if (capped && (hi - lo) > minBand && depth < maxDepth) {
+      const prices = homes.map((h) => Number(numFromLeveled(h.price)) || 0);
+      const splitAt = splitBandPoint(lo, hi, prices);
+      await band(lo, splitAt, depth + 1);
+      await band(splitAt + 1, hi, depth + 1);
+    } else if (capped) {
+      residualCaps.push({ lo, hi });
+    }
+  }
+
+  await band(0, PRICE_CAP_CEILING, 0);
+  return { homes: [...collected.values()], residualCaps, calls };
+}
+
 function homeToRow(home, query, fetchedAt) {
   const lat = home.latLong?.value?.latitude;
   const lon = home.latLong?.value?.longitude;
   const street = strFromLeveled(home.streetLine);
   const unit = strFromLeveled(home.unitNumber);
-  const fullAddress = unit ? `${street} ${unit}` : street;
+  // Redfin's sold streetLine already embeds the unit; only append when the street
+  // doesn't already end with it, otherwise the unit doubles ("... Unit B Unit B").
+  const streetHasUnit = unit && street.toUpperCase().trimEnd().endsWith(unit.toUpperCase());
+  const fullAddress = unit && !streetHasUnit ? `${street} ${unit}` : street;
   return {
     fetchedAt,
     queryLabel: query.label,
@@ -277,6 +340,8 @@ function parseArgs(argv) {
     else if (a === "--report") { opts.report = next; i += 1; }
     else if (a === "--sold-within-days") { opts.soldWithinDays = Number(next); i += 1; }
     else if (a === "--limit") { opts.limit = Number(next); i += 1; }
+    else if (a === "--bands") { opts.bands = true; }
+    else if (a === "--min-band") { opts.minBandWidth = Number(next); i += 1; }
     else if (a === "--dry-run") { opts.dryRun = true; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
     else throw new Error(`Unknown argument: ${a}`);
@@ -294,8 +359,10 @@ function printHelp() {
     "  --config FILE          Search config JSON (default: redfin_searches.json)",
     "  --out FILE             Output CSV (default: redfin_sold_listings.csv)",
     "  --report FILE          Fetch report JSON (default: redfin_sold_report.json)",
-    "  --sold-within-days N   Sold lookback window in days (default: 365)",
+    "  --sold-within-days N   Sold lookback window in days (default: 365; 730 = ~24mo)",
     "  --limit N              Only run the first N queries (smoke testing)",
+    "  --bands                Price-band each region to beat the 350-row cap (needed for deep windows)",
+    "  --min-band N           Smallest price band width before giving up splitting (default: 25000)",
     "  --dry-run              Run queries but do not write outputs",
   ].join("\n"));
 }
@@ -325,6 +392,10 @@ async function main() {
     emptyRetries: config.emptyRetries ?? 2,
     retryBackoffMs: config.retryBackoffMs ?? 4000,
     soldWithinDays,
+    bands: Boolean(opts.bands),
+    throttleMs: Number(config.throttleMs) || 0,
+    minBandWidth: opts.minBandWidth,
+    maxBandDepth: config.maxBandDepth,
   };
 
   let queries = config.queries || [];
@@ -337,22 +408,33 @@ async function main() {
     const query = queries[i];
     const stat = { label: query.label, regionId: query.regionId, regionType: query.regionType };
     try {
-      const homes = await fetchSoldGisWithRetry(query, fetchOptions);
+      let homes;
+      let residualCaps = [];
+      if (fetchOptions.bands) {
+        const banded = await fetchRegionBanded(query, fetchOptions);
+        homes = banded.homes;
+        residualCaps = banded.residualCaps;
+        stat.bandCalls = banded.calls;
+      } else {
+        homes = await fetchSoldGisWithRetry(query, fetchOptions);
+      }
       const sold = homes.filter(isSoldHome);
       const rows = sold.map((h) => homeToRow(h, query, fetchedAt));
       const passing = rows.filter((r) => passesFilters(r, config.filters || {}));
       stat.homesReturned = homes.length;
       stat.soldHomes = sold.length;
       stat.homesPassingFilters = passing.length;
-      stat.capHit = homes.length >= fetchOptions.maxHomes;
+      stat.capHit = fetchOptions.bands ? residualCaps.length > 0 : homes.length >= fetchOptions.maxHomes;
+      if (residualCaps.length) stat.residualCaps = residualCaps;
       allRows.push(...passing);
-      process.stdout.write(`[${i + 1}/${queries.length}] ${query.label}: ${homes.length} fetched, ${sold.length} sold, ${passing.length} kept${stat.capHit ? " (CAP HIT)" : ""}\n`);
+      const detail = fetchOptions.bands ? `${homes.length} fetched (${stat.bandCalls} bands)` : `${homes.length} fetched`;
+      process.stdout.write(`[${i + 1}/${queries.length}] ${query.label}: ${detail}, ${sold.length} sold, ${passing.length} kept${stat.capHit ? " (RESIDUAL CAP)" : ""}\n`);
     } catch (err) {
       stat.error = err.message;
       process.stderr.write(`[${i + 1}/${queries.length}] ${query.label}: ERROR ${err.message}\n`);
     }
     queryStats.push(stat);
-    if (i < queries.length - 1 && config.throttleMs) {
+    if (i < queries.length - 1 && config.throttleMs && !fetchOptions.bands) {
       await sleep(Number(config.throttleMs));
     }
   }
@@ -388,7 +470,10 @@ async function main() {
   process.stdout.write(`Wrote ${deduped.length} sold rows -> ${path.relative(PROJECT_DIR, outPath)}\n`);
   process.stdout.write(`Report -> ${path.relative(PROJECT_DIR, reportPath)}\n`);
   if (report.anyCapHit) {
-    process.stdout.write("WARNING: at least one query hit the 350-row cap. Narrow the window (--sold-within-days) or add finer regions to redfin_searches.json to avoid dropped sales.\n");
+    const hint = fetchOptions.bands
+      ? "even price-banding left a residual cap (350+ sales in a <min-band window). Lower --min-band to split finer."
+      : "at least one query hit the 350-row cap. Re-run with --bands to price-band around it, or narrow --sold-within-days.";
+    process.stdout.write(`WARNING: ${hint}\n`);
   }
 }
 
@@ -402,6 +487,8 @@ if (require.main === module) {
 module.exports = {
   snapSoldWithinDays,
   buildSoldParams,
+  splitBandPoint,
+  fetchRegionBanded,
   fetchSoldGis,
   fetchSoldGisWithRetry,
   isSoldHome,

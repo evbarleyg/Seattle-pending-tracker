@@ -6,6 +6,7 @@ const assert = require("node:assert");
 const {
   snapSoldWithinDays,
   buildSoldParams,
+  splitBandPoint,
   isSoldHome,
   epochMsToIso,
   homeToRow,
@@ -33,6 +34,23 @@ test("buildSoldParams sends the verified sold filter and never sends sf", () => 
 test("buildSoldParams honors a custom sold window", () => {
   const p = buildSoldParams({ regionId: 1, regionType: 1 }, { maxHomes: 350, soldWithinDays: 90 });
   assert.strictEqual(p.get("sold_within_days"), "90");
+});
+
+test("buildSoldParams adds price bounds only when set (Redfin honors them on sold)", () => {
+  const banded = buildSoldParams({ regionId: 1, regionType: 1 }, { maxHomes: 350, soldWithinDays: 730, minPrice: 800000, maxPrice: 1200000 });
+  assert.strictEqual(banded.get("min_price"), "800000");
+  assert.strictEqual(banded.get("max_price"), "1200000");
+  const open = buildSoldParams({ regionId: 1, regionType: 1 }, { maxHomes: 350, soldWithinDays: 730, minPrice: 0, maxPrice: 0 });
+  assert.strictEqual(open.get("min_price"), null);
+  assert.strictEqual(open.get("max_price"), null); // 0 = unbounded -> omitted
+});
+
+test("splitBandPoint splits at the sample median and stays strictly inside (lo, hi)", () => {
+  assert.strictEqual(splitBandPoint(0, 2000000, [400000, 600000, 900000, 1500000]), 900000);
+  assert.strictEqual(splitBandPoint(0, 1000000, []), 500000); // no sample -> midpoint
+  // clamps within bounds even if the sample is degenerate
+  const sp = splitBandPoint(500000, 500050, [500000, 500050]);
+  assert.ok(sp > 500000 && sp < 500050);
 });
 
 test("epochMsToIso converts Redfin epoch-ms sold dates and rejects junk", () => {
@@ -95,6 +113,22 @@ test("homeToRow maps the sold gis payload shape", () => {
   assert.strictEqual(row.domDays, 6);
   assert.strictEqual(row.redfinUrl, "https://www.redfin.com/WA/Seattle/1762-NW-57th-St-98107/unit-501/home/18383");
   assert.strictEqual(row.queryLabel, "Ballard");
+});
+
+test("homeToRow does not double a unit already embedded in the streetLine", () => {
+  const home = {
+    soldDate: 1766044800000,
+    price: { value: 475000 },
+    streetLine: { value: "13539 Linden Ave N Unit A105" },
+    unitNumber: { value: "Unit A105" },
+    uiPropertyType: 2,
+    mlsStatus: "Closed",
+  };
+  const row = homeToRow(home, { label: "X" }, "2026-06-19T00:00:00.000Z");
+  assert.strictEqual(row.address, "13539 Linden Ave N Unit A105"); // not "... Unit A105 Unit A105"
+  // and still appends when the street lacks the unit
+  const home2 = { ...home, streetLine: { value: "1762 NW 57th St" }, unitNumber: { value: "#501" } };
+  assert.strictEqual(homeToRow(home2, { label: "X" }, "2026-06-19T00:00:00.000Z").address, "1762 NW 57th St #501");
 });
 
 test("passesFilters honors the price window and property-type allowlist", () => {
