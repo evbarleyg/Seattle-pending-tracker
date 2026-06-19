@@ -565,7 +565,7 @@ function insightTileHtml({ label, value, metricKey, series, switchView = "pulse"
         <strong>${esc(value)}</strong>
         <span class="tile-delta ${d.tone}">${esc(d.arrow)} ${esc(d.deltaLabel)}</span>
       </div>
-      ${d.secondaryLabel ? `<span class="tile-delta tile-delta-secondary ${d.secondaryTone}" title="latest month vs prior month — noisier; partial months distort it">${esc(d.secondaryArrow)} ${esc(d.secondaryLabel)}</span>` : ""}
+      ${d.secondaryLabel ? `<span class="tile-delta tile-delta-secondary ${d.secondaryTone}" title="3-month median vs prior 3-month median (trend context)">${esc(d.secondaryArrow)} ${esc(d.secondaryLabel)}</span>` : ""}
       ${sparklineSvg(series, metricKey)}
       ${d.signal ? `<span class="tile-signal">${esc(d.signal)}</span>` : ""}
     </article>`;
@@ -1182,7 +1182,10 @@ function pulseMetricCard(key, recent) {
 }
 
 function tileDelta(series, metricKey, sampleField) {
-  const gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS && Number.isFinite(Number(entry[metricKey])));
+  const sampleOf = (e) => ((sampleField ? e[sampleField] : undefined) ?? e.sampleSize ?? e.salesCount ?? 0);
+  let gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS && Number.isFinite(Number(entry[metricKey])));
+  // Drop a thin/partial trailing month (the stale current month) so month-over-month compares two COMPLETE months.
+  if (gated.length >= 2 && sampleOf(gated[gated.length - 1]) < 0.5 * sampleOf(gated[gated.length - 2])) gated = gated.slice(0, -1);
   if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
   const cfg = pulseMetricConfig(metricKey);
   const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
@@ -1195,26 +1198,20 @@ function tileDelta(series, metricKey, sampleField) {
     hotShare: dir > 0 ? "heating up" : dir < 0 ? "cooling" : "holding",
     activeInventory: dir < 0 ? "more choice" : dir > 0 ? "tightening supply" : "flat supply",
   })[metricKey] || "";
-  // Month-over-month (latest gated month vs the one before): noisy, partial months distort it — muted secondary.
+  // PRIMARY: month-over-month between the two most recent COMPLETE months (well-sampled in this slice).
   const momDir = metricDirection(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
   const momDelta = competitiveDelta(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
-  const momLabel = momDelta === null ? "n/a" : `${cfg.delta(momDelta)} MoM`;
-  // 3-month vs prior-3-month median: robust to a thin/partial latest month — the PRIMARY signal when available.
+  // SECONDARY: 3-month vs prior-3-month median for trend context.
+  let secondary = { secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
   if (gated.length >= 6) {
     const windowMedian = (entries) => medianValue(entries.map((e) => Number(e[metricKey])));
     const tDir = metricDirection(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
     const tDelta = competitiveDelta(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
-    if (tDelta !== null) {
-      return {
-        tone: toneFor(tDir), arrow: arrowFor(tDir), deltaLabel: `${cfg.delta(tDelta)} vs prior 3mo`, signal: signalFor(tDir),
-        secondaryArrow: arrowFor(momDir), secondaryTone: toneFor(momDir), secondaryLabel: momLabel,
-      };
-    }
+    if (tDelta !== null) secondary = { secondaryArrow: arrowFor(tDir), secondaryTone: toneFor(tDir), secondaryLabel: `${cfg.delta(tDelta)} vs prior 3mo` };
   }
-  // Thin slice (<6 qualifying months): MoM is all we have, so it leads.
   return {
-    tone: toneFor(momDir), arrow: arrowFor(momDir), deltaLabel: momLabel, signal: signalFor(momDir),
-    secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "",
+    tone: toneFor(momDir), arrow: arrowFor(momDir), deltaLabel: momDelta === null ? "n/a" : `${cfg.delta(momDelta)} MoM`, signal: signalFor(momDir),
+    ...secondary,
   };
 }
 
@@ -1224,9 +1221,9 @@ function marketDirectionVerdict(series) {
   if (reads.length < 2) return { tone: "flat", headline: "Direction unclear", detail: "Not enough recent comps in this slice to call a trend — widen the slice or compare to the whole market." };
   const cooler = reads.filter((d) => d.tone === "cooler").length;
   const hotter = reads.filter((d) => d.tone === "hotter").length;
-  if (cooler - hotter >= 2) return { tone: "cooler", headline: "Cooling — tilting toward buyers", detail: `${cooler} of ${reads.length} signals eased over the last 3 months (more room to negotiate).` };
-  if (hotter - cooler >= 2) return { tone: "hotter", headline: "Heating up — tougher for buyers", detail: `${hotter} of ${reads.length} signals tightened over the last 3 months (expect more competition).` };
-  return { tone: "flat", headline: "Mixed signals", detail: `Over the last 3 months ${cooler} signal(s) eased and ${hotter} tightened — no single direction. See the per-tile trends below.` };
+  if (cooler - hotter >= 2) return { tone: "cooler", headline: "Cooling — tilting toward buyers", detail: `${cooler} of ${reads.length} signals eased vs the prior month (more room to negotiate). Last complete month; the partial current month is excluded.` };
+  if (hotter - cooler >= 2) return { tone: "hotter", headline: "Heating up — tougher for buyers", detail: `${hotter} of ${reads.length} signals tightened vs the prior month (expect more competition). Last complete month; the partial current month is excluded.` };
+  return { tone: "flat", headline: "Mixed signals", detail: `Vs the prior complete month, ${cooler} signal(s) eased and ${hotter} tightened — no single direction. See the per-tile 3-mo trend below.` };
 }
 
 function marketDirectionBannerHtml() {
