@@ -120,16 +120,23 @@ function applyHistoryToRow(row, summary) {
   if (!summary || !summary.listPriceAtPending) return false;
   const list = summary.listPriceAtPending;
   const close = summary.soldPrice;
+  // The scraped "list" sometimes equals sold (Redfin history shows only the final
+  // price, or a missing list event defaults to sold) -> a fake sale/list = 1.000.
+  // Only treat list as genuine when it differs from close; otherwise keep the real
+  // dates / DOM / sold price but do NOT fabricate a list price or sale-to-list ratio.
+  const hasGenuineList = list > 0 && close > 0 && Math.abs(list - close) >= 1;
   const audit = isImplausibleMatch(row, summary);
   if (audit.suspect) {
     row.mlsJoinMethod = "REDFIN_HISTORY_SUSPECT";
     row.mlsRegion = row.mlsRegion || audit.reason;
     return false;
   }
-  row.mlsListingPrice = String(list);
-  row.mlsListPriceAtPending = String(list);
-  row.listPriceAtPending = String(list);
-  row.mlsOriginalPrice = row.mlsOriginalPrice && num(row.mlsOriginalPrice) > 0 ? row.mlsOriginalPrice : String(list);
+  if (hasGenuineList) {
+    row.mlsListingPrice = String(list);
+    row.mlsListPriceAtPending = String(list);
+    row.listPriceAtPending = String(list);
+    row.mlsOriginalPrice = row.mlsOriginalPrice && num(row.mlsOriginalPrice) > 0 ? row.mlsOriginalPrice : String(list);
+  }
   if (summary.listDate) row.mlsListDate = summary.listDate;
   if (summary.pendingDate) {
     row.mlsPendingDate = summary.pendingDate;
@@ -141,7 +148,7 @@ function applyHistoryToRow(row, summary) {
     if (!num(row.mlsClosePrice)) row.mlsClosePrice = String(close);
   }
   if (summary.mlsNumber && !row.mlsListingNumber) row.mlsListingNumber = summary.mlsNumber;
-  if (close && list) {
+  if (hasGenuineList) {
     row.bidUpAmount = String(Math.round(close - list));
     row.bidUpPct = String((close - list) / list);
     row.saleToListRatio = String(close / list);
