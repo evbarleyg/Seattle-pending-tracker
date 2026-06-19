@@ -42,7 +42,7 @@
 
 set -euo pipefail
 
-PROJECT_DIR="/Users/evanbarley-greenfield/Documents/Evan Tester Project"
+PROJECT_DIR="/Users/evanbarley-greenfield/repos/seattle-tracker"
 SRC_DIR="${HOME}/Downloads"
 FORCE=0
 DOWNLOAD=0

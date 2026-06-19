@@ -56,7 +56,10 @@ test("geo legend uses fixed numeric range labels", () => {
     assert.match(source, new RegExp(label.replace(".", "\\.")));
   });
   assert.match(source, /Sale-to-list color legend/);
-  assert.match(source, /Colors show sale\/list pressure/);
+  assert.match(source, /Color = sale\/list pressure; grey = no list price on record/);
+  // Grey "no list price" bucket must be documented in the legend (county +
+  // sold-only rows are the dominant, uncolored population).
+  assert.match(source, /No list price/);
 });
 
 test("geo map lifecycle handles rerenders without stale Leaflet containers", () => {

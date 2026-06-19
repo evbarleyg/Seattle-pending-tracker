@@ -13,7 +13,7 @@ set -euo pipefail
 # launchd runs with a minimal PATH; make node/npm/git resolvable.
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
-PROJECT_DIR="/Users/evanbarley-greenfield/Documents/Evan Tester Project"
+PROJECT_DIR="/Users/evanbarley-greenfield/repos/seattle-tracker"
 LOG_DIR="$PROJECT_DIR/tmp"
 LOG_FILE="$LOG_DIR/refresh_actives_daily.log"
 NPM=/usr/local/bin/npm

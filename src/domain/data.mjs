@@ -405,6 +405,16 @@ export function normalizeRow(source) {
   const effectiveDate = toIso(saleDate || pendingDate || listDate);
   const neighborhoodLabel = labelNeighborhood(source.neighborhood, source.zip);
   const pulseGroup = pulseWatchlistGroup(neighborhoodLabel);
+  // Date-confidence gates for honest recency display. County PUBLIC_PROXY rows
+  // fake pendingDate = saleDate and carry no genuine list date, so only an
+  // MLS_ENRICHED row with a pending date distinct from the close date counts as
+  // a *genuine* pending date. List dates are similarly only trustworthy when an
+  // MLS listing date is present and not just a fallback to the sale date.
+  const saleDateIso = toIso(saleDate);
+  const listDateIso = toIso(listDate);
+  const pendingDateIso = toIso(pendingDate);
+  const hasGenuinePendingDate = dataMode === "MLS_ENRICHED" && !!pendingDateIso && pendingDateIso !== saleDateIso;
+  const hasGenuineListDate = !!listDateIso && listDateIso !== saleDateIso;
 
   return {
     ...source,
@@ -433,9 +443,11 @@ export function normalizeRow(source) {
     isSpecialSale,
     mlsNewConstructionState: String(source.mlsNewConstructionState || "").trim(),
     mlsSquareFootageSource: String(source.mlsSquareFootageSource || "").trim(),
-    saleDate: toIso(saleDate),
-    listDate: toIso(listDate),
-    pendingDate: toIso(pendingDate),
+    saleDate: saleDateIso,
+    listDate: listDateIso,
+    pendingDate: pendingDateIso,
+    hasGenuinePendingDate,
+    hasGenuineListDate,
     effectiveDate,
     hasActualClose,
     isProjectionRow: false,

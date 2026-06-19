@@ -139,6 +139,41 @@ async function fetchZipSoldPage(zip, page, yearWindow = 1) {
   return { ok: false, status: 0, html: "", error: lastErr?.message || "max retries exceeded" };
 }
 
+function parseCsvLine(line) {
+  const out = [];
+  let cur = "", q = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i];
+    if (c === "\"") { if (q && line[i + 1] === "\"") { cur += "\""; i += 1; } else q = !q; }
+    else if (c === "," && !q) { out.push(cur); cur = ""; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// Ingest a Redfin sold CSV (with a redfinUrl column) straight into the index —
+// no scraping, we already have the canonical property URLs from the sold fetch.
+function ingestSoldCsv(addresses, csvPath) {
+  const lines = fs.readFileSync(csvPath, "utf8").split(/\r?\n/).filter(Boolean);
+  const headers = parseCsvLine(lines[0]);
+  const ui = headers.indexOf("redfinUrl");
+  if (ui < 0) throw new Error("sold CSV has no redfinUrl column");
+  let added = 0, seen = 0;
+  for (const line of lines.slice(1)) {
+    const url = (parseCsvLine(line)[ui] || "").trim();
+    if (!url) continue;
+    const linkPath = url.replace(REDFIN_ORIGIN, "");
+    const buildingKey = streetKeyFromRedfinPath(linkPath);
+    if (!buildingKey) continue;
+    const unit = unitFromRedfinPath(linkPath);
+    const [streetPart, zip] = buildingKey.split("|");
+    seen += 1;
+    if (insertProp(addresses, { url, buildingKey, unit, addressShort: streetPart, city: "Seattle", state: "WA", zip })) added += 1;
+  }
+  return { added, seen };
+}
+
 function loadExistingIndex(filePath) {
   if (!fs.existsSync(filePath)) {
     return { fetchedAt: new Date().toISOString(), addresses: {} };
@@ -163,6 +198,7 @@ function parseArgs(argv) {
     else if (a === "--out") { opts.out = next; i += 1; }
     else if (a === "--throttle") { opts.throttleMs = Number(next || 2500); i += 1; }
     else if (a === "--max-pages") { opts.maxPagesPerZip = Number(next || 30); i += 1; }
+    else if (a === "--from-sold") { opts.fromSold = next; i += 1; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
   }
   return opts;
@@ -177,6 +213,20 @@ async function main() {
   const indexPath = path.resolve(opts.out || DEFAULT_INDEX);
   const index = loadExistingIndex(indexPath);
   index.addresses = index.addresses || {};
+
+  // --from-sold: ingest a sold CSV's URLs directly (no scraping), then exit.
+  if (opts.fromSold) {
+    const csvPath = path.resolve(opts.fromSold);
+    const { added, seen } = ingestSoldCsv(index.addresses, csvPath);
+    index.fetchedAt = new Date().toISOString();
+    index.totalBuildings = Object.keys(index.addresses).length;
+    index.totalEntries = Object.values(index.addresses).reduce((s, l) => s + (Array.isArray(l) ? l.length : 1), 0);
+    saveIndex(indexPath, index);
+    console.log(`Ingested ${seen} sold URLs (${added} new) from ${path.relative(PROJECT_DIR, csvPath)}.`);
+    console.log(`Index now: ${index.totalEntries} entries across ${index.totalBuildings} buildings -> ${path.relative(PROJECT_DIR, indexPath)}`);
+    return;
+  }
+
   const startTime = Date.now();
   let totalAdded = 0;
   let totalFetches = 0;
