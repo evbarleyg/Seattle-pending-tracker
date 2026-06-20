@@ -2379,7 +2379,7 @@ function updateGeoShell(rows) {
   if (status) {
     const applied = state.geo.filterPropertyKeys.length ? ` ${formatWholeNumber(state.geo.filterPropertyKeys.length)} map-selected properties are filtering the dashboard.` : " Marker clicks inspect properties only until you apply them as a filter.";
     const activeCount = rows.reduce((n, row) => n + (isActiveRow(row) ? 1 : 0), 0);
-    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}${activeCount ? ` (${formatWholeNumber(activeCount)} active)` : ""}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Color = sale/list pressure; grey = sold, no list price; violet ring = active listing.${applied}`;
+    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}${activeCount ? ` (${formatWholeNumber(activeCount)} active)` : ""}. ${drawnCount < rows.length ? `Drawing ${formatWholeNumber(drawnCount)} of ${formatWholeNumber(rows.length)} for speed (all active listings shown).` : "All visible points are drawn."} Color = sale/list pressure; grey = sold, no list price; violet ring = active listing.${applied}`;
   }
   const legend = qs(".geo-legend");
   if (legend) legend.outerHTML = geoLegendHtml();
@@ -2515,7 +2515,14 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     state.geo.map.invalidateSize();
   }
   state.geo.layer.clearLayers();
-  const drawnRows = rows.slice(0, 1200);
+  // Always draw active listings (current inventory — small N, high interest) and
+  // paint them LAST so they sit on top; fill the rest up to the cap underneath.
+  // Without this, the draw cap silently dropped every active row whenever they
+  // sorted past position 1,200 in the view.
+  const DRAW_CAP = 1200;
+  const activeRows = rows.filter(isActiveRow);
+  const otherRows = rows.filter((row) => !isActiveRow(row));
+  const drawnRows = otherRows.slice(0, Math.max(0, DRAW_CAP - activeRows.length)).concat(activeRows);
   drawnRows.forEach((row) => {
     const selected = state.geo.selectedPropertyKeys.includes(row.mapPropertyKey);
     // Active listings render as a violet hollow ring so "for sale now" reads
@@ -2524,11 +2531,11 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     const active = isActiveRow(row);
     const dotColor = active ? ACTIVE_LISTING_COLOR : ratioColor(row.saleToList);
     const marker = L.circleMarker([row.mapLat, row.mapLon], {
-      radius: selected ? 7 : 5,
+      radius: selected ? 7 : (active ? 6 : 5),
       color: selected ? "#111827" : dotColor,
       fillColor: dotColor,
-      fillOpacity: active ? (selected ? 0.35 : 0.1) : (selected ? 0.95 : 0.7),
-      weight: active ? 2 : (selected ? 3 : 1),
+      fillOpacity: active ? (selected ? 0.5 : 0.25) : (selected ? 0.95 : 0.7),
+      weight: active ? 2.5 : (selected ? 3 : 1),
       dashArray: row.isProjectionRow ? "3 3" : null,
     });
     marker.bindTooltip(
