@@ -1142,19 +1142,19 @@ function renderPulseView() {
         <div class="trends-controls">
           <div class="segmented" id="pulseGrainToggles" role="group" aria-label="Trend grain">
             <button type="button" class="scope-pill ${!weekly ? "active" : ""}" data-pulse-grain="month">Monthly</button>
-            <button type="button" class="scope-pill ${weekly ? "active" : ""}" data-pulse-grain="week">Weekly (rolling 28d)</button>
+            <button type="button" class="scope-pill ${weekly ? "active" : ""}" data-pulse-grain="week">Weekly</button>
           </div>
         </div>
         <p class="note">${weekly
-          ? "Weekly grain medians a trailing 28-day window keyed on sale date, advancing every 7 days — it surfaces softening weeks before a calendar month closes. The trailing partial week is de-weighted; only volume and median price/$sqft are shown weekly (sale/list ratio coverage is too thin to trust at this grain)."
+          ? "Each point is one calendar week keyed on sale date (not a rolling average), so you read genuine week-to-week movement. The newest week is partial and de-weighted; weeks with fewer than 5 sales show volume only — a thin-week median would whipsaw. Sale/list, pending and DOM stay on monthly grain (too sparse weekly)."
           : "These are the old Charts view, kept here so the context sits beside the watchlist pulse."}</p>
         <div class="chart-grid">
-          ${chartPanel(weekly ? "Weekly volume (rolling 28d)" : "Monthly volume", "chartVolume", barSvg(volSeries, "salesCount", grainOpts), chartSummary(volSeries, "salesCount"), chartGuide("salesCount", "bar"), chartInsight("salesCount"))}
-          ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
+          ${chartPanel(weekly ? "Weekly volume" : "Monthly volume", "chartVolume", barSvg(volSeries, "salesCount", grainOpts), chartSummary(volSeries, "salesCount"), chartGuide("salesCount", "bar", weekly ? "week" : "month"), chartInsight("salesCount"))}
+          ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line", weekly ? "week" : "month"), chartInsight("medianClosePrice"))}
           ${weekly
             ? `<article class="chart-panel"><div class="chart-title">Median sale/list</div><p class="chart-insight">Sale/list ratio stays on monthly grain: only a small minority of recent weekly sales carry a genuine list price, so a weekly ratio would jump on n&lt;5. Switch to Monthly to read it.</p>${lineSvg(sliceSeries, "medianSaleToList")}</article>`
             : chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
-          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(priceSeries, "medianPsf", grainOpts), chartSummary(priceSeries, "medianPsf"), chartGuide("medianPsf", "line"), chartInsight("medianPsf"))}
+          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(priceSeries, "medianPsf", grainOpts), chartSummary(priceSeries, "medianPsf"), chartGuide("medianPsf", "line", weekly ? "week" : "month"), chartInsight("medianPsf"))}
         </div>
       </section>
       <section class="section-block" id="pulseCompetitionPockets">
@@ -1380,21 +1380,23 @@ function chartSummary(series, metricKey, options = {}) {
   `;
 }
 
-function chartGuide(metricKey, kind = "line") {
+function chartGuide(metricKey, kind = "line", grain = "month") {
   const label = chartMetricLabel(metricKey);
+  const unit = grain === "week" ? "week" : "month";
+  const unitAdj = grain === "week" ? "weekly" : "monthly";
   if (kind === "bar") {
     return `
       <div class="chart-guide">
-        <span><i class="legend-swatch bar"></i>Each bar is one sale month</span>
+        <span><i class="legend-swatch bar"></i>Each bar is one sale ${unit}</span>
         <span>Y-axis: ${esc(label)}</span>
       </div>
     `;
   }
   return `
     <div class="chart-guide">
-      <span><i class="legend-swatch monthly"></i>Blue line: monthly value</span>
-      <span><i class="legend-swatch average"></i>Green line: 3-month average</span>
-      <span>Dots: clickable months</span>
+      <span><i class="legend-swatch monthly"></i>Blue line: ${unitAdj} value</span>
+      <span><i class="legend-swatch average"></i>Green line: 3-${unit} average</span>
+      <span>Dots: clickable ${unit}s</span>
       <span>Y-axis: ${esc(label)}</span>
     </div>
   `;
@@ -1583,14 +1585,17 @@ function buildSliceMonthlySeries(rows) {
   }));
 }
 
-// Weekly rolling-window grain, keyed STRICTLY on saleDate (reliable on
-// REDFIN_SOLD / MLS rows; county pendingDate is faked). For each week-ending
-// anchor over the last `weeks` weeks we median over a trailing `windowDays`
-// window so sparse weekly n is smoothed while the read still advances every 7
-// days — surfacing softening weeks before a calendar month closes. Only VOLUME
-// and MEDIAN PRICE / $sqft are exposed at this grain; sale/list, pending and
-// DOM collapse to single-digit coverage in the newest weeks and are NOT offered.
-function buildSliceWeeklySeries(rows, { weeks = 13, windowDays = 28 } = {}) {
+// Discrete weekly grain: each point is one NON-overlapping 7-day week, keyed
+// STRICTLY on saleDate (reliable on REDFIN_SOLD / MLS rows; county pendingDate is
+// faked). Anchored to the latest sale and stepping back every 7 days, so you read
+// genuine week-to-week movement — unlike the old rolling-28d window, which shared
+// 75% of its data with each neighbour and damped the deltas. Volume is reported
+// for every week; the MEDIAN price/$sqft is nulled when a week has fewer than
+// MIN_TILE_COMPS sales (thin weeks — narrow slices and the freshest, still-
+// reporting weeks — so a 2-sale median can't masquerade as a real swing). Those
+// nulls drop out of the price lines via chartData but leave the volume bar intact.
+// Sale/list, pending and DOM stay on monthly grain (too sparse weekly).
+function buildSliceWeeklySeries(rows, { weeks = 16, windowDays = 7 } = {}) {
   const dated = (rows || [])
     .filter((row) => row.closePrice > 0 && row.saleDate)
     .map((row) => ({ row, t: new Date(`${row.saleDate}T00:00:00`).getTime() }))
@@ -1607,14 +1612,15 @@ function buildSliceWeeklySeries(rows, { weeks = 13, windowDays = 28 } = {}) {
     const start = end - windowMs + dayMs;
     const windowRows = dated.filter((entry) => entry.t >= start && entry.t <= end).map((entry) => entry.row);
     const endDate = new Date(end);
+    const enoughForMedian = windowRows.length >= MIN_TILE_COMPS;
     series.push({
       month: toIso(endDate),
       label: `${endDate.getMonth() + 1}/${endDate.getDate()}`,
       salesCount: windowRows.length,
       sampleSize: windowRows.length,
       isPartial: i === 0,
-      medianClosePrice: medianValue(windowRows.map((row) => row.closePrice)),
-      medianPsf: medianValue(windowRows.map((row) => row.pricePerSqft).filter((value) => value > 0)),
+      medianClosePrice: enoughForMedian ? medianValue(windowRows.map((row) => row.closePrice)) : null,
+      medianPsf: enoughForMedian ? medianValue(windowRows.map((row) => row.pricePerSqft).filter((value) => value > 0)) : null,
     });
   }
   return series;
