@@ -2458,11 +2458,30 @@ function geoLegendHtml() {
 
 function geoMappableRows() {
   if (!state.derived) return [];
-  return state.derived.viewRows.filter((row) => {
+  const mappable = state.derived.viewRows.filter((row) => {
     if (!Number.isFinite(row.mapLat) || !Number.isFinite(row.mapLon)) return false;
     if (state.geo.hideActive && isActiveRow(row)) return false;
     return true;
   });
+  // Flip supersede: when a property is both an active listing and a prior sale in
+  // the visible set, show only the active marker (the relist supersedes the sale)
+  // rather than stacking two dots. Match on normalized street, and require a clean
+  // 1:1 — exactly one active and one sale at that street — so multi-unit buildings
+  // (several actives/sales sharing a street) are never collapsed onto each other.
+  const activeAt = new Map();
+  const soldAt = new Map();
+  for (const row of mappable) {
+    const key = streetSupersedeKey(row);
+    if (!key) continue;
+    if (isActiveRow(row)) activeAt.set(key, (activeAt.get(key) || 0) + 1);
+    else if (row.hasActualClose) soldAt.set(key, (soldAt.get(key) || 0) + 1);
+  }
+  const superseded = new Set();
+  for (const [key, count] of activeAt) {
+    if (count === 1 && soldAt.get(key) === 1) superseded.add(key);
+  }
+  if (!superseded.size) return mappable;
+  return mappable.filter((row) => isActiveRow(row) || !superseded.has(streetSupersedeKey(row)));
 }
 
 function mountOrRefreshMap(rows = geoMappableRows()) {
@@ -2535,12 +2554,26 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
 const RATIO_NEUTRAL_COLOR = "#9ca3af";
 const ACTIVE_LISTING_COLOR = "#7c3aed";
 
-// An active (for-sale, not-yet-sold) row: explicit MLS "Active" status, or an
-// enriched listing carrying an ask price but no actual close on record. Shared
-// by the marker style, the visibility filter, and the popup card so all three
-// agree on what counts as active.
+// A genuinely active listing: an MLS "Active" status with no recorded close.
+// (An earlier form OR-ed in `!hasActualClose && pendingListPrice > 0`, which also
+// swept in ~5.5k county rows that merely lack a close price — those are not
+// listings. Status + no-close keeps it to real for-sale inventory, matching how
+// the bid lab scopes active rows.) Shared by the marker, the visibility filter,
+// the flip supersede, and the popup card.
 function isActiveRow(row) {
-  return row.mlsStatusNorm === "ACTIVE" || (!row.hasActualClose && row.pendingListPrice > 0);
+  return row.mlsStatusNorm === "ACTIVE" && !row.hasActualClose;
+}
+
+// Normalized street identity for flip detection (a home that sold and is now
+// relisted). ZIP is intentionally excluded — active-scrape rows can carry a wrong
+// zip — while any unit in the address is kept so distinct units don't merge.
+// Returns null for placeholder/parcel-only "addresses" that can't identify a home.
+function streetSupersedeKey(row) {
+  const addr = String(row.address || "").trim().toUpperCase();
+  if (!addr) return null;
+  const street = addr.split(",")[0].replace(/\s+/g, " ").trim();
+  if (!/\d/.test(street) || street.includes("UNAVAILABLE") || street.startsWith("PARCEL")) return null;
+  return street;
 }
 
 function ratioColor(value) {
