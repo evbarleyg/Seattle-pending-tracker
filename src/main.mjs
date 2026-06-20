@@ -1523,17 +1523,21 @@ function sparklineSvg(series, metricKey, options = {}) {
   }
   const domain = chartDomain(data, metricKey);
   const span = Math.max(domain.max - domain.min, 0.0001);
+  const first = data[0];
+  const last = data[data.length - 1];
+  const firstStr = formatChartValue(metricKey, first.value);
+  const lastStr = formatChartValue(metricKey, last.value);
   // Reserve room on the right for the endpoint value label so it isn't clipped.
-  const rightPad = big ? 48 : 34;
+  // Scale the reserve to the label's character count (bold tabular-nums) so long
+  // values like "$1.29M" don't overrun the viewBox on narrow mobile cards.
+  const rightPad = big
+    ? Math.max(48, Math.ceil(lastStr.length * 8) + 10)
+    : Math.max(34, Math.ceil(lastStr.length * 7) + 6);
   const xAt = (index) => pad + (index / (data.length - 1)) * (w - pad - rightPad);
   const yAt = (value) => pad + (h - pad * 2) - ((value - domain.min) / span) * (h - pad * 2);
   const pts = data.map((entry, index) => `${index ? "L" : "M"}${xAt(index).toFixed(1)},${yAt(entry.value).toFixed(1)}`).join(" ");
-  const first = data[0];
-  const last = data[data.length - 1];
   const lastX = xAt(data.length - 1);
   const lastY = yAt(last.value);
-  const firstStr = formatChartValue(metricKey, first.value);
-  const lastStr = formatChartValue(metricKey, last.value);
   const months = data.length;
   const dir = last.value > first.value ? "up" : last.value < first.value ? "down" : "flat";
   const pctChange = first.value ? ((last.value - first.value) / Math.abs(first.value)) * 100 : 0;
