@@ -270,6 +270,7 @@ const state = {
     filterPropertyKeys: [],
     popupPropertyKey: "",
     viewportFilter: false,
+    hideActive: false,
     mapBounds: null,
     hasFitBounds: false,
   },
@@ -2346,6 +2347,7 @@ function ensureGeoShell(wrap) {
         <div><p class="eyebrow">Geo</p><h2>Where is pressure located?</h2></div>
         <div class="geo-actions">
           <label class="check inline"><input type="checkbox" id="geoViewportFilter" /> Filter to viewport</label>
+          <label class="check inline"><input type="checkbox" id="geoShowActive" checked /> Active listings</label>
           ${buttonIcon("Filter dashboard to selected", "target", "id=\"geoApplySelection\"")}
           ${buttonIcon("Clear selection", "refresh-ccw", "id=\"geoClearSelection\"", "alt")}
           ${buttonIcon("Clear map filter", "search", "id=\"geoClearFilter\"", "alt")}
@@ -2366,6 +2368,8 @@ function ensureGeoShell(wrap) {
 function updateGeoShell(rows) {
   const viewport = qs("#geoViewportFilter");
   if (viewport) viewport.checked = !!state.geo.viewportFilter;
+  const showActive = qs("#geoShowActive");
+  if (showActive) showActive.checked = !state.geo.hideActive;
   const applySelection = qs("#geoApplySelection");
   if (applySelection) applySelection.disabled = !state.geo.selectedPropertyKeys.length;
   const clearFilter = qs("#geoClearFilter");
@@ -2374,7 +2378,8 @@ function updateGeoShell(rows) {
   const drawnCount = Math.min(rows.length, 1200);
   if (status) {
     const applied = state.geo.filterPropertyKeys.length ? ` ${formatWholeNumber(state.geo.filterPropertyKeys.length)} map-selected properties are filtering the dashboard.` : " Marker clicks inspect properties only until you apply them as a filter.";
-    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Color = sale/list pressure; grey = no list price on record.${applied}`;
+    const activeCount = rows.reduce((n, row) => n + (isActiveRow(row) ? 1 : 0), 0);
+    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}${activeCount ? ` (${formatWholeNumber(activeCount)} active)` : ""}. ${drawnCount < rows.length ? `Drawing first ${formatWholeNumber(drawnCount)} for speed.` : "All visible points are drawn."} Color = sale/list pressure; grey = sold, no list price; violet ring = active listing.${applied}`;
   }
   const legend = qs(".geo-legend");
   if (legend) legend.outerHTML = geoLegendHtml();
@@ -2406,7 +2411,7 @@ function geoCardHtml(row, { withLinks = false } = {}) {
 
   // For active rows with a scored bid suggestion: project bid-up over ask.
   // For sold rows: show actual bid-up if available.
-  const isActive = row.mlsStatusNorm === "ACTIVE" || (!row.hasActualClose && row.pendingListPrice > 0);
+  const isActive = isActiveRow(row);
   let bidLine = "";
   if (isActive && row.bidStatus === "SCored" && row.pendingListPrice > 0) {
     const overAsk = row.bidSuggested - row.pendingListPrice;
@@ -2440,19 +2445,24 @@ function geoCardHtml(row, { withLinks = false } = {}) {
 
 function geoLegendHtml() {
   return `
-    <div class="geo-legend" aria-label="Sale-to-list color legend">
+    <div class="geo-legend" aria-label="Property map color legend">
       <span><i style="--legend-color:#047857"></i><strong>Under ask</strong><small>0.90x-0.99x</small></span>
       <span><i style="--legend-color:#2563eb"></i><strong>At ask</strong><small>1.00x-1.02x</small></span>
       <span><i style="--legend-color:#c77700"></i><strong>Over ask</strong><small>1.03x-1.09x</small></span>
       <span><i style="--legend-color:#b91c1c"></i><strong>Hot</strong><small>1.10x-1.20x+</small></span>
-      <span><i style="--legend-color:#9ca3af"></i><strong>No list price</strong><small>sale/list n/a (county or sold-only)</small></span>
+      <span><i style="--legend-color:#9ca3af"></i><strong>No list price</strong><small>sold, sale/list n/a</small></span>
+      <span><i class="ring" style="--legend-color:#7c3aed"></i><strong>Active listing</strong><small>for sale now, not yet sold</small></span>
     </div>
   `;
 }
 
 function geoMappableRows() {
   if (!state.derived) return [];
-  return state.derived.viewRows.filter((row) => Number.isFinite(row.mapLat) && Number.isFinite(row.mapLon));
+  return state.derived.viewRows.filter((row) => {
+    if (!Number.isFinite(row.mapLat) || !Number.isFinite(row.mapLon)) return false;
+    if (state.geo.hideActive && isActiveRow(row)) return false;
+    return true;
+  });
 }
 
 function mountOrRefreshMap(rows = geoMappableRows()) {
@@ -2489,12 +2499,17 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
   const drawnRows = rows.slice(0, 1200);
   drawnRows.forEach((row) => {
     const selected = state.geo.selectedPropertyKeys.includes(row.mapPropertyKey);
+    // Active listings render as a violet hollow ring so "for sale now" reads
+    // distinctly from a sold comp (filled, colored by sale/list pressure) and
+    // from a list-less sale (filled grey).
+    const active = isActiveRow(row);
+    const dotColor = active ? ACTIVE_LISTING_COLOR : ratioColor(row.saleToList);
     const marker = L.circleMarker([row.mapLat, row.mapLon], {
       radius: selected ? 7 : 5,
-      color: selected ? "#111827" : ratioColor(row.saleToList),
-      fillColor: ratioColor(row.saleToList),
-      fillOpacity: selected ? 0.95 : 0.7,
-      weight: selected ? 3 : 1,
+      color: selected ? "#111827" : dotColor,
+      fillColor: dotColor,
+      fillOpacity: active ? (selected ? 0.35 : 0.1) : (selected ? 0.95 : 0.7),
+      weight: active ? 2 : (selected ? 3 : 1),
       dashArray: row.isProjectionRow ? "3 3" : null,
     });
     marker.bindTooltip(
@@ -2518,6 +2533,15 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
 }
 
 const RATIO_NEUTRAL_COLOR = "#9ca3af";
+const ACTIVE_LISTING_COLOR = "#7c3aed";
+
+// An active (for-sale, not-yet-sold) row: explicit MLS "Active" status, or an
+// enriched listing carrying an ask price but no actual close on record. Shared
+// by the marker style, the visibility filter, and the popup card so all three
+// agree on what counts as active.
+function isActiveRow(row) {
+  return row.mlsStatusNorm === "ACTIVE" || (!row.hasActualClose && row.pendingListPrice > 0);
+}
 
 function ratioColor(value) {
   const n = Number(value || 0);
@@ -2715,6 +2739,9 @@ function bindEvents() {
         const b = state.geo.map.getBounds();
         state.geo.mapBounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
       }
+    }
+    if (target.id === "geoShowActive") {
+      state.geo.hideActive = !target.checked;
     }
     if (target.closest("#fNeighborhoodOptions") && target.matches("input[type='checkbox']")) {
       state.filters.neighborhoods = qsa("#fNeighborhoodOptions input[type='checkbox']:checked").map((input) => input.value);

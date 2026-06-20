@@ -1623,6 +1623,12 @@ th {
   background: var(--legend-color);
 }
 
+/* Active-listing swatch is a hollow ring, mirroring the map marker. */
+.geo-legend i.ring {
+  background: transparent;
+  border: 2px solid var(--legend-color);
+}
+
 .geo-legend strong {
   color: var(--text);
   line-height: 1.1;
