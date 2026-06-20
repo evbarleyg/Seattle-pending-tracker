@@ -156,8 +156,10 @@ test("charts expose readable axes and data labels", () => {
   });
   assert.match(source, /Y-axis shows/);
   assert.match(source, /X-axis shows sale month/);
-  assert.match(source, /Blue line: monthly value/);
-  assert.match(source, /Green line: 3-month average/);
+  // Chart-guide line labels are grain-aware (monthly vs weekly) for the pulse
+  // trend toggle, so assert the structure rather than a fixed cadence noun.
+  assert.match(source, /Blue line: .*value/);
+  assert.match(source, /Green line: 3-.*average/);
   assert.match(source, /What this tells you/);
   assert.match(source, /Fast-Sale Share/);
 });
