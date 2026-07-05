@@ -446,7 +446,7 @@ export const METRICS = {
 
   suggestedSaleList: {
     id: "suggestedSaleList",
-    label: "Suggested sale/list",
+    label: "Bid vs ask price",
     plain: "The suggested bid expressed as a multiple of the asking price: 1.05x means bidding 5 percent over ask.",
     formulaWords: "Divides the suggested bid by the listing's asking price.",
     source: { id: "derived", label: "Computed in your browser from the suggested bid" },
@@ -685,10 +685,13 @@ export const METRICS = {
     label: "Projected close (est.)",
     plain: "A modeled guess at what a pending listing will close for, marked with a Projected pill.",
     formulaWords:
-      "Multiplies the pending listing's asking price by the median sale-to-list ratio of at least 6 similar recent closed sales, matching neighborhood and home type first and widening only when needed. The 25th and 75th percentile ratios give a low and a high.",
+      "Multiplies the pending listing's asking price by the median sale-to-list ratio of similar recent closed sales. It starts with the same neighborhood and home type, then widens to home type only, then to the whole city, trying to reach at least 6 comps but using whatever pool it lands on. The 25th and 75th percentile ratios give a low and a high.",
     source: { id: "derived", label: "Computed in your browser from closed comps in your slice" },
     cadence: CADENCE.derived,
-    caveats: ["An estimate, not a recorded sale; it disappears when the Pending Projection flag is off."],
+    caveats: [
+      "An estimate, not a recorded sale; it disappears when the Pending Projection flag is off.",
+      "In a thin slice the comp pool can end up below 6 sales, which makes the estimate less reliable.",
+    ],
     buyerDirection: "neutral",
     universeId: "recordRows",
   },

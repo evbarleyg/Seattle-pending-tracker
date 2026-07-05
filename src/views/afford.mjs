@@ -152,7 +152,7 @@ export function renderAffordView(deps) {
         ${metricItem("All-in carry / mo", `${formatMoneyOrNa(r.ownerCostMonthly)} vs ${formatMoneyCompact(c.housing.comfortCapMonthly)} cap`, "affordCarry")}
         ${metricItem("Free cash flow / mo", formatMoneyOrNa(r.monthlyFreeCashFlow), "affordFreeCashFlow")}
         ${metricItem("Post-close liquidity", `${formatMoneyCompact(r.postCloseLiquidity)} vs ${formatMoneyCompact(c.assets.reserveTarget)} reserve`, "affordPostCloseLiquidity")}
-        ${metricItem("Deployable for DP", formatMoneyCompact(r.dpFundingCapacity), "affordDeployable")}
+        ${metricItem("Deployable for down payment", formatMoneyCompact(r.dpFundingCapacity), "affordDeployable")}
       </div>
       ${scenarioCaption}
 
