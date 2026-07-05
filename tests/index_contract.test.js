@@ -10,6 +10,9 @@ const html = fs.readFileSync(indexPath, "utf8");
 const source = [
   html,
   fs.readFileSync(path.resolve(__dirname, "..", "src", "main.mjs"), "utf8"),
+  // The Overview renderer was extracted out of main.mjs; its markup still
+  // participates in the same static contract.
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "overview.mjs"), "utf8"),
   fs.readFileSync(path.resolve(__dirname, "..", "src", "domain", "selectors.mjs"), "utf8"),
 ].join("\n");
 

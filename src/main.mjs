@@ -64,8 +64,6 @@ import {
 } from "./domain/pulseMetrics.mjs";
 import {
   DEFAULT_PROFILE_MEMORY,
-  buildMicromarketProfiles,
-  buildProfileCohort,
   normalizeProfileMemory,
   profileScore,
 } from "./domain/buyerProfile.mjs";
@@ -97,6 +95,8 @@ import {
   scoreBidForRow,
   sortRows,
 } from "./domain/selectors.mjs";
+import { initExplainLayer } from "./ui/explain.mjs";
+import { getExplainEntry, renderOverviewView } from "./views/overview.mjs";
 
 const LUCIDE_ICONS = {
   Activity,
@@ -127,10 +127,7 @@ const LUCIDE_ICONS = {
 const PUBLIC_BASE = import.meta.env.BASE_URL || "./";
 const BUYER_PROFILE_TOGGLE_STORAGE_KEY = "buyer_lens_profile_views_enabled";
 const THEME_STORAGE_KEY = "buyer_lens_theme";
-const LAST_VISIT_STORAGE_KEY = "buyer_lens_last_visit_iso";
-const SESSION_FLAG_STORAGE_KEY = "buyer_lens_session_started";
 const WATCHED_STORAGE_KEY = "buyer_lens_watched_ids_v1";
-const FRESHNESS_STALE_DAYS = 7;
 
 function loadWatchedIds() {
   try {
@@ -172,28 +169,6 @@ function saveAffordScenario(scenario) {
     // Ignore storage errors (private browsing).
   }
 }
-
-function initVisitBaseline() {
-  let baseline = null;
-  try {
-    if (!sessionStorage.getItem(SESSION_FLAG_STORAGE_KEY)) {
-      const previous = localStorage.getItem(LAST_VISIT_STORAGE_KEY);
-      baseline = previous ? new Date(previous) : null;
-      if (baseline && Number.isNaN(baseline.getTime())) baseline = null;
-      localStorage.setItem(LAST_VISIT_STORAGE_KEY, new Date().toISOString());
-      sessionStorage.setItem(SESSION_FLAG_STORAGE_KEY, "1");
-    } else {
-      const previous = localStorage.getItem(LAST_VISIT_STORAGE_KEY);
-      baseline = previous ? new Date(previous) : null;
-      if (baseline && Number.isNaN(baseline.getTime())) baseline = null;
-    }
-  } catch {
-    baseline = null;
-  }
-  return baseline;
-}
-
-const VISIT_BASELINE = initVisitBaseline();
 
 const app = document.getElementById("app");
 const state = {
@@ -559,115 +534,6 @@ function renderDashboard() {
   refreshIcons();
 }
 
-// Coverage caption for the over-ask tile: county + REDFIN_SOLD rows carry no
-// genuine list price, so the median sale/list can rest on a small minority of
-// the displayed comps. Surface N of M so the precision isn't read as universal.
-function ratioCoverageSub(stats) {
-  const n = Number(stats.ratioSampleSize || 0);
-  const m = Number(stats.sampleSize || 0);
-  if (!m) return "";
-  if (!n) return "no comps with a real list price in this slice";
-  const base = `based on ${formatWholeNumber(n)} of ${formatWholeNumber(m)} comps with a real list`;
-  return n < MIN_TILE_COMPS ? `${base} — thin coverage` : base;
-}
-
-function insightTileHtml({ label, value, metricKey, series, switchView = "pulse", note = "", sub = "" }) {
-  const d = tileDelta(series, metricKey);
-  return `
-    <article class="insight-tile ${d.tone}" role="button" tabindex="0" data-switch-view="${esc(switchView)}"${note ? ` title="${esc(note)}"` : ""}>
-      <div class="tile-head"><span class="panel-kicker">${esc(label)}</span></div>
-      <div class="tile-figure">
-        <strong>${esc(value)}</strong>
-        <span class="tile-delta ${d.tone}">${esc(d.arrow)} ${esc(d.deltaLabel)}</span>
-      </div>
-      ${d.secondaryLabel ? `<span class="tile-delta tile-delta-secondary ${d.secondaryTone}" title="3-month median vs prior 3-month median (trend context)">${esc(d.secondaryArrow)} ${esc(d.secondaryLabel)}</span>` : ""}
-      ${sub ? `<span class="tile-sub">${esc(sub)}</span>` : ""}
-      ${sparklineSvg(series, metricKey)}
-      ${d.signal ? `<span class="tile-signal">${esc(d.signal)}</span>` : ""}
-    </article>`;
-}
-
-function commandCenterCardsHtml() {
-  if (!state.derived) {
-    return `
-      <article class="state-panel loading-panel">
-        <span class="skeleton wide"></span>
-        <span class="skeleton"></span>
-        <span class="skeleton short"></span>
-      </article>
-    `;
-  }
-  const { slices, bidStatsView } = state.derived;
-  const stats = slices.stats;
-  const profile = state.buyerProfile.memory;
-  const cohort = buildProfileCohort(slices.closedSlice, profile);
-  const report = state.dataSource.report;
-  const validationStatus = report?.status || report?.validationStatus || "not reported";
-  const latestSale = state.derived.latestSaleDate || "";
-  const staleDays = latestSale ? daysAgo(latestSale) : null;
-  const savedStatus = state.buyerProfile.enabled
-    ? `${cohort.summary.count} saved-home matches`
-    : "Saved-home lens paused";
-  const sliceSeries = state.derived.sliceMonthlySeries || [];
-  const invSeries = state.derived.inventoryMonthlySeries || [];
-  const tiles = [
-    insightTileHtml({ label: "Median close", value: formatMoneyOrNa(stats.medianClose), metricKey: "medianClosePrice", series: sliceSeries }),
-    insightTileHtml({ label: "Median $/sqft", value: stats.medianPsf ? `$${Math.round(stats.medianPsf)}` : "n/a", metricKey: "medianPsf", series: sliceSeries }),
-    insightTileHtml({ label: "Over-ask ratio", value: formatRatio(stats.medianSaleToList), metricKey: "medianSaleToList", series: sliceSeries, sub: ratioCoverageSub(stats) }),
-    insightTileHtml({ label: "Median DOM", value: stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`, metricKey: "medianDom", series: sliceSeries }),
-    insightTileHtml({ label: "Fast-sale share", value: stats.hotShare === null ? "n/a" : formatPct(stats.hotShare), metricKey: "hotShare", series: sliceSeries }),
-    insightTileHtml({ label: "Active + pending (MLS only)", value: formatWholeNumber(slices.openRows.length + slices.projectedRows.length), metricKey: "activeInventory", series: invSeries, note: "MLS/Redfin listings only — a flow proxy, not standing inventory (county rows excluded)." }),
-  ].join("");
-
-  return `
-    <div class="insight-tile-grid">${tiles}</div>
-    <p class="note tone-legend"><span class="tone-chip cooler">●</span> Cooling — better for buyers &nbsp; <span class="tone-chip hotter">●</span> Heating — tougher for buyers</p>
-    <div class="command-grid">
-      <article class="state-panel${staleDays !== null && staleDays > FRESHNESS_STALE_DAYS ? " stale" : ""}">
-        <div class="panel-kicker">Freshness</div>
-        <h2>${esc(latestSale ? formatDateShort(latestSale) : "n/a")}</h2>
-        <p>${latestSale ? `Newest sale ${staleDays}d ago` : "No sale dates"} · ${esc(validationStatus)} · ${formatWholeNumber(state.dataSource.rowCount)} rows</p>
-      </article>
-      <article class="state-panel">
-        <div class="panel-kicker">Saved-home lens</div>
-        <h2>${esc(savedStatus)}</h2>
-        <p>${esc(profile.name)} · ${cohort.summary.topMicromarket || "no top micromarket yet"}</p>
-      </article>
-      <article class="state-panel">
-        <div class="panel-kicker">Bid queue</div>
-        <h2>${formatWholeNumber(bidStatsView.activeCount)} active</h2>
-        <p>${formatWholeNumber(bidStatsView.scoredCount)} scored · ${formatWholeNumber(bidStatsView.highConfidenceCount)} high confidence</p>
-      </article>
-    </div>
-    <div class="quick-actions">
-      ${buttonIcon("Open Pulse", "activity", "data-switch-view=\"pulse\"")}
-      ${buttonIcon("Open Bids", "target", "data-switch-view=\"bids\"")}
-      ${buttonIcon("Open Geo", "map", "data-switch-view=\"geo\"")}
-      ${buttonIcon("Open Records", "rows-3", "data-switch-view=\"records\"")}
-    </div>
-  `;
-}
-
-function commandCenterSectionHtml() {
-  return `
-    <section class="command-center compact" id="commandCenter" aria-label="Buyer command center">
-      <div class="hero-strip">
-        <p class="eyebrow">Buyer command center</p>
-        <h2 class="hero-line">${esc(filtersToSummary(state.filters).join(" + "))} · ${formatWholeNumber((state.derived?.slices?.closedSlice || []).length)} comps in slice</h2>
-      </div>
-      <div class="command-stack" id="commandGrid">
-        ${commandCenterCardsHtml()}
-      </div>
-    </section>
-  `;
-}
-
-function marketTone(stats) {
-  if ((stats.hotShare || 0) >= 0.55 || (stats.medianSaleToList || 0) >= 1.05) return "hot";
-  if ((stats.hotShare || 0) >= 0.35 || (stats.medianSaleToList || 0) >= 1.01) return "warm";
-  return "cool";
-}
-
 function renderFilterControls() {
   const wrap = qs("#filterControls");
   if (!wrap) return;
@@ -838,7 +704,7 @@ function renderDataSourcePill() {
 function renderView(view) {
   if (!state.mountedViews.has(view)) state.mountedViews.add(view);
   if (!state.dirtyViews.has(view) && view !== "geo") return;
-  if (view === "overview") renderOverviewView();
+  if (view === "overview") renderOverviewView(overviewDeps());
   if (view === "pulse") renderPulseView();
   if (view === "bids") renderBidsView();
   if (view === "afford") renderAffordView();
@@ -850,228 +716,21 @@ function renderView(view) {
   state.dirtyViews.delete(view);
 }
 
-function computeRecentChanges(rows, baseline) {
-  if (!baseline) return null;
-  const baseTime = baseline.getTime();
-  const now = Date.now();
-  const minutes = Math.max(0, Math.round((now - baseTime) / 60000));
-  const result = {
-    baseline,
-    minutesSince: minutes,
-    newActives: 0,
-    wentPending: 0,
-    newSold: 0,
-    sampleActive: null,
+// The Overview renderer lives in src/views/overview.mjs; it receives app
+// state plus the shared chart helpers through this deps object on each render.
+function overviewDeps() {
+  return {
+    state,
+    qs,
+    icon,
+    buttonIcon,
+    miniMetric,
+    sparklineSvg,
+    chartMetricLabel,
+    pulseMetricConfig,
+    medianValue,
+    minTileComps: MIN_TILE_COMPS,
   };
-  const list = Array.isArray(rows) ? rows : [];
-  for (const row of list) {
-    if (row?.dataMode !== "MLS_ENRICHED") continue;
-    const isActive = String(row.mlsStatusNorm || row.mlsStatus || "").toUpperCase() === "ACTIVE";
-    if (isActive) {
-      const listDate = row.listDate || row.mlsListDate;
-      const listTime = listDate ? new Date(listDate).getTime() : NaN;
-      if (Number.isFinite(listTime) && listTime >= baseTime) {
-        result.newActives += 1;
-        if (!result.sampleActive) result.sampleActive = row;
-      }
-    }
-    const pendingDate = row.pendingDate || row.mlsPendingDate;
-    if (pendingDate) {
-      const pendingTime = new Date(pendingDate).getTime();
-      if (Number.isFinite(pendingTime) && pendingTime >= baseTime) result.wentPending += 1;
-    }
-    const saleDate = row.saleDate;
-    if (saleDate && Number(row.closePrice) > 0) {
-      const saleTime = new Date(saleDate).getTime();
-      if (Number.isFinite(saleTime) && saleTime >= baseTime) result.newSold += 1;
-    }
-  }
-  return result;
-}
-
-function sinceLastVisitSectionHtml(changes) {
-  if (!changes) {
-    return `
-      <section class="section-block since-visit">
-        <p class="eyebrow">Since you last looked</p>
-        <p class="note">First visit on this device — we'll start tracking new actives, pendings, and sales for next time.</p>
-      </section>
-    `;
-  }
-  if (changes.minutesSince < 360) {
-    const label = changes.minutesSince < 1 ? "moments ago" : changes.minutesSince < 60 ? `${changes.minutesSince} min ago` : `${Math.round(changes.minutesSince / 60)}h ago`;
-    return `
-      <section class="section-block since-visit">
-        <p class="eyebrow">Since you last looked</p>
-        <p class="note">Last looked ${esc(label)} — wait a bit and check back to see new movement.</p>
-      </section>
-    `;
-  }
-  const sample = changes.sampleActive
-    ? `Newest: ${esc(changes.sampleActive.address || "address unavailable")} at ${esc(formatMoneyOrNa(Number(changes.sampleActive.pendingListPrice || changes.sampleActive.listPriceAtPending || 0)))}`
-    : "";
-  const baselineLabel = changes.minutesSince < 1440
-    ? `${Math.round(changes.minutesSince / 60)}h ago`
-    : `${Math.round(changes.minutesSince / 1440)}d ago`;
-  return `
-    <section class="section-block since-visit">
-      <div class="section-head compact">
-        <div>
-          <p class="eyebrow">Since you last looked (${esc(baselineLabel)})</p>
-          <h3>${formatWholeNumber(changes.newActives)} new active · ${formatWholeNumber(changes.wentPending)} went pending · ${formatWholeNumber(changes.newSold)} newly sold</h3>
-        </div>
-      </div>
-      <p class="note">Filtered to your current slice. ${esc(sample)}</p>
-    </section>
-  `;
-}
-
-function renderOverviewView() {
-  const wrap = qs("#view-overview");
-  if (!wrap || !state.derived) return;
-  const { slices } = state.derived;
-  const gatedSlice = (state.derived.sliceMonthlySeries || []).filter((e) => (e.sampleSize ?? e.salesCount ?? 0) >= MIN_TILE_COMPS);
-  const gatedCounts = gatedSlice.map((e) => e.sampleSize ?? e.salesCount ?? 0).slice().sort((a, b) => a - b);
-  const medGatedCount = gatedCounts.length ? gatedCounts[Math.floor(gatedCounts.length / 2)] : 0;
-  const latestGated = gatedSlice[gatedSlice.length - 1] || null;
-  const latestGatedCount = latestGated ? (latestGated.sampleSize ?? latestGated.salesCount ?? 0) : 0;
-  const latestPartial = !!latestGated && medGatedCount > 0 && latestGatedCount < 0.5 * medGatedCount;
-  const freshnessLine = latestGated
-    ? `Charts show data through ${monthLabelCompact(latestGated.month)}${latestPartial ? ` (partial — only ${latestGatedCount} comps so far; treat its swing as noise)` : ""}.`
-    : "No qualifying months in this slice yet.";
-  const profile = state.buyerProfile.memory;
-  const cohort = buildProfileCohort(slices.closedSlice, profile);
-  const profiles = buildMicromarketProfiles(slices.closedSlice, profile, new Date());
-  const allSliceRows = [...(slices.closedSlice || []), ...(slices.openRows || []), ...(slices.projectedRows || [])];
-  const recentChanges = computeRecentChanges(allSliceRows, VISIT_BASELINE);
-  const stats = slices.stats;
-  const pulse90 = state.derived.pulse.recentComparisons.find((entry) => entry.windowDays === 90);
-  const fastSaleText = pulse90?.current?.hotShare !== null && pulse90?.current?.hotShare !== undefined
-    ? formatPct(pulse90.current.hotShare)
-    : "n/a";
-  const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${formatMoneyOrNa(stats.medianBidUp)} median bid-up · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median DOM`;
-  wrap.innerHTML = `
-    <div class="view-band">
-      ${marketDirectionBannerHtml()}
-      ${commandCenterSectionHtml()}
-
-      ${sinceLastVisitSectionHtml(recentChanges)}
-
-      <section class="section-block decision-brief" id="decisionBrief">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">What this means for the next offer</p>
-            <h2>Start with stance, then inspect the proof.</h2>
-          </div>
-        </div>
-        <div class="decision-grid">
-          <article class="decision-card">
-            <span>Current lens</span>
-            <strong>${esc(filtersToSummary(state.filters).join(" + "))}</strong>
-            <p>${formatWholeNumber(slices.closedSlice.length)} closed comps are shaping the read.</p>
-          </article>
-          <article class="decision-card">
-            <span>Market stance</span>
-            <strong>${esc(stance)}</strong>
-            <p>Fast-sale share is DOM-based pressure; sale/list and bid-up are price pressure.</p>
-          </article>
-          <button class="decision-action" type="button" data-switch-view="pulse">
-            ${icon("activity")}
-            <strong>Review Pulse</strong>
-            <span>See whether watchlist pressure is changing.</span>
-          </button>
-          <button class="decision-action" type="button" data-switch-view="bids">
-            ${icon("target")}
-            <strong>Estimate a bid</strong>
-            <span>Load a listing or enter an address to find comps.</span>
-          </button>
-          <button class="decision-action" type="button" data-switch-view="geo">
-            ${icon("map")}
-            <strong>Inspect map pockets</strong>
-            <span>Compare where pressure clusters before applying map filters.</span>
-          </button>
-          <button class="decision-action" type="button" data-switch-view="records">
-            ${icon("rows-3")}
-            <strong>Open comp records</strong>
-            <span>Use Zillow and KC links for property-level review.</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="section-head">
-        <div>
-          <p class="eyebrow">Overview</p>
-          <h2>Buyer profile and current slice</h2>
-        </div>
-        <button class="btn alt" type="button" data-buyer-profile-toggle="1" id="buyerProfileToggle">
-          ${icon(state.buyerProfile.enabled ? "target" : "search")}
-          <span>${state.buyerProfile.enabled ? "Pause lens" : "Enable lens"}</span>
-        </button>
-      </section>
-
-      <div class="overview-grid">
-        <article class="panel" id="buyerProfileMemory">
-          <div class="panel-kicker" id="buyerProfileStatus">${state.buyerProfile.ready ? `Profile loaded from ${esc(state.buyerProfile.source)}` : "Using embedded profile"}</div>
-          <h3 id="buyerProfileName">${esc(profile.name)}</h3>
-          <p id="buyerProfileSummary">${esc(profile.summary)}</p>
-          <div class="chip-row" id="buyerProfileTraits">${profile.traits.map((trait) => `<span class="chip">${esc(trait)}</span>`).join("")}</div>
-          <div id="buyerProfileInsights" class="insight-list">
-            <p>${esc(state.buyerProfile.enabled ? `${cohort.summary.count} homes in this slice match your saved-home profile.` : "Saved-home cohorting is paused for this browser.")}</p>
-            <p>${esc(cohort.summary.topMicromarket ? `${cohort.summary.topMicromarket} is the strongest matching micromarket right now.` : "No dominant matching micromarket in this slice yet.")}</p>
-          </div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-kicker">Slice status</div>
-          <div class="metric-list">
-            ${miniMetric("Closed rows", formatWholeNumber(slices.closedSlice.length))}
-            ${miniMetric("Projected rows", formatWholeNumber(slices.projectedRows.length))}
-            ${miniMetric("Open/pending rows", formatWholeNumber(slices.openRows.length))}
-            ${miniMetric("Record view", recordViewLabel(slices.filterState.recordView))}
-          </div>
-        </article>
-      </div>
-
-      <section class="section-block" id="marketTrendsStrip">
-        <div class="section-head compact">
-          <div><p class="eyebrow">Market trends</p><h3>Trailing 12 months in this slice</h3></div>
-        </div>
-        <p class="note">${esc(freshnessLine)} Months with fewer than ${MIN_TILE_COMPS} comps are omitted.</p>
-        <div class="trend-strip">
-          ${["medianPsf", "medianSaleToList", "medianBidUp"].map((k) => `
-            <article class="trend-mini"><div class="chart-title">${esc(k === "medianBidUp" ? "Over-ask premium" : chartMetricLabel(k))}</div>${sparklineSvg(state.derived.sliceMonthlySeries, k, { width: 240, height: 64, sampleField: k === "medianBidUp" ? "bidUpSampleSize" : undefined })}</article>
-          `).join("")}
-          <article class="trend-mini"><div class="chart-title">${esc(chartMetricLabel("activeInventory"))}</div>${sparklineSvg(state.derived.inventoryMonthlySeries, "activeInventory", { width: 240, height: 64 })}</article>
-        </div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">Micromarket Profiles</p>
-            <h3>Saved-home fit by watchlist pocket</h3>
-          </div>
-        </div>
-        <p id="micromarketIntro" class="note">Recent MLS-enriched sales are scored against the saved-home profile.</p>
-        <div class="profile-grid" id="micromarketProfiles">
-          ${profiles.map((entry) => `
-            <article class="micro-card">
-              <div class="micro-card-head">
-                <strong>${esc(entry.group)}</strong>
-                <span>${esc(entry.fitLabel)}</span>
-              </div>
-              <p>${esc(entry.descriptor)}</p>
-              <div class="micro-list">
-                <span>${formatWholeNumber(entry.summary.salesCount)} recent sales</span>
-                <span>${formatMoneyOrNa(entry.summary.medianClosePrice)}</span>
-                <span>${formatRatio(entry.summary.medianSaleToList)}</span>
-              </div>
-            </article>
-          `).join("")}
-        </div>
-      </section>
-    </div>
-  `;
 }
 
 function miniMetric(label, value) {
@@ -1214,67 +873,11 @@ function pulseMetricCard(key, recent) {
   `;
 }
 
-function tileDelta(series, metricKey, sampleField) {
-  const sampleOf = (e) => ((sampleField ? e[sampleField] : undefined) ?? e.sampleSize ?? e.salesCount ?? 0);
-  let gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= MIN_TILE_COMPS && Number.isFinite(Number(entry[metricKey])));
-  // Drop a thin/partial trailing month (the stale current month) so month-over-month compares two COMPLETE months.
-  if (gated.length >= 2 && sampleOf(gated[gated.length - 1]) < 0.5 * sampleOf(gated[gated.length - 2])) gated = gated.slice(0, -1);
-  if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
-  const cfg = pulseMetricConfig(metricKey);
-  const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
-  const arrowFor = (dir) => (dir > 0 ? "↑" : dir < 0 ? "↓" : "→");
-  const signalFor = (dir) => ({
-    medianClosePrice: dir > 0 ? "prices rising" : dir < 0 ? "prices easing" : "prices flat",
-    medianPsf: dir > 0 ? "$/sqft climbing" : dir < 0 ? "$/sqft softening" : "$/sqft steady",
-    medianSaleToList: dir > 0 ? "buyers bidding over ask" : dir < 0 ? "buyers no longer over ask" : "clearing at ask",
-    medianDom: dir > 0 ? "selling faster" : dir < 0 ? "sitting longer" : "steady pace",
-    hotShare: dir > 0 ? "heating up" : dir < 0 ? "cooling" : "holding",
-    activeInventory: dir < 0 ? "more choice" : dir > 0 ? "tightening supply" : "flat supply",
-  })[metricKey] || "";
-  // PRIMARY: month-over-month between the two most recent COMPLETE months (well-sampled in this slice).
-  const momDir = metricDirection(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
-  const momDelta = competitiveDelta(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
-  // SECONDARY: 3-month vs prior-3-month median for trend context.
-  let secondary = { secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
-  if (gated.length >= 6) {
-    const windowMedian = (entries) => medianValue(entries.map((e) => Number(e[metricKey])));
-    const tDir = metricDirection(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
-    const tDelta = competitiveDelta(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
-    if (tDelta !== null) secondary = { secondaryArrow: arrowFor(tDir), secondaryTone: toneFor(tDir), secondaryLabel: `${cfg.delta(tDelta)} vs prior 3mo` };
-  }
-  return {
-    tone: toneFor(momDir), arrow: arrowFor(momDir), deltaLabel: momDelta === null ? "n/a" : `${cfg.delta(momDelta)} MoM`, signal: signalFor(momDir),
-    ...secondary,
-  };
-}
-
-function marketDirectionVerdict(series) {
-  const metrics = ["medianClosePrice", "medianPsf", "medianSaleToList", "medianDom", "hotShare"];
-  const reads = metrics.map((k) => tileDelta(series, k)).filter((d) => d.tone === "hotter" || d.tone === "cooler");
-  if (reads.length < 2) return { tone: "flat", headline: "Direction unclear", detail: "Not enough recent comps in this slice to call a trend — widen the slice or compare to the whole market." };
-  const cooler = reads.filter((d) => d.tone === "cooler").length;
-  const hotter = reads.filter((d) => d.tone === "hotter").length;
-  if (cooler - hotter >= 2) return { tone: "cooler", headline: "Cooling — tilting toward buyers", detail: `${cooler} of ${reads.length} signals eased vs the prior month (more room to negotiate). Last complete month; the partial current month is excluded.` };
-  if (hotter - cooler >= 2) return { tone: "hotter", headline: "Heating up — tougher for buyers", detail: `${hotter} of ${reads.length} signals tightened vs the prior month (expect more competition). Last complete month; the partial current month is excluded.` };
-  return { tone: "flat", headline: "Mixed signals", detail: `Vs the prior complete month, ${cooler} signal(s) eased and ${hotter} tightened — no single direction. See the per-tile 3-mo trend below.` };
-}
-
-function marketDirectionBannerHtml() {
-  const v = marketDirectionVerdict(state.derived?.sliceMonthlySeries || []);
-  const latest = state.derived?.latestSaleDate || "";
-  const asOf = latest ? ` As of ${formatDateShort(latest)} in this slice.` : "";
-  return `
-    <section class="section-block market-verdict ${v.tone}" aria-label="Market direction verdict">
-      <p class="eyebrow">Market direction</p>
-      <h2 class="hero-line">${esc(v.headline)}</h2>
-      <p class="note">${esc(v.detail)}${esc(asOf)}</p>
-    </section>`;
-}
-
 function pulseMetricConfig(key) {
   if (key === "salesCount") return { label: "Sales Count", format: (value) => formatWholeNumber(value || 0), delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}` };
   if (key === "activeInventory") return { label: "Active + Pending", format: (value) => formatWholeNumber(value || 0), delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}` };
   if (key === "hotShare") return { label: "Fast-Sale Share", format: (value) => value === null ? "n/a" : formatPct(value), delta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts` };
+  if (key === "overAskShare") return { label: "Share Sold Over Ask", format: (value) => value === null ? "n/a" : formatPct(value), delta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts` };
   if (key === "medianDom") return { label: "Median DOM", format: (value) => value === null ? "n/a" : `${Math.round(value)}d`, delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}d` };
   if (key === "medianSaleToList") return { label: "Median Sale/List", format: (value) => value === null ? "n/a" : `${value.toFixed(2)}x`, delta: (value) => `${value >= 0 ? "+" : ""}${(value || 0).toFixed(3)}x` };
   if (key === "medianBidUp") return { label: "Median Bid-Up", format: (value) => value === null ? "n/a" : formatMoneyCompact(value), delta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}` };
@@ -1341,6 +944,7 @@ function formatChartValue(metricKey, value) {
 // not salesCount. Callers may override via options.sampleField.
 function defaultSampleField(metricKey) {
   if (metricKey === "medianSaleToList") return "ratioSampleSize";
+  if (metricKey === "overAskShare") return "ratioSampleSize";
   if (metricKey === "medianBidUp") return "bidUpSampleSize";
   return undefined;
 }
@@ -1576,6 +1180,13 @@ function buildSliceMonthlySeries(rows) {
     sampleSize: monthRows.length,
     medianClosePrice: medianValue(monthRows.map((row) => row.closePrice)),
     medianSaleToList: medianValue(monthRows.map((row) => row.saleToList).filter((value) => value > 0)),
+    // Share of real-list-price sales that closed above ask; the ratio rows
+    // (saleToList > 0) are the denominator, so the monthly trend matches the
+    // cost-to-win block's eligibility rule.
+    overAskShare: (() => {
+      const ratioRows = monthRows.filter((row) => row.saleToList > 0);
+      return ratioRows.length ? ratioRows.filter((row) => row.saleToList > 1).length / ratioRows.length : null;
+    })(),
     medianPsf: medianValue(monthRows.map((row) => row.pricePerSqft).filter((value) => value > 0)),
     hotShare: monthRows.length ? monthRows.filter((row) => row.isHotMarket).length / monthRows.length : null,
     medianDom: medianValue(monthRows.map((row) => domMetric(row)).filter((value) => value !== null && value !== undefined)),
@@ -2824,6 +2435,10 @@ function bindEvents() {
 
   app.addEventListener("click", (event) => {
     const target = event.target;
+    // Explain popovers are handled by the document-level listener in
+    // src/ui/explain.mjs; without this guard a trigger inside an insight tile
+    // would also fire the tile's data-switch-view action.
+    if (target.closest?.(".explain-trigger, .explain-pop")) return;
     const switchView = target.closest("[data-switch-view]");
     if (switchView) return setActiveView(switchView.dataset.switchView);
 
@@ -2985,6 +2600,9 @@ function bindEvents() {
     // chart points/bars. el.click() re-enters the click delegation above, so
     // activation logic lives in exactly one place.
     if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+      // Explain triggers are real buttons: let the browser produce their click
+      // instead of synthesizing one on the surrounding tile.
+      if (event.target.closest?.(".explain-trigger, .explain-pop")) return;
       const activatable = event.target.closest('[role="button"][tabindex], .chart-point, .insight-tile');
       if (activatable && !activatable.closest(".tab")) {
         event.preventDefault();
@@ -3164,6 +2782,7 @@ function init() {
   initTheme();
   initBuyerProfileToggle();
   bindEvents();
+  initExplainLayer(app, { getMetric: (metricId) => getExplainEntry(metricId, state) });
   loadRefreshReport();
   loadBuyerProfileMemory();
   loadAffordabilityConfig();
