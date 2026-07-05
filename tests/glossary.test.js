@@ -10,6 +10,7 @@ async function importModule(relativePath) {
 }
 
 const REQUIRED_METRIC_IDS = [
+  // Overview
   "medianClose",
   "medianPsf",
   "overAskRatio",
@@ -22,9 +23,57 @@ const REQUIRED_METRIC_IDS = [
   "savedMatches",
   "bidQueue",
   "freshness",
+  // Pulse
+  "pulseSalesCount",
+  "pulseFastSaleShare",
+  "pulseMedianDom",
+  "pulseMedianSaleToList",
+  "pulseMedianBidUp",
+  "pulseMedianClose",
+  "pulseWeeklyGrain",
+  "competitionPockets",
+  "watchlistPockets",
+  // Bids / Offer Lab
+  "suggestedBid",
+  "bidRange",
+  "bidConfidence",
+  "bidCompBasis",
+  "suggestedSaleList",
+  "bidMedianOverAsk",
+  // Afford
+  "affordDecision",
+  "affordMaxComfortable",
+  "affordMaxStretch",
+  "affordCarry",
+  "affordFreeCashFlow",
+  "affordPostCloseLiquidity",
+  "affordDeployable",
+  "affordTier",
+  // Geo
+  "geoPressure",
+  // Records
+  "recordSource",
+  "recordAsk",
+  "recordDom",
+  "recordSaleToList",
+  "recordBidUp",
+  "recordHot",
+  "projectedClose",
+  // Data
+  "dataValidation",
+  "dataRowCounts",
+  "dataSourceCadence",
 ];
 
-const REQUIRED_UNIVERSE_IDS = ["allRows", "closedSlice", "savedMatches", "actives"];
+const REQUIRED_UNIVERSE_IDS = [
+  "allRows",
+  "closedSlice",
+  "savedMatches",
+  "actives",
+  "pulseWatchlist",
+  "recordRows",
+  "affordScenario",
+];
 
 const VALID_SOURCE_IDS = ["kc-assessor", "redfin", "mls-manual", "derived"];
 const VALID_BUYER_DIRECTIONS = ["higherIsWorse", "higherIsBetter", "neutral"];
@@ -80,6 +129,112 @@ test("buyerDirection values are valid and match buyer semantics", async () => {
   assert.equal(glossary.METRICS.fastSaleShare.buyerDirection, "higherIsWorse");
   assert.equal(glossary.METRICS.medianDom.buyerDirection, "higherIsBetter");
   assert.equal(glossary.METRICS.activePending.buyerDirection, "higherIsBetter");
+  // Same conventions on the per-tab entries.
+  assert.equal(glossary.METRICS.pulseMedianDom.buyerDirection, "higherIsBetter");
+  assert.equal(glossary.METRICS.pulseMedianSaleToList.buyerDirection, "higherIsWorse");
+  assert.equal(glossary.METRICS.pulseMedianBidUp.buyerDirection, "higherIsWorse");
+  assert.equal(glossary.METRICS.suggestedSaleList.buyerDirection, "higherIsWorse");
+  assert.equal(glossary.METRICS.bidConfidence.buyerDirection, "higherIsBetter");
+  assert.equal(glossary.METRICS.affordCarry.buyerDirection, "higherIsWorse");
+  assert.equal(glossary.METRICS.affordMaxComfortable.buyerDirection, "higherIsBetter");
+  assert.equal(glossary.METRICS.affordFreeCashFlow.buyerDirection, "higherIsBetter");
+  assert.equal(glossary.METRICS.recordDom.buyerDirection, "higherIsBetter");
+  assert.equal(glossary.METRICS.recordSaleToList.buyerDirection, "higherIsWorse");
+  assert.equal(glossary.METRICS.recordBidUp.buyerDirection, "higherIsWorse");
+  assert.equal(glossary.METRICS.geoPressure.buyerDirection, "higherIsWorse");
+});
+
+test("tab entries stay grounded in the real thresholds and universes", async () => {
+  const glossary = await importModule("src/domain/glossary.mjs");
+  const M = glossary.METRICS;
+
+  // Pulse: 90-day compare windows over MLS-enriched watchlist rows.
+  for (const id of ["pulseSalesCount", "pulseFastSaleShare", "pulseMedianDom", "pulseMedianSaleToList", "pulseMedianBidUp", "pulseMedianClose"]) {
+    assert.equal(M[id].universeId, "pulseWatchlist", `${id} must compute over the watchlist universe`);
+    assert.match(M[id].formulaWords, /90/, `${id} must state the 90-day window`);
+  }
+  assert.match(M.pulseWeeklyGrain.formulaWords, /7-day week/);
+  assert.match(M.pulseWeeklyGrain.formulaWords, /fewer than 5 sales/);
+  assert.match(M.watchlistPockets.plain, /Ballard/);
+  assert.match(M.watchlistPockets.plain, /Magnolia/);
+
+  // Bids: BID_MIN_COMPS=6, 90-day comp window, strategy percentiles,
+  // clamp 0.90x-1.25x, confidence bands at 75/55 (selectors.mjs).
+  assert.match(M.suggestedBid.formulaWords, /50th/);
+  assert.match(M.suggestedBid.formulaWords, /60th/);
+  assert.match(M.suggestedBid.formulaWords, /70th/);
+  assert.match(M.suggestedBid.caveats.join(" "), /0\.90x/);
+  assert.match(M.suggestedBid.caveats.join(" "), /1\.25x/);
+  assert.match(M.bidCompBasis.formulaWords, /6 /);
+  assert.match(M.bidCompBasis.formulaWords, /90 days/);
+  assert.match(M.bidConfidence.formulaWords, /75/);
+  assert.match(M.bidConfidence.formulaWords, /55/);
+
+  // Records: projection needs 6 comps with 25th/75th band; hot tags at 5/10 days.
+  assert.match(M.projectedClose.formulaWords, /6 /);
+  assert.match(M.projectedClose.formulaWords, /25th/);
+  assert.match(M.projectedClose.formulaWords, /75th/);
+  assert.match(M.recordHot.formulaWords, /5 days/);
+  assert.match(M.recordHot.formulaWords, /10 days/);
+  assert.match(M.recordAsk.formulaWords, /tax-assessed/);
+
+  // Geo: legend buckets from ratioColor in main.mjs.
+  assert.match(M.geoPressure.formulaWords, /0\.90x/);
+  assert.match(M.geoPressure.formulaWords, /1\.10x/);
+
+  // Afford entries never claim a market source: they are scenario math.
+  for (const id of ["affordDecision", "affordMaxComfortable", "affordMaxStretch", "affordCarry", "affordFreeCashFlow", "affordPostCloseLiquidity", "affordDeployable", "affordTier"]) {
+    assert.equal(M[id].source.id, "derived", `${id} must be derived, not a market source`);
+    assert.equal(M[id].universeId, "affordScenario", `${id} must compute over the scenario universe`);
+  }
+
+  // Data: validation checks from scripts/validate_data_refresh.js.
+  assert.match(M.dataValidation.formulaWords, /asking price/);
+  assert.match(M.dataValidation.formulaWords, /columns/);
+});
+
+test("known copy fixes hold: honest fast-sale rule, no duplicated lag caveat", async () => {
+  const glossary = await importModule("src/domain/glossary.mjs");
+  const M = glossary.METRICS;
+
+  // fastSaleShare membership is DOM<=10 OR the pipeline hot tag, not a pure
+  // pending-in-10-days rule; the copy must admit the tag-only exceptions.
+  assert.match(M.fastSaleShare.formulaWords, /hot-sale tag/);
+  assert.ok(
+    !/went pending in 10 days or less\.$/.test(M.fastSaleShare.formulaWords.trim()),
+    "fastSaleShare must not claim a pure 10-day-pending rule"
+  );
+
+  // medianClose: the 2-week county lag lives in the cadence sentence only, so
+  // the popover states it once instead of twice.
+  assert.match(M.medianClose.cadence, /2 weeks/);
+  assert.ok(
+    !M.medianClose.caveats.some((caveat) => /2 weeks/.test(caveat)),
+    "medianClose caveats must not repeat the county-lag cadence note"
+  );
+
+  // freshness: the red-warning caveat is the short single-sentence version.
+  assert.ok(
+    M.freshness.caveats.includes(
+      "A red warning means the last data refresh failed its checks, not that the data is a few days old."
+    ),
+    "freshness must carry the shortened red-warning caveat"
+  );
+  assert.ok(
+    !M.freshness.caveats.some((caveat) => /1 to 3 weeks/.test(caveat)),
+    "freshness caveats must not repeat the county-rhythm cadence note"
+  );
+});
+
+test("popover copy stays short: plain + formula + caveats under 150 words", async () => {
+  const glossary = await importModule("src/domain/glossary.mjs");
+  for (const [key, entry] of Object.entries(glossary.METRICS)) {
+    const words = [entry.plain, entry.formulaWords, ...entry.caveats]
+      .join(" ")
+      .split(/\s+/)
+      .filter(Boolean).length;
+    assert.ok(words <= 150, `${key} popover copy is ${words} words; keep it under 150`);
+  }
 });
 
 test("copy stays grounded and plain: 10-day fast-sale rule, no em dashes, no emojis", async () => {
