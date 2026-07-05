@@ -17,7 +17,7 @@ PROJECT_DIR="/Users/evanbarley-greenfield/repos/seattle-tracker"
 LOG_DIR="$PROJECT_DIR/tmp"
 LOG_FILE="$LOG_DIR/refresh_actives_daily.log"
 NPM=/usr/local/bin/npm
-DEPLOY_BRANCH="codex/staging-buyer-profile-toggle"
+DEPLOY_BRANCH="main"
 
 mkdir -p "$LOG_DIR"
 {
@@ -35,6 +35,14 @@ mkdir -p "$LOG_DIR"
 
   echo "build (deploy gate)"
   if "$NPM" run build; then
+    # Only commit/push when the checkout is actually on the deploy branch, so
+    # a morning run never entangles data with someone's in-progress feature branch.
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$CURRENT_BRANCH" != "$DEPLOY_BRANCH" ]; then
+      echo "on ${CURRENT_BRANCH}, not ${DEPLOY_BRANCH}; refreshed data left local (no commit/push)"
+      echo "DONE"
+      exit 0
+    fi
     echo "stage data (surgical: derived data only, not dev/untracked files)"
     git add \
       public/*.csv public/*.json \
@@ -47,7 +55,7 @@ mkdir -p "$LOG_DIR"
       git commit -m "Daily data refresh $(date +%F)" || true
       echo "rebase on remote + push to ${DEPLOY_BRANCH} (best effort)"
       if git pull --rebase origin "$DEPLOY_BRANCH" && git push origin "$DEPLOY_BRANCH"; then
-        echo "pushed; preview Pages deploy triggered"
+        echo "pushed; Pages deploy triggered"
       else
         echo "push skipped (conflict/offline); commit kept local for next run"
         git rebase --abort 2>/dev/null || true
