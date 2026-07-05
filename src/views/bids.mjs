@@ -153,8 +153,8 @@ export function renderBidsView(deps) {
                 ${bidTh("neighborhood", "Neighborhood")}
                 ${bidTh("type", "Type")}
                 ${bidTh("originalListPrice", "Original List")}
-                ${bidTh("pendingListPrice", "List@Pending")}
-                ${bidTh("dom", "DOM/CDOM")}
+                ${bidTh("pendingListPrice", "List at pending")}
+                ${bidTh("dom", "Days on market")}
                 ${bidTh("suggestedBid", "Suggested Bid", "suggestedBid")}
                 ${bidTh("bidRange", "Bid Range", "bidRange")}
                 ${bidTh("ratio", "Bid vs Ask", "suggestedSaleList")}

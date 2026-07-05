@@ -152,7 +152,7 @@ export function renderPulseView(deps) {
       <div id="pulseReadout" class="readout">${pulseReadout(snapshot)}</div>
       <div class="chart-grid">
         ${chartPanel("Fast-sale share", "pulseChartHotShare", pulseChartSvg("hotShare", snapshot), chartSummary(snapshot.selectedMonthlySeries, "hotShare"), chartGuide("hotShare", "line"), chartInsight("hotShare"), "pulseFastSaleShare")}
-        ${chartPanel("Median DOM", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"), chartInsight("medianDom"), "pulseMedianDom")}
+        ${chartPanel("Median days on market", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"), chartInsight("medianDom"), "pulseMedianDom")}
         ${chartPanel("Sale/List price pressure", "pulseChartSaleToList", pulseChartSvg("medianSaleToList", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"), "pulseMedianSaleToList")}
         ${chartPanel("Bid-up price pressure", "pulseChartBidUp", pulseChartSvg("medianBidUp", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianBidUp"), chartGuide("medianBidUp", "line"), chartInsight("medianBidUp"), "pulseMedianBidUp")}
         ${chartPanel("Close price band", "pulseChartClosePrice", pulseChartSvg("medianClosePrice", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"), "pulseMedianClose")}
@@ -452,7 +452,7 @@ function pulseReadout(snapshot) {
   }
   if (recent90.current.medianDom !== null) {
     bullets.push({
-      text: `Median DOM is ${Math.round(recent90.current.medianDom)} days.`,
+      text: `Median days on market is ${Math.round(recent90.current.medianDom)} days.`,
       explainId: "pulseMedianDom",
     });
   }

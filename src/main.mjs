@@ -790,7 +790,7 @@ function pulseMetricConfig(key) {
   if (key === "activeInventory") return { label: "Active + Pending", format: (value) => formatWholeNumber(value || 0), delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}` };
   if (key === "hotShare") return { label: "Fast-Sale Share", format: (value) => value === null ? "n/a" : formatPct(value), delta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts` };
   if (key === "overAskShare") return { label: "Share Sold Over Ask", format: (value) => value === null ? "n/a" : formatPct(value), delta: (value) => `${value >= 0 ? "+" : ""}${((value || 0) * 100).toFixed(1)} pts` };
-  if (key === "medianDom") return { label: "Median DOM", format: (value) => value === null ? "n/a" : `${Math.round(value)}d`, delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}d` };
+  if (key === "medianDom") return { label: "Median days on market", format: (value) => value === null ? "n/a" : `${Math.round(value)}d`, delta: (value) => `${value >= 0 ? "+" : ""}${Math.round(value || 0)}d` };
   if (key === "medianSaleToList") return { label: "Median Sale/List", format: (value) => value === null ? "n/a" : `${value.toFixed(2)}x`, delta: (value) => `${value >= 0 ? "+" : ""}${(value || 0).toFixed(3)}x` };
   if (key === "medianBidUp") return { label: "Median Bid-Up", format: (value) => value === null ? "n/a" : formatMoneyCompact(value), delta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}` };
   if (key === "medianPsf") return { label: "Median $/Sqft", format: (value) => value === null ? "n/a" : `$${Math.round(value)}`, delta: (value) => `${value >= 0 ? "+" : ""}$${Math.round(value || 0)}` };

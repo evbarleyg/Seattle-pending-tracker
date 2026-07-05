@@ -194,6 +194,11 @@ function liveCoverageNote(metric, state) {
     default:
       break;
   }
+  // Geo shares the recordRows universe but "record view" is Records-tab
+  // wording; the map gets its own phrasing for the same count.
+  if (metric.id === "geoPressure") {
+    return `Right now ${formatWholeNumber((state?.derived?.viewRows || []).length)} rows feed the map, counting closed, projected, and open rows together.`;
+  }
   // Otherwise the glossary's own universe decides which live count fits, so
   // every tab's popovers stay honest without a per-id case here: Pulse ids
   // count the watchlist, Records and Geo ids count the record view, Afford
