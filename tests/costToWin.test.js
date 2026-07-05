@@ -288,3 +288,55 @@ test("buildCostToWinVerdict accepts injected formatters", async () => {
     "About half of winners paid list price or less; when buyers went over, the typical premium was US$35,000 (4 percent)."
   );
 });
+
+// Dollar-backed comp: normalizeRow confirmed listPriceAtPending came straight
+// from a listing column (hasDollarListPrice), so dollars outrank the ratio.
+function dollarComp(listPriceAtPending, closePrice, saleToList) {
+  return { hasMarketListPrice: true, hasDollarListPrice: true, listPriceAtPending, closePrice, saleToList };
+}
+
+test("computeCostToWin prefers dollar columns over a rounded or contradictory CSV ratio", async () => {
+  const { computeCostToWin } = await importModule("src/domain/costToWin.mjs");
+  const rows = [
+    // CSV ratio rounded to 1.00, but the dollars show a $4,000 over-ask win.
+    dollarComp(1_000_000, 1_004_000, 1.0),
+    // CSV ratio says over ask, dollars say $10,000 under: dollars win.
+    dollarComp(1_000_000, 990_000, 1.01),
+    // Dollars equal (ratio noise notwithstanding): counts as at ask.
+    dollarComp(800_000, 800_000, 1.0000001),
+    // Ratio-only row still classified via the ratio path.
+    comp(1.05, 1_050_000),
+  ];
+
+  const stats = computeCostToWin(rows);
+  assert.equal(stats.eligibleCount, 4);
+  assert.equal(stats.overCount, 2);
+  assert.equal(stats.atCount, 1);
+  assert.equal(stats.underCount, 1);
+  // Premium dollars come from the actual list price, not close / ratio.
+  // Over-ask USD values sorted: [4000, 50000] -> median 27000.
+  assertClose(stats.medianPremiumUsdWhenOver, 27_000, 1e-3, "medianPremiumUsd");
+  // Premium pcts sorted: [0.004, 0.05] -> median 0.027.
+  assertClose(stats.medianPremiumPctWhenOver, 0.027, 1e-9, "medianPremiumPct");
+  assertClose(stats.medianDiscountUsdWhenUnder, 10_000, 1e-3, "medianDiscountUsd");
+  assertClose(stats.medianDiscountPctWhenUnder, 0.01, 1e-9, "medianDiscountPct");
+});
+
+test("computeCostToWin ignores the dollar path when the flagged list price is unusable", async () => {
+  const { computeCostToWin } = await importModule("src/domain/costToWin.mjs");
+  const rows = [
+    // Flagged dollar-backed but the list price is 0: falls back to the ratio.
+    { hasMarketListPrice: true, hasDollarListPrice: true, listPriceAtPending: 0, closePrice: 1_020_000, saleToList: 1.02 },
+    // hasDollarListPrice false: listPriceAtPending may be an assessed-value
+    // fallback and must NOT be trusted even though it is present.
+    { hasMarketListPrice: true, hasDollarListPrice: false, listPriceAtPending: 700_000, closePrice: 980_000, saleToList: 0.98 },
+  ];
+
+  const stats = computeCostToWin(rows);
+  assert.equal(stats.eligibleCount, 2);
+  assert.equal(stats.overCount, 1);
+  assert.equal(stats.underCount, 1);
+  // Both derived from the ratio path: implied lists of $1,000,000 each.
+  assertClose(stats.medianPremiumUsdWhenOver, 20_000, 1e-3, "medianPremiumUsd");
+  assertClose(stats.medianDiscountUsdWhenUnder, 20_000, 1e-3, "medianDiscountUsd");
+});

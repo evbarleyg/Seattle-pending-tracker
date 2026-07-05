@@ -31,17 +31,28 @@ export function percentile(values, q) {
 // AND it carries a real, non-imputed list price. The provenance flag is
 // hasMarketListPrice (set in data.mjs normalizeRow); county PUBLIC_PROXY rows
 // fall back to the tax-assessed value in pendingListPrice, so anything not
-// flagged must be excluded or we would chart close-vs-assessed. We also require
-// saleToList > 0 because 0 is the normalizer's "unavailable" sentinel.
+// flagged must be excluded or we would chart close-vs-assessed.
 //
-// Dollar figures are derived from the trusted pair (closePrice, saleToList):
-// impliedList = closePrice / saleToList. This stays consistent with the
-// over/at/under classification even for rows whose ratio came straight from
-// the CSV while their pendingListPrice field holds an assessed-value fallback.
+// Two bases, in order of trust:
+// 1. Dollar columns. When normalizeRow's hasDollarListPrice flag says
+//    listPriceAtPending came straight from a listing column (not the
+//    assessed-value/close-price fallback), classify and measure with real
+//    dollars: close minus list. CSV saleToListRatio values can arrive rounded
+//    (1.00 for a sale $4k over ask) or contradict the dollar columns, so the
+//    dollars win whenever both exist.
+// 2. The CSV ratio, for rows flagged hasMarketListPrice without a usable
+//    dollar list price. Dollar figures are then reconstructed as
+//    impliedList = closePrice / saleToList; we require saleToList > 0 because
+//    0 is the normalizer's "unavailable" sentinel.
 //
 // Shares are fractions of eligibleCount (0..1). Share and median fields are
 // null when their basis is empty (no eligible rows, no over-ask rows, no
 // under-ask rows) so the UI can say "n/a" rather than show a fake zero.
+
+// Dollar-backed sales within a dollar of list count as "at list": sub-dollar
+// differences are rounding noise, matching data.mjs's saleEqualsList rule.
+const AT_LIST_DOLLAR_EPSILON = 1;
+
 export function computeCostToWin(rows) {
   const data = Array.isArray(rows) ? rows : [];
   const totalCount = data.length;
@@ -49,11 +60,16 @@ export function computeCostToWin(rows) {
   const eligible = [];
   for (const row of data) {
     if (!row || !row.hasMarketListPrice) continue;
-    const ratio = Number(row.saleToList);
     const close = Number(row.closePrice);
-    if (!Number.isFinite(ratio) || ratio <= 0) continue;
     if (!Number.isFinite(close) || close <= 0) continue;
-    eligible.push({ ratio, close });
+    const dollarList = row.hasDollarListPrice ? Number(row.listPriceAtPending) : 0;
+    if (Number.isFinite(dollarList) && dollarList > 0) {
+      eligible.push({ close, list: dollarList, dollarBacked: true });
+      continue;
+    }
+    const ratio = Number(row.saleToList);
+    if (!Number.isFinite(ratio) || ratio <= 0) continue;
+    eligible.push({ close, ratio, dollarBacked: false });
   }
 
   const overPcts = [];
@@ -63,6 +79,19 @@ export function computeCostToWin(rows) {
   let atCount = 0;
 
   for (const entry of eligible) {
+    if (entry.dollarBacked) {
+      const diff = entry.close - entry.list;
+      if (Math.abs(diff) < AT_LIST_DOLLAR_EPSILON) {
+        atCount += 1;
+      } else if (diff > 0) {
+        overPcts.push(diff / entry.list);
+        overUsds.push(diff);
+      } else {
+        underPcts.push(-diff / entry.list);
+        underUsds.push(-diff);
+      }
+      continue;
+    }
     const impliedList = entry.close / entry.ratio;
     if (Math.abs(entry.ratio - 1) <= AT_LIST_EPSILON) {
       atCount += 1;

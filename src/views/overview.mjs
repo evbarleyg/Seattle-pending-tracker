@@ -96,7 +96,14 @@ function persistBaseline(sliceKey, baseline) {
 function getSliceChanges(state, universeRows) {
   const sliceKey = sliceIdentity(state);
   const cached = sessionDiffs.get(sliceKey);
-  if (cached) return { diff: cached, sliceKey, shouldCapture: false };
+  if (cached) {
+    // Browsing several slices in one session can prune this slice's stored
+    // baseline (persistBaseline keeps only the freshest few). Re-persist on
+    // revisit so the slice's memory survives into the next session instead
+    // of being silently lost.
+    const stillStored = isValidBaseline(loadBaselineStore().slices[sliceKey] || null);
+    return { diff: cached, sliceKey, shouldCapture: !stillStored };
+  }
   const stored = loadBaselineStore().slices[sliceKey] || null;
   const diff = diffSinceBaseline(isValidBaseline(stored) ? stored : null, universeRows);
   sessionDiffs.set(sliceKey, diff);
@@ -308,7 +315,7 @@ function goodTimeBannerHtml() {
   const { state } = ctx;
   const v = buyerVerdict(state.derived?.sliceMonthlySeries || []);
   const latest = state.derived?.latestSaleDate || "";
-  const asOf = latest ? ` Based on sales recorded through ${formatDateShort(latest)} in this slice; the partial current month is excluded.` : "";
+  const asOf = latest ? ` Based on sales recorded through ${formatDateShort(latest)} in this slice. If the current month is still filling in, it is left out of the comparison.` : "";
   return `
     <section class="section-block market-verdict ${v.tone}" aria-label="Is now a good time to buy">
       <p class="eyebrow">Is now a good time?</p>
@@ -361,7 +368,7 @@ function freshnessCardHtml() {
   return `
     <article class="state-panel${pipelineFailed ? " alert" : ""}">
       <div class="panel-kicker">Freshness ${renderExplainButton("freshness")}</div>
-      <h2>${esc(latestSale ? `Newest sale ${formatDateShort(latestSale)}` : "No sale dates")}</h2>
+      <h2>${esc(latestSale ? `Newest sale ${formatDateShort(latestSale)}` : "No closed sales in this slice yet")}</h2>
       <p>${esc(statusLine)} ${esc(cadenceLine)}</p>
       ${renderUniverseCaption({ count: state.dataSource.rowCount, universeLabel: "rows loaded before filters" })}
     </article>`;
@@ -429,7 +436,7 @@ function commandCenterCardsHtml(costToWin) {
       caption: renderUniverseCaption({ count: costToWin.eligibleCount, universeLabel: "comps with a real list price", windowLabel: window }),
     }),
     insightTileHtml({
-      label: "Median DOM",
+      label: "Median days on market",
       value: stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`,
       metricKey: "medianDom",
       series: sliceSeries,
@@ -522,7 +529,7 @@ function costToWinSectionHtml(ctw) {
     const statItems = [];
     if (ctw.overCount > 0) {
       statItems.push(statItem(
-        "Typical premium when over",
+        "Typical premium when over ask",
         `${formatMoneyCompact(ctw.medianPremiumUsdWhenOver)} (${formatPct(ctw.medianPremiumPctWhenOver)})`,
         "typicalPremiumWhenOver"
       ));
@@ -531,7 +538,7 @@ function costToWinSectionHtml(ctw) {
     }
     if (ctw.underCount > 0) {
       statItems.push(statItem(
-        "Typical discount when under",
+        "Typical discount when under ask",
         `${formatMoneyCompact(ctw.medianDiscountUsdWhenUnder)} (${formatPct(ctw.medianDiscountPctWhenUnder)})`
       ));
     }
@@ -739,7 +746,7 @@ export function renderOverviewView(deps) {
           <p id="buyerProfileSummary">${esc(profile.summary)}</p>
           <div class="chip-row" id="buyerProfileTraits">${profile.traits.map((trait) => `<span class="chip">${esc(trait)}</span>`).join("")}</div>
           <div id="buyerProfileInsights" class="insight-list">
-            <p>${esc(state.buyerProfile.enabled ? `${cohort.summary.count} homes in this slice match your saved-home profile.` : "Saved-home cohorting is paused for this browser.")}</p>
+            <p>${esc(state.buyerProfile.enabled ? `${cohort.summary.count} homes in this slice match your saved-home profile.` : "Saved-home matching is paused in this browser.")}</p>
             <p>${esc(cohort.summary.topMicromarket ? `${cohort.summary.topMicromarket} is the strongest matching micromarket right now.` : "No dominant matching micromarket in this slice yet.")}</p>
           </div>
         </article>
