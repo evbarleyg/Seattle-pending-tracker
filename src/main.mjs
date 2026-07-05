@@ -32,50 +32,32 @@ import {
   PRICE_SLIDER_CAP,
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_STEP,
-  countyRecordUrl,
   domMetric,
-  hotCategory,
   parseCsv,
   specialSaleFilterLabel,
   zillowUrl,
 } from "./domain/data.mjs";
 import {
-  daysAgo,
-  formatDateShort,
   formatDateTime,
-  formatLot,
   formatMoney,
   formatMoneyCompact,
-  formatMoneyOrNa,
   formatPct,
-  formatPricePerSqft,
-  formatRatio,
   formatWholeNumber,
   monthLabelCompact,
-  num,
   esc,
-  toIso,
 } from "./domain/format.mjs";
-import {
-  PULSE_GROUPS,
-  competitiveDelta,
-  metricDirection,
-  rollingAverage,
-} from "./domain/pulseMetrics.mjs";
 import {
   DEFAULT_PROFILE_MEMORY,
   normalizeProfileMemory,
   profileScore,
 } from "./domain/buyerProfile.mjs";
-import { computeAffordability, affordabilityGrid } from "./domain/affordability.mjs";
+import { computeAffordability } from "./domain/affordability.mjs";
 import {
   BID_STRATEGIES,
   DESKTOP_PAGE_SIZE,
   MOBILE_PAGE_SIZE,
   applyBidViewInteractions,
-  bidTierLabel,
   buildBidCompPool,
-  computeBidCompTiers,
   buildOptions,
   buildPulseSnapshot,
   computeActiveBidSuggestions,
@@ -84,19 +66,20 @@ import {
   createEmptyInteractions,
   exportRowsToCsv,
   filtersToSummary,
-  getBidSortValue,
-  getRecordSortValue,
   mergeAffordabilityTier,
   mergeBidFields,
   matchesSharedGlobalFilters,
   normalizeFilters,
-  paginateRows,
   recordViewLabel,
-  scoreBidForRow,
-  sortRows,
 } from "./domain/selectors.mjs";
 import { initExplainLayer } from "./ui/explain.mjs";
 import { getExplainEntry, renderOverviewView } from "./views/overview.mjs";
+import { renderPulseView } from "./views/pulse.mjs";
+import { renderBidsView } from "./views/bids.mjs";
+import { renderAffordView } from "./views/afford.mjs";
+import { renderRecordsView } from "./views/records.mjs";
+import { renderGeoView } from "./views/geo.mjs";
+import { renderDataView } from "./views/data.mjs";
 
 const LUCIDE_ICONS = {
   Activity,
@@ -290,13 +273,6 @@ function propertyAddressText(row) {
 function propertyAddressLink(row, extraClass = "") {
   const label = propertyAddressText(row);
   return `<a class="address-link ${esc(extraClass)}" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer" aria-label="Open Zillow for ${esc(label)}"><span class="address-link-text">${esc(label)}</span><span class="external-link-label">Zillow</span>${icon("external-link")}</a>`;
-}
-
-function propertyPopupLink(row) {
-  const kc = countyRecordUrl(row);
-  const zillowLink = `<a class="map-popup-link" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer">Zillow</a>`;
-  const kcLink = kc ? `<a class="map-popup-link" href="${esc(kc)}" target="_blank" rel="noopener noreferrer">KC parcel</a>` : "";
-  return `<div class="map-popup-actions">${zillowLink}${kcLink}</div>`;
 }
 
 function applyTheme(theme) {
@@ -521,7 +497,7 @@ function renderDashboard() {
   if (!state.normalizedRows.length) {
     renderFilterControls();
     renderLoadingState();
-    renderDataView();
+    renderDataView(dataDeps());
     refreshIcons();
     return;
   }
@@ -705,19 +681,20 @@ function renderView(view) {
   if (!state.mountedViews.has(view)) state.mountedViews.add(view);
   if (!state.dirtyViews.has(view) && view !== "geo") return;
   if (view === "overview") renderOverviewView(overviewDeps());
-  if (view === "pulse") renderPulseView();
-  if (view === "bids") renderBidsView();
-  if (view === "afford") renderAffordView();
-  if (view === "records") renderRecordsView();
-  if (view === "data") renderDataView();
+  if (view === "pulse") renderPulseView(pulseDeps());
+  if (view === "bids") renderBidsView(bidsDeps());
+  if (view === "afford") renderAffordView(affordDeps());
+  if (view === "records") renderRecordsView(recordsDeps());
+  if (view === "data") renderDataView(dataDeps());
   if (view === "geo") {
-    renderGeoView();
+    renderGeoView(geoDeps());
   }
   state.dirtyViews.delete(view);
 }
 
-// The Overview renderer lives in src/views/overview.mjs; it receives app
-// state plus the shared chart helpers through this deps object on each render.
+// Every tab renderer lives in src/views/*.mjs; main.mjs stays the owner of
+// app state and the shared helpers, and hands them to each view through a
+// per-view deps object on every render.
 function overviewDeps() {
   return {
     state,
@@ -733,144 +710,79 @@ function overviewDeps() {
   };
 }
 
+function pulseDeps() {
+  return {
+    state,
+    qs,
+    chartData,
+    chartDomain,
+    chartMetricLabel,
+    formatChartValue,
+    pulseMetricConfig,
+    medianValue,
+    groupRows,
+    buildSliceMonthlySeries,
+    minTileComps: MIN_TILE_COMPS,
+  };
+}
+
+function bidsDeps() {
+  return {
+    state,
+    qs,
+    miniMetric,
+    buttonIcon,
+    optionHtml,
+    propertyAddressLink,
+    affordTierBadge,
+    currentPageSize,
+    paginationControls,
+  };
+}
+
+function affordDeps() {
+  return {
+    state,
+    qs,
+    miniMetric,
+    buttonIcon,
+    refreshIcons,
+  };
+}
+
+function recordsDeps() {
+  return {
+    state,
+    qs,
+    propertyAddressLink,
+    affordTierBadge,
+    currentPageSize,
+    paginationControls,
+  };
+}
+
+function geoDeps() {
+  return {
+    state,
+    qs,
+    buttonIcon,
+    refreshIcons,
+    markDirty,
+    propertyAddressText,
+    propertyAddressLink,
+    affordTierMeta: AFFORD_TIER_META,
+  };
+}
+
+function dataDeps() {
+  return {
+    state,
+    qs,
+  };
+}
+
 function miniMetric(label, value) {
   return `<div class="mini-metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
-}
-
-function renderPulseView() {
-  const wrap = qs("#view-pulse");
-  if (!wrap || !state.derived) return;
-  const snapshot = state.derived.pulse;
-  const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
-  const sliceRows = state.derived.slices.closedSlice;
-  const sliceSeries = buildSliceMonthlySeries(sliceRows);
-  const weekly = state.pulseSliceGrain === "week";
-  const weeklySeries = weekly ? buildSliceWeeklySeries(sliceRows) : [];
-  // Volume + median price/$sqft support weekly grain (saleDate is reliable);
-  // sale/list does NOT (ratio coverage collapses to single digits weekly).
-  const volSeries = weekly ? weeklySeries : sliceSeries;
-  const priceSeries = weekly ? weeklySeries : sliceSeries;
-  const grainOpts = weekly ? { xAxisTitle: "Sale week" } : {};
-  const pockets = competitionPocketEntries(sliceRows);
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head">
-        <div>
-          <p class="eyebrow">Pulse</p>
-          <h2>Is my watchlist heating up?</h2>
-        </div>
-        <div class="segmented" id="pulseModeToggles">
-          <button type="button" class="scope-pill ${state.pulseTimelineMode !== "combined" ? "active" : ""}" data-pulse-mode="compare">Compare</button>
-          <button type="button" class="scope-pill ${state.pulseTimelineMode === "combined" ? "active" : ""}" data-pulse-mode="combined">Combined</button>
-        </div>
-      </section>
-      <div class="scope-row" id="pulseGroupPills">
-        ${PULSE_GROUPS.map((group) => `<button class="scope-pill ${snapshot.selectedGroup === group.id ? "active" : ""}" type="button" data-pulse-group="${esc(group.id)}">${esc(group.label)}</button>`).join("")}
-      </div>
-      <div id="pulseStatus" class="note">Showing ${esc(snapshot.selectedLabel)} across ${formatWholeNumber(snapshot.selectedRows.length)} MLS-enriched closed rows.</div>
-      <div class="pulse-grid" id="pulseRecentGrid">
-        ${["salesCount", "hotShare", "medianDom", "medianSaleToList", "medianBidUp", "medianClosePrice"].map((key) => pulseMetricCard(key, recent90)).join("")}
-      </div>
-      <div id="pulseReadout" class="readout">${pulseReadout(snapshot)}</div>
-      <div class="chart-grid">
-        ${chartPanel("Fast-sale share", "pulseChartHotShare", pulseChartSvg("hotShare", snapshot), chartSummary(snapshot.selectedMonthlySeries, "hotShare"), chartGuide("hotShare", "line"), chartInsight("hotShare"))}
-        ${chartPanel("Median DOM", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"), chartInsight("medianDom"))}
-        ${chartPanel("Sale/List price pressure", "pulseChartSaleToList", pulseChartSvg("medianSaleToList", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
-        ${chartPanel("Bid-up price pressure", "pulseChartBidUp", pulseChartSvg("medianBidUp", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianBidUp"), chartGuide("medianBidUp", "line"), chartInsight("medianBidUp"))}
-        ${chartPanel("Close price band", "pulseChartClosePrice", pulseChartSvg("medianClosePrice", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
-      </div>
-      <section class="section-block">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">Watchlist comparison</p>
-            <h3>Sale/List trajectory by pocket</h3>
-          </div>
-        </div>
-        <p class="note">Use this to separate broad buyer pressure from a single neighborhood spike.</p>
-        <div id="pulseTrajectory" class="trajectory-grid">
-          ${pulseTrajectoryCards(snapshot)}
-        </div>
-      </section>
-      <section class="section-block" id="pulseSliceTrends">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">Whole-slice trends</p>
-            <h3>How the current filter band is moving</h3>
-          </div>
-        </div>
-        <div class="trends-controls">
-          <div class="segmented" id="pulseGrainToggles" role="group" aria-label="Trend grain">
-            <button type="button" class="scope-pill ${!weekly ? "active" : ""}" data-pulse-grain="month">Monthly</button>
-            <button type="button" class="scope-pill ${weekly ? "active" : ""}" data-pulse-grain="week">Weekly</button>
-          </div>
-        </div>
-        <p class="note">${weekly
-          ? "Each point is one calendar week keyed on sale date (not a rolling average), so you read genuine week-to-week movement. The newest week is partial and de-weighted; weeks with fewer than 5 sales show volume only — a thin-week median would whipsaw. Sale/list, pending and DOM stay on monthly grain (too sparse weekly)."
-          : "These are the old Charts view, kept here so the context sits beside the watchlist pulse."}</p>
-        <div class="chart-grid">
-          ${chartPanel(weekly ? "Weekly volume" : "Monthly volume", "chartVolume", barSvg(volSeries, "salesCount", grainOpts), chartSummary(volSeries, "salesCount"), chartGuide("salesCount", "bar", weekly ? "week" : "month"), chartInsight("salesCount"))}
-          ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line", weekly ? "week" : "month"), chartInsight("medianClosePrice"))}
-          ${weekly
-            ? `<article class="chart-panel"><div class="chart-title">Median sale/list</div><p class="chart-insight">Sale/list ratio stays on monthly grain: only a small minority of recent weekly sales carry a genuine list price, so a weekly ratio would jump on n&lt;5. Switch to Monthly to read it.</p>${lineSvg(sliceSeries, "medianSaleToList")}</article>`
-            : chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
-          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(priceSeries, "medianPsf", grainOpts), chartSummary(priceSeries, "medianPsf"), chartGuide("medianPsf", "line", weekly ? "week" : "month"), chartInsight("medianPsf"))}
-        </div>
-      </section>
-      <section class="section-block" id="pulseCompetitionPockets">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">Competition pockets</p>
-            <h3>Where fast sales concentrate</h3>
-          </div>
-        </div>
-        <p class="note">These rows are clickable neighborhood cross-filters. Fast-sale share is DOM-based; sale/list shows price pressure.</p>
-        <div class="heat-list">
-          ${heatListHtml(pockets)}
-        </div>
-      </section>
-      <section class="section-block">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">Micro breakout</p>
-            <h3>Watchlist neighborhoods</h3>
-          </div>
-        </div>
-        <div id="pulseMicroBreakout" class="profile-grid">
-          ${snapshot.microBreakout.map((group) => `
-            <article class="micro-card">
-              <div class="micro-card-head"><strong>${esc(group.group)}</strong><span>${formatWholeNumber(group.totalSalesCount)} sales</span></div>
-              ${group.neighborhoods.slice(0, 4).map((entry) => `
-                <div class="mini-metric">
-                  <button class="link-button" data-set-interaction="neighborhood" data-set-value="${esc(entry.neighborhoodLabel)}">${esc(entry.neighborhoodLabel)}</button>
-                  <strong>${formatPct(entry.current.hotShare || 0)} fast-sale</strong>
-                </div>
-              `).join("")}
-            </article>
-          `).join("") || `<p class="note">No watchlist pulse rows in this slice.</p>`}
-        </div>
-      </section>
-    </div>
-  `;
-}
-
-function pulseMetricCard(key, recent) {
-  const current = recent?.current || {};
-  const previous = recent?.previous || {};
-  const config = pulseMetricConfig(key);
-  const direction = metricDirection(key, current[key], previous[key]);
-  const delta = competitiveDelta(key, current[key], previous[key]);
-  const tone = direction > 0 ? "hotter" : direction < 0 ? "cooler" : "flat";
-  let deltaLabel;
-  if (delta === null) deltaLabel = "n/a vs prior";
-  else if (Math.abs(delta) < 1e-9) deltaLabel = "no change vs prior";
-  else deltaLabel = `${esc(config.delta(delta))} vs prior`;
-  return `
-    <article class="metric-card ${tone}">
-      <span>${esc(config.label)}</span>
-      <strong>${esc(config.format(current[key]))}</strong>
-      <small>${deltaLabel}</small>
-    </article>
-  `;
 }
 
 function pulseMetricConfig(key) {
@@ -883,51 +795,6 @@ function pulseMetricConfig(key) {
   if (key === "medianBidUp") return { label: "Median Bid-Up", format: (value) => value === null ? "n/a" : formatMoneyCompact(value), delta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}` };
   if (key === "medianPsf") return { label: "Median $/Sqft", format: (value) => value === null ? "n/a" : `$${Math.round(value)}`, delta: (value) => `${value >= 0 ? "+" : ""}$${Math.round(value || 0)}` };
   return { label: "Median Close", format: (value) => value === null ? "n/a" : formatMoneyCompact(value), delta: (value) => `${value >= 0 ? "+" : ""}${formatMoneyCompact(value || 0)}` };
-}
-
-function chartPanel(title, id, content, summary = "", guide = "", insight = "") {
-  return `<article class="chart-panel"><div class="chart-title">${esc(title)}</div>${insight}${summary}${guide}<div id="${esc(id)}">${content}</div></article>`;
-}
-
-function chartInsight(metricKey) {
-  const copy = {
-    salesCount: "What this tells you: whether the slice has enough recent activity to trust the read.",
-    hotShare: "What this tells you: how often homes are moving quickly enough to compress your decision window.",
-    medianDom: "What this tells you: how much time you may have before a strong listing gets claimed.",
-    medianSaleToList: "What this tells you: whether accepted prices are clearing above, at, or below ask.",
-    medianBidUp: "What this tells you: how many dollars buyers are adding over the pending ask price.",
-    medianClosePrice: "What this tells you: whether the target band is drifting away from your budget.",
-    medianPsf: "What this tells you: price intensity normalized for size — rising $/sqft means you pay more per foot even if list prices look flat.",
-    activeInventory: "What this tells you: a flow proxy for MLS/Redfin listings observed each month (county rows excluded) — directional competing-supply signal, not a true standing-inventory snapshot.",
-  };
-  return `<p class="chart-insight">${esc(copy[metricKey] || "What this tells you: how the market is moving inside this slice.")}</p>`;
-}
-
-function pulseChartSvg(metricKey, snapshot) {
-  const series = snapshot.selectedMonthlySeries || [];
-  return lineSvg(series, metricKey, { pointAttr: 'data-set-interaction="month"' });
-}
-
-function pulseTrajectoryCards(snapshot) {
-  const combined = state.pulseTimelineMode === "combined";
-  if (combined) {
-    return `
-      <article class="chart-panel wide">
-        <div class="chart-title">${esc(snapshot.selectedLabel)}</div>
-        ${chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList")}
-        ${chartGuide("medianSaleToList", "line")}
-        ${lineSvg(snapshot.selectedMonthlySeries, "medianSaleToList", { pointAttr: 'data-set-interaction="month"' })}
-      </article>
-    `;
-  }
-  return snapshot.activeGroups.map((group) => `
-    <article class="chart-panel">
-      <div class="chart-title">${esc(group)}</div>
-      ${chartSummary(snapshot.monthlyByGroup[group] || [], "medianSaleToList")}
-      ${chartGuide("medianSaleToList", "line")}
-      ${lineSvg(snapshot.monthlyByGroup[group] || [], "medianSaleToList", { pointAttr: 'data-set-interaction="month"' })}
-    </article>
-  `).join("");
 }
 
 function chartMetricLabel(metricKey) {
@@ -963,49 +830,6 @@ function chartData(series, metricKey, options = {}) {
     .filter((entry) => Number.isFinite(entry.value));
 }
 
-// X-axis label: weekly series carry an explicit short label (e.g. "6/8");
-// monthly series fall back to the YYYY-MM compact month label.
-function pointLabel(point) {
-  return point.label || monthLabelCompact(point.month);
-}
-
-function chartSummary(series, metricKey, options = {}) {
-  const data = chartData(series, metricKey, options);
-  if (!data.length) return `<div class="chart-summary"><span>No plotted data</span></div>`;
-  const latest = data[data.length - 1];
-  const high = data.reduce((best, entry) => entry.value > best.value ? entry : best, data[0]);
-  const low = data.reduce((best, entry) => entry.value < best.value ? entry : best, data[0]);
-  return `
-    <div class="chart-summary" aria-label="${esc(chartMetricLabel(metricKey))} chart data summary">
-      <span><strong>Latest</strong> ${esc(monthLabelCompact(latest.month))}: ${esc(formatChartValue(metricKey, latest.value))}${Number(latest.count || 0) > 0 && Number(latest.count) < MIN_TILE_COMPS ? ` (n=${latest.count})` : ""}</span>
-      <span><strong>High</strong> ${esc(monthLabelCompact(high.month))}: ${esc(formatChartValue(metricKey, high.value))}</span>
-      <span><strong>Low</strong> ${esc(monthLabelCompact(low.month))}: ${esc(formatChartValue(metricKey, low.value))}</span>
-    </div>
-  `;
-}
-
-function chartGuide(metricKey, kind = "line", grain = "month") {
-  const label = chartMetricLabel(metricKey);
-  const unit = grain === "week" ? "week" : "month";
-  const unitAdj = grain === "week" ? "weekly" : "monthly";
-  if (kind === "bar") {
-    return `
-      <div class="chart-guide">
-        <span><i class="legend-swatch bar"></i>Each bar is one sale ${unit}</span>
-        <span>Y-axis: ${esc(label)}</span>
-      </div>
-    `;
-  }
-  return `
-    <div class="chart-guide">
-      <span><i class="legend-swatch monthly"></i>Blue line: ${unitAdj} value</span>
-      <span><i class="legend-swatch average"></i>Green line: 3-${unit} average</span>
-      <span>Dots: clickable ${unit}s</span>
-      <span>Y-axis: ${esc(label)}</span>
-    </div>
-  `;
-}
-
 function chartDomain(data, metricKey, includeZero = false) {
   let min = includeZero ? 0 : Math.min(...data.map((entry) => entry.value));
   let max = Math.max(...data.map((entry) => entry.value));
@@ -1021,95 +845,6 @@ function chartDomain(data, metricKey, includeZero = false) {
   if (metricKey === "medianSaleToList") min = Math.max(0, min);
   if (min === max) max = min + 1;
   return { min, max };
-}
-
-function chartTicks(min, max, count = 4) {
-  const safeCount = Math.max(2, count);
-  return Array.from({ length: safeCount }, (_, index) => max - ((max - min) * index) / (safeCount - 1));
-}
-
-function xTickIndexes(length) {
-  if (length <= 1) return [0];
-  if (length <= 6) return Array.from({ length }, (_, index) => index);
-  const indexes = new Set([0, length - 1]);
-  const step = Math.ceil((length - 1) / 4);
-  for (let index = step; index < length - 1; index += step) indexes.add(index);
-  return [...indexes].sort((a, b) => a - b);
-}
-
-function shouldLabelPoint(point, index, points) {
-  if (points.length <= 6) return true;
-  const values = points.map((entry) => entry.value);
-  return index === points.length - 1 || point.value === Math.max(...values) || point.value === Math.min(...values);
-}
-
-function lineSvg(series, metricKey, options = {}) {
-  const data = chartData(series, metricKey, options);
-  const width = 460;
-  const height = 230;
-  const padLeft = 62;
-  const padRight = 18;
-  const padTop = 24;
-  const padBottom = 48;
-  if (!data.length) return `<div class="empty-state">No chart data.</div>`;
-  const domain = chartDomain(data, metricKey);
-  const span = Math.max(domain.max - domain.min, 0.0001);
-  const plotWidth = width - padLeft - padRight;
-  const plotHeight = height - padTop - padBottom;
-  const points = data.map((entry, index) => {
-    const x = data.length === 1 ? padLeft + plotWidth / 2 : padLeft + (index / Math.max(data.length - 1, 1)) * plotWidth;
-    const y = padTop + plotHeight - ((entry.value - domain.min) / span) * plotHeight;
-    return { ...entry, x, y };
-  });
-  const path = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
-  const smooth = rollingAverage(data.map((entry) => entry.value), 3);
-  const smoothPoints = smooth.map((value, index) => {
-    if (value === null) return "";
-    const x = smooth.length === 1 ? padLeft + plotWidth / 2 : padLeft + (index / Math.max(smooth.length - 1, 1)) * plotWidth;
-    const y = padTop + plotHeight - ((value - domain.min) / span) * plotHeight;
-    return `${index ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).filter(Boolean).join(" ");
-  const ticks = chartTicks(domain.min, domain.max);
-  const xIndexes = xTickIndexes(data.length);
-  return `
-    <svg class="line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(chartMetricLabel(metricKey))} monthly chart">
-      <title>${esc(chartMetricLabel(metricKey))} by month</title>
-      <desc>Y-axis shows ${esc(chartMetricLabel(metricKey))}; X-axis shows sale month.</desc>
-      <path class="axis-line" d="M${padLeft},${padTop} V${padTop + plotHeight} H${width - padRight}" />
-      ${ticks.map((tick) => {
-        const y = padTop + plotHeight - ((tick - domain.min) / span) * plotHeight;
-        return `
-          <g class="chart-y-tick">
-            <path class="gridline" d="M${padLeft},${y.toFixed(1)} H${width - padRight}" />
-            <text x="${padLeft - 8}" y="${y.toFixed(1)}" text-anchor="end">${esc(formatChartValue(metricKey, tick))}</text>
-          </g>
-        `;
-      }).join("")}
-      ${xIndexes.map((index) => {
-        const point = points[index];
-        return `
-          <g class="chart-x-tick">
-            <path class="tickline" d="M${point.x.toFixed(1)},${padTop + plotHeight} V${padTop + plotHeight + 5}" />
-            <text x="${point.x.toFixed(1)}" y="${height - 14}" text-anchor="middle">${esc(pointLabel(point))}</text>
-          </g>
-        `;
-      }).join("")}
-      <text class="axis-title" x="${padLeft}" y="13">${esc(chartMetricLabel(metricKey))}</text>
-      <text class="axis-title" x="${width - padRight}" y="${height - 2}" text-anchor="end">${esc(options.xAxisTitle || "Month")}</text>
-      <path class="trend" d="${esc(path)}" />
-      ${smoothPoints ? `<path class="trend smooth" d="${esc(smoothPoints)}" />` : ""}
-      ${points.map((point, index) => {
-        const lowSample = Number(point.count || 0) > 0 && Number(point.count) < MIN_TILE_COMPS;
-        const partial = !!point.isPartial;
-        const note = `${lowSample ? ` (n=${point.count})` : ""}${partial ? " · partial — still filling" : ""}`;
-        return `
-        <g class="chart-point${lowSample ? " low-sample" : ""}${partial ? " partial" : ""}" role="button" tabindex="0" aria-label="${esc(`${pointLabel(point)} ${formatChartValue(metricKey, point.value)}${note}`)}" ${options.pointAttr || ""} data-set-value="${esc(point.month)}">
-          <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4"><title>${esc(`${pointLabel(point)}: ${formatChartValue(metricKey, point.value)}${note}`)}</title></circle>
-          ${!lowSample && !partial && shouldLabelPoint(point, index, points) ? `<text class="chart-value-label" x="${point.x.toFixed(1)}" y="${Math.max(12, point.y - 9).toFixed(1)}" text-anchor="middle">${esc(formatChartValue(metricKey, point.value))}</text>` : ""}
-        </g>`;
-      }).join("")}
-    </svg>
-  `;
 }
 
 const MIN_TILE_COMPS = 5;
@@ -1162,16 +897,6 @@ function sparklineSvg(series, metricKey, options = {}) {
     </svg>`;
 }
 
-function pulseReadout(snapshot) {
-  const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
-  if (!recent90 || !recent90.current.salesCount) return `<p>No recent watchlist sales in this slice.</p>`;
-  const bullets = [];
-  bullets.push(`${snapshot.selectedLabel} has ${formatWholeNumber(recent90.current.salesCount)} sales in the last 90-day pulse window.`);
-  if (recent90.current.medianBidUp !== null) bullets.push(`Median bid-up is ${formatMoney(recent90.current.medianBidUp)}.`);
-  if (recent90.current.medianDom !== null) bullets.push(`Median DOM is ${Math.round(recent90.current.medianDom)} days.`);
-  return bullets.map((text) => `<p>${esc(text)}</p>`).join("");
-}
-
 function buildSliceMonthlySeries(rows) {
   const byMonth = groupRows(rows, (row) => row.saleDate ? row.saleDate.slice(0, 7) : "Unknown");
   return Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([month, monthRows]) => ({
@@ -1196,47 +921,6 @@ function buildSliceMonthlySeries(rows) {
   }));
 }
 
-// Discrete weekly grain: each point is one NON-overlapping 7-day week, keyed
-// STRICTLY on saleDate (reliable on REDFIN_SOLD / MLS rows; county pendingDate is
-// faked). Anchored to the latest sale and stepping back every 7 days, so you read
-// genuine week-to-week movement — unlike the old rolling-28d window, which shared
-// 75% of its data with each neighbour and damped the deltas. Volume is reported
-// for every week; the MEDIAN price/$sqft is nulled when a week has fewer than
-// MIN_TILE_COMPS sales (thin weeks — narrow slices and the freshest, still-
-// reporting weeks — so a 2-sale median can't masquerade as a real swing). Those
-// nulls drop out of the price lines via chartData but leave the volume bar intact.
-// Sale/list, pending and DOM stay on monthly grain (too sparse weekly).
-function buildSliceWeeklySeries(rows, { weeks = 16, windowDays = 7 } = {}) {
-  const dated = (rows || [])
-    .filter((row) => row.closePrice > 0 && row.saleDate)
-    .map((row) => ({ row, t: new Date(`${row.saleDate}T00:00:00`).getTime() }))
-    .filter((entry) => Number.isFinite(entry.t));
-  if (!dated.length) return [];
-  const latest = dated.reduce((max, entry) => Math.max(max, entry.t), dated[0].t);
-  const anchor = new Date(latest);
-  anchor.setHours(0, 0, 0, 0);
-  const dayMs = 24 * 60 * 60 * 1000;
-  const windowMs = windowDays * dayMs;
-  const series = [];
-  for (let i = weeks - 1; i >= 0; i -= 1) {
-    const end = anchor.getTime() - i * 7 * dayMs;
-    const start = end - windowMs + dayMs;
-    const windowRows = dated.filter((entry) => entry.t >= start && entry.t <= end).map((entry) => entry.row);
-    const endDate = new Date(end);
-    const enoughForMedian = windowRows.length >= MIN_TILE_COMPS;
-    series.push({
-      month: toIso(endDate),
-      label: `${endDate.getMonth() + 1}/${endDate.getDate()}`,
-      salesCount: windowRows.length,
-      sampleSize: windowRows.length,
-      isPartial: i === 0,
-      medianClosePrice: enoughForMedian ? medianValue(windowRows.map((row) => row.closePrice)) : null,
-      medianPsf: enoughForMedian ? medianValue(windowRows.map((row) => row.pricePerSqft).filter((value) => value > 0)) : null,
-    });
-  }
-  return series;
-}
-
 function buildInventoryMonthlySeries(normalizedRows, filterState) {
   // NOTE: counts listings by the month of effectiveDate; this is a per-month observed-active
   // proxy, NOT a true month-end standing-inventory snapshot (dataset is sale-centric).
@@ -1259,90 +943,6 @@ function medianValue(values) {
   return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
 }
 
-function barSvg(series, metricKey, options = {}) {
-  const data = chartData(series, metricKey, options);
-  if (!data.length) return `<div class="empty-state">No chart data.</div>`;
-  const width = 460;
-  const height = 230;
-  const padLeft = 62;
-  const padRight = 18;
-  const padTop = 24;
-  const padBottom = 48;
-  const domain = chartDomain(data, metricKey, true);
-  const span = Math.max(domain.max - domain.min, 0.0001);
-  const plotWidth = width - padLeft - padRight;
-  const plotHeight = height - padTop - padBottom;
-  const barWidth = plotWidth / data.length;
-  const ticks = chartTicks(domain.min, domain.max);
-  const xIndexes = xTickIndexes(data.length);
-  return `
-    <svg class="bar-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(chartMetricLabel(metricKey))} bar chart">
-      <title>${esc(chartMetricLabel(metricKey))} by month</title>
-      <desc>Y-axis shows ${esc(chartMetricLabel(metricKey))}; X-axis shows sale month.</desc>
-      <path class="axis-line" d="M${padLeft},${padTop} V${padTop + plotHeight} H${width - padRight}" />
-      ${ticks.map((tick) => {
-        const y = padTop + plotHeight - ((tick - domain.min) / span) * plotHeight;
-        return `
-          <g class="chart-y-tick">
-            <path class="gridline" d="M${padLeft},${y.toFixed(1)} H${width - padRight}" />
-            <text x="${padLeft - 8}" y="${y.toFixed(1)}" text-anchor="end">${esc(formatChartValue(metricKey, tick))}</text>
-          </g>
-        `;
-      }).join("")}
-      ${xIndexes.map((index) => {
-        const x = padLeft + index * barWidth + barWidth / 2;
-        return `
-          <g class="chart-x-tick">
-            <path class="tickline" d="M${x.toFixed(1)},${padTop + plotHeight} V${padTop + plotHeight + 5}" />
-            <text x="${x.toFixed(1)}" y="${height - 14}" text-anchor="middle">${esc(pointLabel(data[index]))}</text>
-          </g>
-        `;
-      }).join("")}
-      <text class="axis-title" x="${padLeft}" y="13">${esc(chartMetricLabel(metricKey))}</text>
-      <text class="axis-title" x="${width - padRight}" y="${height - 2}" text-anchor="end">${esc(options.xAxisTitle || "Month")}</text>
-      ${data.map((entry, index) => {
-        const h = ((entry.value - domain.min) / span) * plotHeight;
-        const x = padLeft + index * barWidth + 3;
-        const barBodyWidth = Math.max(2, barWidth - 6);
-        const y = padTop + plotHeight - h;
-        const lowSample = Number(entry.count || 0) > 0 && Number(entry.count) < MIN_TILE_COMPS;
-        const partial = !!entry.isPartial;
-        const note = `${lowSample ? ` (n=${entry.count}, thin)` : ""}${partial ? " · partial — still filling" : ""}`;
-        return `
-          <g class="chart-bar${lowSample ? " low-sample" : ""}${partial ? " partial" : ""}" role="button" tabindex="0" aria-label="${esc(`${pointLabel(entry)} ${formatChartValue(metricKey, entry.value)}${note}`)}" ${options.pointAttr || ""} data-set-value="${esc(entry.month)}">
-            <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barBodyWidth.toFixed(1)}" height="${h.toFixed(1)}"><title>${esc(`${pointLabel(entry)}: ${formatChartValue(metricKey, entry.value)}${note}`)}</title></rect>
-            ${!lowSample && !partial && data.length <= 12 ? `<text class="chart-value-label" x="${(x + barBodyWidth / 2).toFixed(1)}" y="${Math.max(12, y - 7).toFixed(1)}" text-anchor="middle">${esc(formatChartValue(metricKey, entry.value))}</text>` : ""}
-          </g>
-        `;
-      }).join("")}
-    </svg>
-  `;
-}
-
-function competitionPocketEntries(rows) {
-  return Object.entries(groupRows(rows, (row) => row.neighborhoodLabel || "Unknown"))
-    .map(([name, list]) => ({
-      name,
-      count: list.length,
-      hotShare: list.length ? list.filter((row) => row.isHotMarket).length / list.length : 0,
-      medianRatio: medianValue(list.map((row) => row.saleToList).filter((value) => value > 0)),
-      medianClose: medianValue(list.map((row) => row.closePrice)),
-    }))
-    .sort((a, b) => (b.hotShare - a.hotShare) || (b.count - a.count))
-    .slice(0, 30);
-}
-
-function heatListHtml(entries) {
-  return entries.map((entry) => `
-    <button class="heat-row" type="button" data-set-interaction="neighborhood" data-set-value="${esc(entry.name)}">
-      <span>${esc(entry.name)}</span>
-      <strong>${formatPct(entry.hotShare)} fast-sale</strong>
-      <em>${formatWholeNumber(entry.count)} sales · ${formatRatio(entry.medianRatio)} sale/list · ${formatMoneyOrNa(entry.medianClose)}</em>
-      <i style="inline-size:${Math.max(6, entry.hotShare * 100).toFixed(1)}%"></i>
-    </button>
-  `).join("") || `<div class="empty-state">No rows in this slice.</div>`;
-}
-
 function groupRows(rows, keyFn) {
   return (rows || []).reduce((acc, row) => {
     const key = keyFn(row);
@@ -1350,92 +950,6 @@ function groupRows(rows, keyFn) {
     acc[key].push(row);
     return acc;
   }, {});
-}
-
-function renderBidsView() {
-  const wrap = qs("#view-bids");
-  if (!wrap || !state.derived) return;
-  let baseRows = state.derived.bidRows || [];
-  if (state.bid.watchedOnly) {
-    baseRows = baseRows.filter((row) => state.watched.has(row.id));
-  }
-  const sorted = sortRows(baseRows, state.bidSort, getBidSortValue);
-  const pageSize = currentPageSize();
-  const page = paginateRows(sorted, state.bidsPage, pageSize);
-  state.bidsPage = page.page;
-  const stats = state.derived.bidStatsView;
-  const watchedCount = state.watched.size;
-  const useCards = state.bid.viewMode !== "table";
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head">
-        <div>
-          <p class="eyebrow">Bids</p>
-          <h2>Offer Lab: what should I bid?</h2>
-        </div>
-        <div class="segmented">
-          ${Object.entries(BID_STRATEGIES).map(([key, strategy]) => `<button type="button" class="scope-pill ${state.bid.strategy === key ? "active" : ""}" data-bid-strategy="${esc(key)}">${esc(strategy.label)}</button>`).join("")}
-        </div>
-      </section>
-      <p class="note">Load an active listing or enter a prospective address to find comps first, then estimate a bid range from the same comp pool.</p>
-      ${renderManualBidPanel()}
-      <div class="metric-row">
-        ${miniMetric("Active listings", formatWholeNumber(stats.activeCount))}
-        ${miniMetric("Scored", formatWholeNumber(stats.scoredCount))}
-        ${miniMetric("High confidence", formatWholeNumber(stats.highConfidenceCount))}
-        ${miniMetric("Watched", formatWholeNumber(watchedCount))}
-        ${miniMetric("Median over ask", `${(stats.medianOverAskPct || 0).toFixed(1)}%`)}
-      </div>
-      <section class="section-block">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">Active listing queue</p>
-            <h3>Listings ready for scenario review</h3>
-          </div>
-          <div class="bid-toolbar">
-            <label class="check inline"><input type="checkbox" id="bidHighConfidenceOnly" ${state.bid.highConfidenceOnly ? "checked" : ""} /> High confidence only</label>
-            <label class="check inline"><input type="checkbox" id="bidWatchedOnly" ${state.bid.watchedOnly ? "checked" : ""} /> Watched only</label>
-            <div class="segmented small">
-              <button type="button" class="scope-pill ${useCards ? "active" : ""}" data-bid-view-mode="cards">Cards</button>
-              <button type="button" class="scope-pill ${!useCards ? "active" : ""}" data-bid-view-mode="table">Table</button>
-            </div>
-          </div>
-        </div>
-      <div class="table-head">
-        <p class="note">Showing ${page.start}-${page.end} of ${page.total}. Sorting uses the full filtered active-listing set.</p>
-        ${paginationControls("bids", page)}
-      </div>
-      ${useCards ? `
-        <div class="bid-card-grid" id="bidCards">
-          ${page.rows.map(bidCardHtml).join("") || `<p class="empty-state">No active listings match the current filters.</p>`}
-        </div>
-      ` : `
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                ${bidTh("address", "Address")}
-                ${bidTh("neighborhood", "Neighborhood")}
-                ${bidTh("type", "Type")}
-                ${bidTh("originalListPrice", "Original List")}
-                ${bidTh("pendingListPrice", "List@Pending")}
-                ${bidTh("dom", "DOM/CDOM")}
-                ${bidTh("suggestedBid", "Suggested Bid")}
-                ${bidTh("bidRange", "Bid Range")}
-                ${bidTh("ratio", "Suggested S/List")}
-                ${bidTh("confidence", "Confidence")}
-                ${bidTh("compCount", "Comp Count")}
-                ${bidTh("compTier", "Comp Tier")}
-              </tr>
-            </thead>
-            <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="12">No active listings match the current filters.</td></tr>`}</tbody>
-          </table>
-        </div>
-        <div class="mobile-card-list" id="bidMobileList">${page.rows.map(bidMobileCard).join("")}</div>
-      `}
-      </section>
-    </div>
-  `;
 }
 
 const AFFORD_TIER_META = {
@@ -1452,332 +966,6 @@ function affordTierBadge(row) {
   return `<span class="afford-pill ${meta.cls}" title="vs your affordability scenario">${meta.label}</span>`;
 }
 
-function bidCardHtml(row) {
-  const isWatched = state.watched.has(row.id);
-  const scored = row.bidStatus === "SCored";
-  const suggested = scored ? formatMoneyCompact(row.bidSuggested) : "n/a";
-  const range = scored ? `${formatMoneyCompact(row.bidLow)} – ${formatMoneyCompact(row.bidHigh)}` : "Insufficient comps";
-  const ratio = scored && row.bidRatio > 0 ? `${row.bidRatio.toFixed(2)}x` : "—";
-  const confTone = (row.bidConfidenceLabel || "").toLowerCase();
-  const dom = domMetric(row);
-  const overAsk = scored && row.pendingListPrice > 0
-    ? Math.round(((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100)
-    : null;
-  const overAskBadge = overAsk === null
-    ? ""
-    : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${overAsk > 0 ? "+" : ""}${overAsk}% vs ask</span>`;
-  return `
-    <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
-      <header class="bid-card-head">
-        <button type="button" class="watch-star ${isWatched ? "active" : ""}" data-toggle-watch="${esc(row.id)}" aria-label="${isWatched ? "Unwatch" : "Watch"} ${esc(row.address || "listing")}" title="${isWatched ? "Unwatch" : "Watch"}">★</button>
-        <div class="bid-card-address">
-          ${propertyAddressLink(row, "bid-card-address-link")}
-          <span class="bid-card-meta">${esc(row.neighborhoodLabel || "")}${row.typeLabel ? ` · ${esc(row.typeLabel)}` : ""}</span>
-        </div>
-        ${affordTierBadge(row)}
-      </header>
-      <div class="bid-card-bid">
-        <div class="bid-suggested-block">
-          <span class="bid-suggested-label">Suggested bid</span>
-          <strong class="bid-suggested-value">${suggested}</strong>
-          ${overAskBadge}
-        </div>
-        <span class="conf-pill ${esc(confTone)}">${esc(row.bidConfidenceLabel || "n/a")} (${row.bidConfidence || 0})</span>
-      </div>
-      <div class="bid-card-grid-meta">
-        <div><span>Range</span><strong>${range}</strong></div>
-        <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
-        <div><span>Original list</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
-        <div><span>DOM</span><strong>${dom ?? "n/a"}</strong></div>
-        <div><span>Sugg S/List</span><strong>${ratio}</strong></div>
-        <div><span>Comps</span><strong>${row.bidCompCount || 0} (${esc(bidTierLabel(row.bidCompTier))})</strong></div>
-      </div>
-      <footer class="bid-card-footer">
-        <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
-      </footer>
-    </article>
-  `;
-}
-
-function affordScenarioValue(key, fallback) {
-  const v = state.affordability.scenario?.[key];
-  return v === undefined || v === null || v === "" ? fallback : v;
-}
-
-function renderAffordView() {
-  const wrap = qs("#view-afford");
-  if (!wrap) return;
-
-  if (!state.affordability.ready) {
-    wrap.innerHTML = `
-      <div class="view-band">
-        <section class="section-head">
-          <div><p class="eyebrow">Afford</p><h2>What can I actually afford?</h2></div>
-        </section>
-        <section class="section-block">
-          <p class="note">Affordability is not configured on this device. To enable it, copy
-          <code>affordability.config.sample.json</code> to <code>public/affordability.config.json</code>
-          and fill in your numbers. That file is <strong>gitignored</strong> — it stays local, is never
-          committed, and is never served on the public site. Reload after adding it.</p>
-          <p class="note">This is a planning model, not tax or lender advice.</p>
-        </section>
-      </div>
-    `;
-    return;
-  }
-
-  const r = state.affordability.result || computeAffordability(state.affordability.config, {}, state.affordability.scenario || {});
-  const c = state.affordability.config;
-  const sc = state.affordability.scenario || {};
-  const waitMonths = affordScenarioValue("waitMonths", c.housing.purchaseMonthFromStart);
-  const valuationB = Math.round((affordScenarioValue("valuation", c.anthropicEquity.selectedValuation)) / 1e9);
-  const targetPrice = affordScenarioValue("targetPrice", c.housing.targetPrice);
-  const downPayment = affordScenarioValue("downPayment", c.housing.targetDownPayment);
-  const decisionTone = r.decision === "RENT_WAIT" ? "cool" : (r.decision.startsWith("BUY") ? "hot" : "warm");
-  const firedFlags = r.flags.filter((f) => f.triggered);
-  const grid = affordabilityGrid(c, {}, c.scenarioGrid?.valuationsB || [380, 700, 965, 1500, 2000, 3000], c.scenarioGrid?.waitMonths || [0, 6, 12, 18, 24, 36]);
-  const gridWaits = c.scenarioGrid?.waitMonths || [0, 6, 12, 18, 24, 36];
-  const gridVals = c.scenarioGrid?.valuationsB || [380, 700, 965, 1500, 2000, 3000];
-  const gridCell = (vB, w) => {
-    const cell = grid.find((g) => g.valuationB === vB && g.waitMonths === w);
-    return cell ? formatMoneyCompact(cell.maxComfortable) : "—";
-  };
-
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head">
-        <div><p class="eyebrow">Afford</p><h2>What can I actually afford?</h2></div>
-        <span class="note">Planning model — not tax or lender advice.</span>
-      </section>
-
-      <section class="state-panel heat-${decisionTone}" id="affordDecision">
-        <div class="panel-kicker">Decision</div>
-        <h2>${esc(r.decisionLabel)}</h2>
-        <p>${esc(r.rationale)}</p>
-      </section>
-
-      <div class="metric-row">
-        ${miniMetric("Max comfortable", formatMoneyCompact(r.maxComfortablePrice))}
-        ${miniMetric("Max stretch", formatMoneyCompact(r.maxStretchPrice))}
-        ${miniMetric("All-in carry / mo", `${formatMoneyOrNa(r.ownerCostMonthly)} vs ${formatMoneyCompact(c.housing.comfortCapMonthly)} cap`)}
-        ${miniMetric("Free cash flow / mo", formatMoneyOrNa(r.monthlyFreeCashFlow))}
-        ${miniMetric("Post-close liquidity", `${formatMoneyCompact(r.postCloseLiquidity)} vs ${formatMoneyCompact(c.assets.reserveTarget)} reserve`)}
-        ${miniMetric("Deployable for DP", formatMoneyCompact(r.dpFundingCapacity))}
-      </div>
-
-      ${firedFlags.length ? `
-      <section class="section-block">
-        <div class="section-head compact"><div><p class="eyebrow">Watch-outs</p><h3>${firedFlags.length} flag${firedFlags.length === 1 ? "" : "s"} triggered</h3></div></div>
-        <ul class="afford-flags">
-          ${firedFlags.map((f) => `<li class="afford-flag">${esc(f.message)}</li>`).join("")}
-        </ul>
-      </section>` : `<p class="note">No flags triggered at this scenario.</p>`}
-
-      <section class="section-block">
-        <div class="section-head compact"><div><p class="eyebrow">Scenario</p><h3>Adjust assumptions</h3></div></div>
-        <div class="controls-grid">
-          <div class="field">
-            <label for="affWaitMonths">Wait before buying (months)</label>
-            <input id="affWaitMonths" type="number" min="0" max="60" step="1" value="${esc(waitMonths)}" />
-          </div>
-          <div class="field">
-            <label for="affValuation">Anthropic valuation ($B)</label>
-            <input id="affValuation" type="number" min="0" step="5" value="${esc(valuationB)}" />
-          </div>
-          <div class="field">
-            <label for="affTargetPrice">Target home price ($)</label>
-            <input id="affTargetPrice" type="number" min="0" step="25000" value="${esc(targetPrice)}" />
-          </div>
-          <div class="field">
-            <label for="affDownPayment">Down payment ($)</label>
-            <input id="affDownPayment" type="number" min="0" step="25000" value="${esc(downPayment)}" />
-          </div>
-          <div class="filter-actions">
-            ${buttonIcon("Reset scenario", "refresh-ccw", "id=\"affResetBtn\"", "alt")}
-          </div>
-        </div>
-        <p class="note">Carry, max prices, liquidity and listing badges all recompute live from these. Saved to this browser only.</p>
-      </section>
-
-      <section class="section-block">
-        <div class="section-head compact"><div><p class="eyebrow">When can we move up</p><h3>Max comfortable price by valuation × wait</h3></div></div>
-        <div class="table-wrap">
-          <table class="afford-grid">
-            <thead>
-              <tr><th>Valuation \\ wait</th>${gridWaits.map((w) => `<th>${w}mo</th>`).join("")}</tr>
-            </thead>
-            <tbody>
-              ${gridVals.map((vB) => `
-                <tr><th>$${vB}B</th>${gridWaits.map((w) => `<td>${gridCell(vB, w)}</td>`).join("")}</tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-        <p class="note">Each cell is the most expensive home whose all-in carry stays within your comfort cap, after the equity that is vested + sellable + after-tax at that wait.</p>
-      </section>
-    </div>
-  `;
-  refreshIcons();
-}
-
-function renderManualBidPanel() {
-  const result = state.bid.manualEnabled ? computeManualBid() : null;
-  const compLookup = (state.bid.compSearchEnabled || state.bid.manualEnabled) ? computeManualComps() : null;
-  return `
-    <section class="manual-bid-wrap">
-      <div class="section-head compact">
-        <div><p class="eyebrow">Comp Finder</p><h3>Prospective listing comps</h3></div>
-        <span class="note" id="manualBidStatus">${result?.status || compLookup?.status || "Load a listing or enter an address to find comps."}</span>
-      </div>
-      <div class="manual-bid-form">
-        <div class="field"><label for="manualBidSource">Load Active Listing</label><select id="manualBidSource"><option value="">Manual entry</option>${state.derived.bidRows.map((row) => `<option value="${esc(row.mapPropertyKey)}" ${state.bid.manualSourceKey === row.mapPropertyKey ? "selected" : ""}>${esc(row.address || "Address unavailable")}</option>`).join("")}</select></div>
-        <div class="field"><label for="manualBidAddress">Address</label><input id="manualBidAddress" type="text" value="${esc(state.manualBid.address)}" placeholder="123 Example St" /></div>
-        <div class="field"><label for="manualBidListPrice">Ask price</label><input id="manualBidListPrice" type="number" min="0" step="1000" value="${esc(state.manualBid.pendingListPrice)}" placeholder="1250000" /></div>
-        <div class="field"><label for="manualBidNeighborhood">Neighborhood</label><select id="manualBidNeighborhood"><option value="">Auto / Seattle</option>${state.options.neighborhoods.map((name) => `<option value="${esc(name)}" ${state.manualBid.neighborhoodLabel === name ? "selected" : ""}>${esc(name)}</option>`).join("")}</select></div>
-        <div class="field"><label for="manualBidType">Property type</label><select id="manualBidType">${optionHtml(state.options.types.filter((type) => type !== "All"), state.manualBid.typeLabel || state.filters.type)}</select></div>
-        <div class="field"><label for="manualBidZip">ZIP</label><input id="manualBidZip" type="text" maxlength="5" value="${esc(state.manualBid.zip)}" placeholder="98117" /></div>
-        <div class="field"><label for="manualBidDom">DOM</label><input id="manualBidDom" type="number" min="0" step="1" value="${esc(state.manualBid.dom)}" placeholder="7" /></div>
-        <div class="field"><label for="manualBidCdom">CDOM</label><input id="manualBidCdom" type="number" min="0" step="1" value="${esc(state.manualBid.cdom)}" placeholder="9" /></div>
-      </div>
-      <div class="manual-bid-actions">
-        ${buttonIcon("Find Comps", "search", "id=\"manualCompRun\"", "alt")}
-        ${buttonIcon("Estimate Bid", "target", "id=\"manualBidRun\"")}
-        ${buttonIcon("Clear", "refresh-ccw", "id=\"manualBidClear\"", "alt")}
-      </div>
-      <div class="manual-bid-result" id="manualBidResult">
-        ${result?.html || ""}
-      </div>
-      <div class="table-wrap manual-bid-table-wrap">
-        <table class="manual-bid-table">
-          <thead><tr><th>Comp</th><th>Neighborhood</th><th>Close</th><th>S/List</th><th>DOM</th><th>Bid-Up</th></tr></thead>
-          <tbody id="manualBidCompRows">${compLookup?.rowsHtml || result?.compRows || `<tr><td colspan="6">${esc(compLookup?.status || "Find comps to populate this list.")}</td></tr>`}</tbody>
-        </table>
-      </div>
-    </section>
-  `;
-}
-
-function zipFromText(text) {
-  const match = String(text || "").match(/\b(98\d{3})\b/);
-  return match ? match[1] : "";
-}
-
-function manualScenarioRow() {
-  const domValue = num(state.manualBid.cdom || state.manualBid.dom);
-  return {
-    address: state.manualBid.address,
-    pendingListPrice: num(state.manualBid.pendingListPrice),
-    neighborhoodLabel: state.manualBid.neighborhoodLabel || "Seattle",
-    typeLabel: state.manualBid.typeLabel || state.filters.type,
-    zip: state.manualBid.zip || zipFromText(state.manualBid.address),
-    isHotMarket: domValue > 0 && domValue <= 10,
-    isUltraHot: domValue > 0 && domValue <= 5,
-    hasMlsDomValue: state.manualBid.dom !== "",
-    hasMlsCdomValue: state.manualBid.cdom !== "",
-    mlsDOM: num(state.manualBid.dom),
-    mlsCDOM: num(state.manualBid.cdom),
-  };
-}
-
-function compRowsHtml(rows) {
-  return (rows || []).map((comp) => `
-    <tr>
-      <td>${propertyAddressLink(comp, "comp-link")}</td>
-      <td>${esc(comp.neighborhoodLabel)}</td>
-      <td>${formatMoneyCompact(comp.closePrice)}</td>
-      <td>${formatRatio(comp.saleToList)}</td>
-      <td>${domMetric(comp) ?? "n/a"}</td>
-      <td>${formatMoneyCompact(comp.delta)}</td>
-    </tr>
-  `).join("");
-}
-
-function computeManualComps() {
-  const row = manualScenarioRow();
-  if (!row.address && !row.zip && (!row.neighborhoodLabel || row.neighborhoodLabel === "Seattle")) {
-    return { status: "Enter an address plus ZIP or neighborhood, or load an active listing.", rowsHtml: "" };
-  }
-  const tier = computeBidCompTiers(row, state.derived.compPool);
-  const rows = tier.rows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || ""))).slice(0, 12);
-  if (!rows.length) {
-    return { status: "No comparable recent sales found for this type and location.", rowsHtml: "" };
-  }
-  return {
-    status: `Showing ${rows.length} comps from ${bidTierLabel(tier.tier)}.`,
-    rowsHtml: compRowsHtml(rows),
-  };
-}
-
-function computeManualBid() {
-  const row = manualScenarioRow();
-  if (!row.pendingListPrice) return { status: "Enter Ask Price to estimate bid.", html: "", compRows: "" };
-  const scored = scoreBidForRow(row, state.derived.compPool, state.bid.strategy, true);
-  if (scored.bidStatus !== "SCored") {
-    return {
-      status: `Insufficient comps (${scored.bidCompCount}) for ${bidTierLabel(scored.bidCompTier)}.`,
-      html: `<div class="empty-state">Need more comparable recent sales for this scenario.</div>`,
-      compRows: "",
-    };
-  }
-  return {
-    status: `Estimated using ${scored.bidCompCount} comps (${bidTierLabel(scored.bidCompTier)}).`,
-    html: `
-      ${miniMetric("Suggested bid", formatMoney(scored.bidSuggested))}
-      ${miniMetric("Range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`)}
-      ${miniMetric("S/List", `${scored.bidRatio.toFixed(2)}x`)}
-      ${miniMetric("Confidence", `${scored.bidConfidenceLabel} (${scored.bidConfidence})`)}
-      ${miniMetric("Comp basis", `${scored.bidCompCount} comps · ${bidTierLabel(scored.bidCompTier)}`)}
-    `,
-    compRows: compRowsHtml(scored.bidCompRows || []),
-  };
-}
-
-function bidTh(key, label) {
-  const active = state.bidSort.key === key;
-  const arrow = active ? (state.bidSort.dir === "asc" ? "up" : "down") : "both";
-  return `<th><button class="th-sort ${active ? "active" : ""}" type="button" data-bid-sort="${esc(key)}">${esc(label)} <span class="sort-ind" data-bid-sort-ind="${esc(key)}">${arrow === "up" ? "↑" : arrow === "down" ? "↓" : "↕"}</span></button></th>`;
-}
-
-function bidRowHtml(row) {
-  const suggested = row.bidStatus === "SCored" ? formatMoneyCompact(row.bidSuggested) : "n/a";
-  const range = row.bidStatus === "SCored" ? `${formatMoneyCompact(row.bidLow)} - ${formatMoneyCompact(row.bidHigh)}` : "n/a";
-  const ratio = row.bidStatus === "SCored" && row.bidRatio > 0 ? `${row.bidRatio.toFixed(2)}x` : "n/a";
-  return `
-    <tr>
-      <td>${propertyAddressLink(row)}<button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use</button></td>
-      <td>${esc(row.neighborhoodLabel)}</td>
-      <td>${esc(row.typeLabel)}</td>
-      <td>${formatMoneyOrNa(row.originalListPrice)}</td>
-      <td>${formatMoneyOrNa(row.pendingListPrice)}</td>
-      <td>${domMetric(row) ?? "n/a"}</td>
-      <td>${suggested}</td>
-      <td>${range}</td>
-      <td>${ratio}</td>
-      <td><span class="conf-pill ${esc((row.bidConfidenceLabel || "").toLowerCase())}">${esc(row.bidConfidenceLabel)} (${row.bidConfidence || 0})</span></td>
-      <td>${row.bidCompCount || 0}</td>
-      <td>${esc(bidTierLabel(row.bidCompTier))}</td>
-    </tr>
-  `;
-}
-
-function bidMobileCard(row) {
-  return `
-    <article class="mrow">
-      <div class="mrow-head-static">
-        ${propertyAddressLink(row, "mrow-address-link")}
-        <span>${row.bidStatus === "SCored" ? formatMoneyCompact(row.bidSuggested) : "n/a"}</span>
-      </div>
-      <div class="mrow-grid">
-        <div><span>Neighborhood</span><strong>${esc(row.neighborhoodLabel)}</strong></div>
-        <div><span>Ask</span><strong>${formatMoneyCompact(row.pendingListPrice)}</strong></div>
-        <div><span>Range</span><strong>${row.bidStatus === "SCored" ? `${formatMoneyCompact(row.bidLow)} - ${formatMoneyCompact(row.bidHigh)}` : "n/a"}</strong></div>
-        <div><span>Confidence</span><strong>${esc(row.bidConfidenceLabel)} (${row.bidConfidence || 0})</strong></div>
-      </div>
-      <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use In Manual Scenario</button>
-    </article>
-  `;
-}
-
 function currentPageSize() {
   return window.matchMedia("(max-width: 760px)").matches ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
 }
@@ -1790,445 +978,6 @@ function paginationControls(kind, page) {
       <button class="icon-btn" type="button" data-page-kind="${esc(kind)}" data-page-target="${page.page + 1}" ${page.page >= page.pageCount ? "disabled" : ""} aria-label="Next page">${icon("chevron-right")}</button>
     </div>
   `;
-}
-
-function renderRecordsView() {
-  const wrap = qs("#view-records");
-  if (!wrap || !state.derived) return;
-  const sorted = sortRows(state.derived.viewRows, state.recordSort, getRecordSortValue);
-  const pageSize = currentPageSize();
-  const page = paginateRows(sorted, state.recordsPage, pageSize);
-  state.recordsPage = page.page;
-  const emptyMessage = state.derived.slices.emptyMessage;
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head">
-        <div><p class="eyebrow">Records</p><h2>Comps and property links</h2></div>
-        <p class="note" id="recordsStatus">${page.total ? `Showing ${page.total} comps/properties in ${recordViewLabel(state.filters.recordView)}. Zillow and KC parcel links stay available for property-level review; blank MLS fields mean unavailable or unknown for that export.${state.flags.projection ? " Rows marked Projected are modeled estimates, not recorded sales." : ""}` : emptyMessage}</p>
-      </section>
-      <div class="table-head">
-        <p class="note">Showing ${page.start}-${page.end} of ${page.total}. Sorting and export use the full filtered dataset.</p>
-        ${paginationControls("records", page)}
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              ${recordTh("address", "Address")}
-              ${recordTh("neighborhood", "Neighborhood")}
-              ${recordTh("type", "Type")}
-              ${recordTh("beds", "Beds")}
-              ${recordTh("baths", "Baths")}
-              ${recordTh("sqft", "SqFt")}
-              ${recordTh("psf", "$/SqFt")}
-              ${recordTh("lotSize", "Lot Size")}
-              ${recordTh("yearBuilt", "Built")}
-              ${recordTh("saleDate", "Sale Dt")}
-              ${recordTh("closePrice", "Close Price")}
-              ${recordTh("originalListPrice", "Original List")}
-              ${recordTh("pendingListPrice", "Ask")}
-              ${recordTh("domMetric", "DOM")}
-              ${recordTh("hotCategory", "Hot")}
-              ${recordTh("saleToList", "S/List")}
-              ${recordTh("delta", "Bid-Up")}
-            </tr>
-          </thead>
-          <tbody id="recordRows">${page.rows.map(recordRowHtml).join("") || `<tr><td colspan="17">${esc(emptyMessage)}</td></tr>`}</tbody>
-        </table>
-      </div>
-      <div class="mobile-card-list" id="recordMobileList">${page.rows.map(recordMobileCard).join("")}</div>
-    </div>
-  `;
-}
-
-function recordTh(key, label) {
-  const active = state.recordSort.key === key;
-  const arrow = active ? (state.recordSort.dir === "asc" ? "up" : "down") : "both";
-  return `<th><button class="th-sort ${active ? "active" : ""}" type="button" data-record-sort="${esc(key)}">${esc(label)} <span class="sort-ind" data-sort-ind="${esc(key)}">${arrow === "up" ? "↑" : arrow === "down" ? "↓" : "↕"}</span></button></th>`;
-}
-
-function hotBadge(row) {
-  if (row.isUltraHot) return `<span class="hot-pill ultra">Ultra Hot</span>`;
-  if (row.isHotMarket) return `<span class="hot-pill hot">Hot</span>`;
-  return `<span class="hot-pill">Normal</span>`;
-}
-
-function recordRowHtml(row) {
-  const countyUrl = countyRecordUrl(row);
-  return `
-    <tr>
-      <td>${propertyAddressLink(row)}${row.isProjectionRow ? `<span class="proj-pill">Projected</span>` : ""}${countyUrl ? `<a class="sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Parcel</a>` : ""}${affordTierBadge(row)}</td>
-      <td><button class="link-button" data-set-interaction="neighborhood" data-set-value="${esc(row.neighborhoodLabel)}">${esc(row.neighborhoodLabel)}</button></td>
-      <td><button class="link-button" data-set-interaction="type" data-set-value="${esc(row.typeLabel)}">${esc(row.typeLabel)}</button></td>
-      <td>${row.beds > 0 ? row.beds : "n/a"}</td>
-      <td>${row.baths > 0 ? row.baths.toFixed(2) : "n/a"}</td>
-      <td>${row.sqft > 0 ? row.sqft.toLocaleString("en-US") : "n/a"}</td>
-      <td>${formatPricePerSqft(row.pricePerSqft)}</td>
-      <td>${formatLot(row.lotSize)}</td>
-      <td>${row.yearBuilt > 0 ? row.yearBuilt : "n/a"}</td>
-      <td>${formatDateShort(row.saleDate || row.pendingDate)}</td>
-      <td>${row.isProjectionRow ? `~${formatMoneyOrNa(row.projectedClosePrice)} (est.)` : formatMoneyOrNa(row.closePrice)}</td>
-      <td>${formatMoneyOrNa(row.originalListPrice)}</td>
-      <td>${formatMoneyOrNa(row.pendingListPrice)}</td>
-      <td>${recordDomCell(row)}</td>
-      <td>${hotBadge(row)}</td>
-      <td>${recordSaleListCell(row)}</td>
-      <td>${recordBidUpCell(row)}</td>
-    </tr>
-  `;
-}
-
-function recordDomCell(row) {
-  const primary = domMetric(row);
-  if (primary === null || primary === undefined) return "n/a";
-  const usingCdom = !!(row?.hasMlsCdomValue && Number.isFinite(row.mlsCDOM) && row.mlsCDOM >= 0);
-  let secondaryVal = null;
-  let secondaryLabel = "";
-  if (usingCdom) {
-    if (row?.hasMlsDomValue && Number.isFinite(row.mlsDOM) && row.mlsDOM >= 0 && row.mlsDOM !== primary) {
-      secondaryVal = row.mlsDOM;
-      secondaryLabel = "DOM";
-    }
-  } else if (row?.hasMlsCdomValue && Number.isFinite(row.mlsCDOM) && row.mlsCDOM >= 0 && row.mlsCDOM !== primary) {
-    secondaryVal = row.mlsCDOM;
-    secondaryLabel = "CDOM";
-  }
-  const sub = secondaryVal !== null ? `<span class="cell-sub">${secondaryLabel} ${secondaryVal}</span>` : "";
-  return `${primary}${sub}`;
-}
-
-function recordSaleListCell(row) {
-  const primary = formatRatio(row.saleToList);
-  const orig = Number(row.saleToOriginalList || 0);
-  const list = Number(row.saleToList || 0);
-  const sub = orig > 0 && Math.abs(orig - list) >= 0.005 ? `<span class="cell-sub">orig ${formatRatio(orig)}</span>` : "";
-  return `${primary}${sub}`;
-}
-
-function recordBidUpCell(row) {
-  if (!row.hasMarketListPrice) return "n/a";
-  const primary = formatMoneyCompact(row.delta);
-  const delta = Number(row.delta || 0);
-  const showPct = Math.abs(delta) >= 1;
-  const pct = Number(row.deltaPct || 0);
-  const sub = showPct ? `<span class="cell-sub">${pct >= 0 ? "+" : ""}${(pct * 100).toFixed(1)}%</span>` : "";
-  return `${primary}${sub}`;
-}
-
-function recordMobileCard(row) {
-  return `
-    <article class="mrow">
-      <div class="mrow-head-static">
-        ${propertyAddressLink(row, "mrow-address-link")}${row.isProjectionRow ? `<span class="proj-pill">Projected</span>` : ""}
-        <span>${row.isProjectionRow ? `~${formatMoneyCompact(row.projectedClosePrice)} (est.)` : formatMoneyCompact(row.closePrice || row.pendingListPrice)}</span>
-      </div>
-      <div class="mrow-grid">
-        <div><span>Neighborhood</span><strong>${esc(row.neighborhoodLabel)}</strong></div>
-        <div><span>Type</span><strong>${esc(row.typeLabel)}</strong></div>
-        <div><span>Beds</span><strong>${row.beds > 0 ? row.beds : "n/a"}</strong></div>
-        <div><span>Baths</span><strong>${row.baths > 0 ? row.baths.toFixed(2) : "n/a"}</strong></div>
-        <div><span>SqFt</span><strong>${row.sqft > 0 ? row.sqft.toLocaleString("en-US") : "n/a"}</strong></div>
-        <div><span>$/SqFt</span><strong>${formatPricePerSqft(row.pricePerSqft)}</strong></div>
-        <div><span>Built</span><strong>${row.yearBuilt > 0 ? row.yearBuilt : "n/a"}</strong></div>
-        <div><span>Sale/List</span><strong>${recordSaleListCell(row)}</strong></div>
-        <div><span>DOM</span><strong>${recordDomCell(row)}</strong></div>
-        <div><span>Bid-Up</span><strong>${recordBidUpCell(row)}</strong></div>
-        <div><span>Status</span><strong>${esc(hotCategory(row))}</strong></div>
-      </div>
-    </article>
-  `;
-}
-
-async function renderGeoView() {
-  const wrap = qs("#view-geo");
-  if (!wrap || !state.derived) return;
-  const rows = geoMappableRows();
-  ensureGeoShell(wrap);
-  updateGeoShell(rows);
-  refreshIcons();
-  if (!state.geo.leaflet) {
-    const [{ default: L }] = await Promise.all([
-      import("leaflet"),
-      import("leaflet/dist/leaflet.css"),
-    ]);
-    state.geo.leaflet = L;
-  }
-  mountOrRefreshMap(rows);
-}
-
-function ensureGeoShell(wrap) {
-  if (qs("#map", wrap)) return;
-  wrap.innerHTML = `
-    <div class="view-band geo-view">
-      <section class="section-head">
-        <div><p class="eyebrow">Geo</p><h2>Where is pressure located?</h2></div>
-        <div class="geo-actions">
-          <label class="check inline"><input type="checkbox" id="geoViewportFilter" /> Filter to viewport</label>
-          <label class="check inline"><input type="checkbox" id="geoShowActive" checked /> Active listings</label>
-          ${buttonIcon("Filter dashboard to selected", "target", "id=\"geoApplySelection\"")}
-          ${buttonIcon("Clear selection", "refresh-ccw", "id=\"geoClearSelection\"", "alt")}
-          ${buttonIcon("Clear map filter", "search", "id=\"geoClearFilter\"", "alt")}
-        </div>
-      </section>
-      <div class="geo-layout">
-        <div id="map" class="map-surface" aria-label="Seattle sales map"></div>
-        <aside class="geo-side">
-          <div id="geoStatus" class="note" aria-live="polite"></div>
-          ${geoLegendHtml()}
-          <div id="geoSelectedRows" aria-live="polite"></div>
-        </aside>
-      </div>
-    </div>
-  `;
-}
-
-function updateGeoShell(rows) {
-  const viewport = qs("#geoViewportFilter");
-  if (viewport) viewport.checked = !!state.geo.viewportFilter;
-  const showActive = qs("#geoShowActive");
-  if (showActive) showActive.checked = !state.geo.hideActive;
-  const applySelection = qs("#geoApplySelection");
-  if (applySelection) applySelection.disabled = !state.geo.selectedPropertyKeys.length;
-  const clearFilter = qs("#geoClearFilter");
-  if (clearFilter) clearFilter.disabled = !state.geo.filterPropertyKeys.length;
-  const status = qs("#geoStatus");
-  const drawnCount = Math.min(rows.length, 1200);
-  if (status) {
-    const applied = state.geo.filterPropertyKeys.length ? ` ${formatWholeNumber(state.geo.filterPropertyKeys.length)} map-selected properties are filtering the dashboard.` : " Marker clicks inspect properties only until you apply them as a filter.";
-    const activeCount = rows.reduce((n, row) => n + (isActiveRow(row) ? 1 : 0), 0);
-    status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}${activeCount ? ` (${formatWholeNumber(activeCount)} active)` : ""}. ${drawnCount < rows.length ? `Drawing ${formatWholeNumber(drawnCount)} of ${formatWholeNumber(rows.length)} for speed (all active listings shown).` : "All visible points are drawn."} Color = sale/list pressure; grey = sold, no list price; violet ring = active listing.${applied}`;
-  }
-  const legend = qs(".geo-legend");
-  if (legend) legend.outerHTML = geoLegendHtml();
-  renderGeoSelectedRows();
-}
-
-// Recency line for a property card: shows the dates we genuinely have, omitting
-// gracefully. Pending is gated on hasGenuinePendingDate (county rows fake
-// pendingDate=saleDate); list on hasGenuineListDate. Returns "" when no date.
-function geoDatesLineHtml(row) {
-  const parts = [
-    row.saleDate ? `Sold ${formatDateShort(row.saleDate)}` : "",
-    row.hasGenuineListDate ? `Listed ${formatDateShort(row.listDate)}` : "",
-    row.hasGenuinePendingDate ? `Pending ${formatDateShort(row.pendingDate)}` : "",
-  ].filter(Boolean);
-  if (!parts.length) return "";
-  return `<span class="geo-popup-row">${esc(parts.join(" · "))}</span>`;
-}
-
-function geoCardHtml(row, { withLinks = false } = {}) {
-  const priceText = row.isProjectionRow
-    ? `~${formatMoneyOrNa(row.projectedClosePrice || row.closePrice)} (est. close)`
-    : formatMoneyOrNa(row.closePrice || row.pendingListPrice);
-  const ratioText = row.saleToList > 0 ? `${formatRatio(row.saleToList)} sale/list` : "";
-  const dom = domMetric(row);
-  const domText = dom !== null && dom !== undefined ? `${dom}d DOM` : "";
-  const facts = [priceText, ratioText, domText].filter(Boolean).join(" · ");
-  const datesLine = geoDatesLineHtml(row);
-
-  // For active rows with a scored bid suggestion: project bid-up over ask.
-  // For sold rows: show actual bid-up if available.
-  const isActive = isActiveRow(row);
-  let bidLine = "";
-  if (isActive && row.bidStatus === "SCored" && row.pendingListPrice > 0) {
-    const overAsk = row.bidSuggested - row.pendingListPrice;
-    const overPct = (overAsk / row.pendingListPrice) * 100;
-    const sign = overAsk > 0 ? "+" : overAsk < 0 ? "" : "";
-    const cls = overAsk > 0 ? "bid-up-tooltip up" : overAsk < 0 ? "bid-up-tooltip down" : "bid-up-tooltip flat";
-    bidLine = `<br><span class="${cls}">Suggested bid: ${formatMoneyOrNa(row.bidSuggested)} (${sign}${formatMoneyCompact(overAsk)} / ${sign}${overPct.toFixed(1)}%)</span>`;
-  } else if (row.hasActualClose && row.hasMarketListPrice && Number.isFinite(row.delta) && row.delta !== 0) {
-    const cls = row.delta > 0 ? "bid-up-tooltip up" : "bid-up-tooltip down";
-    const pct = row.pendingListPrice > 0 ? (row.delta / row.pendingListPrice) * 100 : 0;
-    const sign = row.delta > 0 ? "+" : "";
-    bidLine = `<br><span class="${cls}">Bid-up: ${sign}${formatMoneyCompact(row.delta)} (${sign}${pct.toFixed(1)}%)</span>`;
-  } else if (row.hasActualClose && !row.hasMarketListPrice) {
-    // County deed only — no MLS/Redfin listing matched, so list price (and
-    // therefore bid-up) is genuinely unavailable. Label it so it doesn't
-    // read as missing/broken data.
-    bidLine = `<br><span class="bid-up-tooltip flat">Bid-up: list price not on record (county sale only)</span>`;
-  }
-
-  // Affordability tier line (only when a private config is loaded).
-  let affordLine = "";
-  if (state.affordability.ready && AFFORD_TIER_META[row.affordTier]) {
-    const meta = AFFORD_TIER_META[row.affordTier];
-    affordLine = `<br><span class="afford-pill ${meta.cls}">${meta.label}</span>`;
-  }
-
-  const proj = row.isProjectionRow ? `<span class="proj-pill">Projected</span><br>` : "";
-  const linkLine = withLinks ? `<br>${propertyPopupLink(row)}` : "";
-  return `${proj}<strong>${esc(propertyAddressText(row))}</strong><br>${esc(row.neighborhoodLabel || "")}<br>${facts}${datesLine ? `<br>${datesLine}` : ""}${bidLine}${affordLine}${linkLine}`;
-}
-
-function geoLegendHtml() {
-  return `
-    <div class="geo-legend" aria-label="Property map color legend">
-      <span><i style="--legend-color:#047857"></i><strong>Under ask</strong><small>0.90x-0.99x</small></span>
-      <span><i style="--legend-color:#2563eb"></i><strong>At ask</strong><small>1.00x-1.02x</small></span>
-      <span><i style="--legend-color:#c77700"></i><strong>Over ask</strong><small>1.03x-1.09x</small></span>
-      <span><i style="--legend-color:#b91c1c"></i><strong>Hot</strong><small>1.10x-1.20x+</small></span>
-      <span><i style="--legend-color:#9ca3af"></i><strong>No list price</strong><small>sold, sale/list n/a</small></span>
-      <span><i class="ring" style="--legend-color:#7c3aed"></i><strong>Active listing</strong><small>for sale now, not yet sold</small></span>
-    </div>
-  `;
-}
-
-function geoMappableRows() {
-  if (!state.derived) return [];
-  const mappable = state.derived.viewRows.filter((row) => {
-    if (!Number.isFinite(row.mapLat) || !Number.isFinite(row.mapLon)) return false;
-    if (state.geo.hideActive && isActiveRow(row)) return false;
-    return true;
-  });
-  // Flip supersede: when a property is both an active listing and a prior sale in
-  // the visible set, show only the active marker (the relist supersedes the sale)
-  // rather than stacking two dots. Match on normalized street, and require a clean
-  // 1:1 — exactly one active and one sale at that street — so multi-unit buildings
-  // (several actives/sales sharing a street) are never collapsed onto each other.
-  const activeAt = new Map();
-  const soldAt = new Map();
-  for (const row of mappable) {
-    const key = streetSupersedeKey(row);
-    if (!key) continue;
-    if (isActiveRow(row)) activeAt.set(key, (activeAt.get(key) || 0) + 1);
-    else if (row.hasActualClose) soldAt.set(key, (soldAt.get(key) || 0) + 1);
-  }
-  const superseded = new Set();
-  for (const [key, count] of activeAt) {
-    if (count === 1 && soldAt.get(key) === 1) superseded.add(key);
-  }
-  if (!superseded.size) return mappable;
-  return mappable.filter((row) => isActiveRow(row) || !superseded.has(streetSupersedeKey(row)));
-}
-
-function mountOrRefreshMap(rows = geoMappableRows()) {
-  const L = state.geo.leaflet;
-  const mapEl = qs("#map");
-  if (!L || !mapEl || !state.derived) return;
-  if (state.geo.map && state.geo.map.getContainer() !== mapEl) {
-    state.geo.map.off();
-    state.geo.map.remove();
-    state.geo.map = null;
-    state.geo.layer = null;
-    state.geo.mapEl = null;
-    state.geo.hasFitBounds = false;
-  }
-  const shouldFitBounds = !state.geo.map || !state.geo.hasFitBounds;
-  if (!state.geo.map) {
-    state.geo.map = L.map(mapEl, { preferCanvas: true }).setView([47.64, -122.34], 11);
-    state.geo.mapEl = mapEl;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(state.geo.map);
-    state.geo.layer = L.layerGroup().addTo(state.geo.map);
-    state.geo.map.on("moveend", () => {
-      if (!state.geo.viewportFilter) return;
-      const b = state.geo.map.getBounds();
-      state.geo.mapBounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
-      markDirty("geo");
-    });
-  } else {
-    state.geo.map.invalidateSize();
-  }
-  state.geo.layer.clearLayers();
-  // Always draw active listings (current inventory — small N, high interest) and
-  // paint them LAST so they sit on top; fill the rest up to the cap underneath.
-  // Without this, the draw cap silently dropped every active row whenever they
-  // sorted past position 1,200 in the view.
-  const DRAW_CAP = 1200;
-  const activeRows = rows.filter(isActiveRow);
-  const otherRows = rows.filter((row) => !isActiveRow(row));
-  const drawnRows = otherRows.slice(0, Math.max(0, DRAW_CAP - activeRows.length)).concat(activeRows);
-  drawnRows.forEach((row) => {
-    const selected = state.geo.selectedPropertyKeys.includes(row.mapPropertyKey);
-    // Active listings render as a violet hollow ring so "for sale now" reads
-    // distinctly from a sold comp (filled, colored by sale/list pressure) and
-    // from a list-less sale (filled grey).
-    const active = isActiveRow(row);
-    const dotColor = active ? ACTIVE_LISTING_COLOR : ratioColor(row.saleToList);
-    const marker = L.circleMarker([row.mapLat, row.mapLon], {
-      radius: selected ? 7 : (active ? 6 : 5),
-      color: selected ? "#111827" : dotColor,
-      fillColor: dotColor,
-      fillOpacity: active ? (selected ? 0.5 : 0.25) : (selected ? 0.95 : 0.7),
-      weight: active ? 2.5 : (selected ? 3 : 1),
-      dashArray: row.isProjectionRow ? "3 3" : null,
-    });
-    marker.bindTooltip(
-      geoCardHtml(row, { withLinks: false }),
-      { direction: "top", offset: [0, -4], className: "geo-marker-tooltip", sticky: true }
-    );
-    marker.bindPopup(geoCardHtml(row, { withLinks: true }));
-    marker.on("click", () => {
-      toggleMapSelection(row.mapPropertyKey);
-    });
-    marker.addTo(state.geo.layer);
-    if (row.mapPropertyKey === state.geo.popupPropertyKey) marker.openPopup();
-  });
-  state.geo.map.invalidateSize();
-  if (shouldFitBounds && drawnRows.length) {
-    const bounds = L.latLngBounds(drawnRows.map((row) => [row.mapLat, row.mapLon]));
-    state.geo.map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
-    state.geo.hasFitBounds = true;
-  }
-  renderGeoSelectedRows();
-}
-
-const RATIO_NEUTRAL_COLOR = "#9ca3af";
-const ACTIVE_LISTING_COLOR = "#7c3aed";
-
-// A genuinely active listing: an MLS "Active" status with no recorded close.
-// (An earlier form OR-ed in `!hasActualClose && pendingListPrice > 0`, which also
-// swept in ~5.5k county rows that merely lack a close price — those are not
-// listings. Status + no-close keeps it to real for-sale inventory, matching how
-// the bid lab scopes active rows.) Shared by the marker, the visibility filter,
-// the flip supersede, and the popup card.
-function isActiveRow(row) {
-  return row.mlsStatusNorm === "ACTIVE" && !row.hasActualClose;
-}
-
-// Normalized street identity for flip detection (a home that sold and is now
-// relisted). ZIP is intentionally excluded — active-scrape rows can carry a wrong
-// zip — while any unit in the address is kept so distinct units don't merge.
-// Returns null for placeholder/parcel-only "addresses" that can't identify a home.
-function streetSupersedeKey(row) {
-  const addr = String(row.address || "").trim().toUpperCase();
-  if (!addr) return null;
-  const street = addr.split(",")[0].replace(/\s+/g, " ").trim();
-  if (!/\d/.test(street) || street.includes("UNAVAILABLE") || street.startsWith("PARCEL")) return null;
-  return street;
-}
-
-function ratioColor(value) {
-  const n = Number(value || 0);
-  if (n <= 0) return RATIO_NEUTRAL_COLOR; // no real list price -> unknown pressure
-  if (n >= 1.1) return "#b91c1c";
-  if (n >= 1.03) return "#c77700";
-  if (n >= 1) return "#2563eb";
-  return "#047857";
-}
-
-function renderGeoSelectedRows() {
-  const wrap = qs("#geoSelectedRows");
-  if (!wrap || !state.derived) return;
-  const selected = state.derived.viewRows.filter((row) => state.geo.selectedPropertyKeys.includes(row.mapPropertyKey));
-  const filterCount = state.geo.filterPropertyKeys.length;
-  wrap.innerHTML = selected.length
-    ? `<div class="geo-selected-status">${formatWholeNumber(selected.length)} selected for inspection${filterCount ? ` · ${formatWholeNumber(filterCount)} applied as dashboard filter` : ""}</div>${selected.map((row) => { const dates = geoDatesLineHtml(row); return `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span>${dates}</article>`; }).join("")}`
-    : `<div class="empty-state">Click map points to inspect properties. Use "Filter dashboard to selected" only when you want the rest of the app to narrow.</div>`;
-}
-
-function toggleMapSelection(key) {
-  if (!key) return;
-  if (state.geo.selectedPropertyKeys.includes(key)) {
-    state.geo.selectedPropertyKeys = state.geo.selectedPropertyKeys.filter((item) => item !== key);
-    state.geo.popupPropertyKey = "";
-  } else {
-    state.geo.selectedPropertyKeys = [...state.geo.selectedPropertyKeys, key];
-    state.geo.popupPropertyKey = key;
-  }
-  markDirty("geo");
 }
 
 function clearMapSelection() {
@@ -2249,35 +998,6 @@ function clearMapSelectionFilter() {
   state.recordsPage = 1;
   state.bidsPage = 1;
   markDirty();
-}
-
-function renderDataView() {
-  const wrap = qs("#view-data");
-  if (!wrap) return;
-  const report = state.dataSource.report || {};
-  const latestSale = state.derived?.latestSaleDate || "";
-  wrap.innerHTML = `
-    <div class="view-band">
-      <section class="section-head"><div><p class="eyebrow">Data</p><h2>Refresh and dataset health</h2></div></section>
-      <div class="data-grid">
-        ${dataTile("Dataset", state.dataSource.datasetName, "dataDatasetName")}
-        ${dataTile("Rows", formatWholeNumber(state.dataSource.rowCount), "dataDatasetRows")}
-        ${dataTile("Validation", report.status || report.validationStatus || state.dataSource.error || "Not loaded", "dataValidationStatus")}
-        ${dataTile("Validation time", report.generatedAt ? formatDateTime(report.generatedAt) : (report.timestamp ? formatDateTime(report.timestamp) : "n/a"), "dataValidationTime")}
-        ${dataTile("Latest sale date", latestSale ? `${formatDateShort(latestSale)} (${daysAgo(latestSale)}d ago)` : "n/a", "dataLatestSaleDate")}
-        ${dataTile("Output rows", formatWholeNumber(report.outputRows || report.output_row_count || state.dataSource.rowCount || 0), "dataOutputRows")}
-        ${dataTile("Realtor files", formatWholeNumber(report.realtorFileCount || report.realtor_file_count || 0), "dataRealtorFileCount")}
-      </div>
-      <section class="section-block">
-        <h3>Public assets</h3>
-        <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,originalListPrice,pendingListPrice,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsStatus,mlsListingPrice,mlsOriginalPrice,mlsDOM,mlsCDOM,mlsStyleCode,mlsParkingType,mlsParkingCoveredTotal,mlsTaxesAnnual,mlsBuildingCondition,mlsView,mlsBankOwned,mlsThirdPartyApprovalRequired,mlsNewConstructionState,mlsSquareFootageSource,hotMarketTag,saleToListRatio,saleToOriginalListRatio,bidUpAmount,bidUpPct,bidStrategy,bidSuggested,bidLow,bidHigh,bidRatio,bidConfidence,bidConfidenceLabel,bidCompCount,bidCompTier,bidStatus,isLikelyPresoldNewBuild,presoldRuleReason</div>
-      </section>
-    </div>
-  `;
-}
-
-function dataTile(label, value, id) {
-  return `<article class="data-tile"><span>${esc(label)}</span><strong id="${esc(id)}">${esc(value)}</strong></article>`;
 }
 
 function setActiveView(view, moveFocus = false) {
