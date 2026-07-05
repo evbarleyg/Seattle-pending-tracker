@@ -20,9 +20,10 @@ import {
   formatWholeNumber,
   monthLabelCompact,
 } from "../domain/format.mjs";
+import { domMetric } from "../domain/data.mjs";
 import { filtersToSummary, recordViewLabel } from "../domain/selectors.mjs";
 import { buildProfileCohort, buildMicromarketProfiles } from "../domain/buyerProfile.mjs";
-import { competitiveDelta, metricDirection } from "../domain/pulseMetrics.mjs";
+import { metricDirection } from "../domain/pulseMetrics.mjs";
 import { getMetric, formatCadenceNote } from "../domain/glossary.mjs";
 import { computeCostToWin, buildCostToWinVerdict } from "../domain/costToWin.mjs";
 import { captureBaseline, diffSinceBaseline, isValidBaseline } from "../domain/changesSince.mjs";
@@ -190,11 +191,27 @@ function liveCoverageNote(metric, state) {
 }
 
 // ---------------------------------------------------------------------------
-// Trend deltas (moved from main.mjs; the sign conventions live in
-// pulseMetrics.mjs where positive always means hotter for buyers).
+// Trend deltas (moved from main.mjs). Two sign systems meet here and must not
+// be mixed up:
+//   - The printed number and arrow show the metric's OWN movement
+//     (current - previous), so "Median DOM ↑ +5d MoM" means homes sat 5 more
+//     days than the prior month.
+//   - The tone color and signal text translate that movement into buyer
+//     impact via pulseMetrics.mjs, where positive always means hotter for
+//     buyers (DOM and inventory are flipped there).
 
-function tileDelta(series, metricKey, sampleField) {
+// Metrics whose denominator is a subset of monthly sales must gate on that
+// subset's count, mirroring defaultSampleField in main.mjs so a tile's delta
+// and its sparkline always agree on which months are trustworthy.
+function tileSampleField(metricKey) {
+  if (metricKey === "medianSaleToList" || metricKey === "overAskShare") return "ratioSampleSize";
+  if (metricKey === "medianBidUp") return "bidUpSampleSize";
+  return undefined;
+}
+
+function tileDelta(series, metricKey, sampleFieldOverride) {
   const { pulseMetricConfig, medianValue, minTileComps } = ctx;
+  const sampleField = sampleFieldOverride || tileSampleField(metricKey);
   const sampleOf = (e) => ((sampleField ? e[sampleField] : undefined) ?? e.sampleSize ?? e.salesCount ?? 0);
   let gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= minTileComps && Number.isFinite(Number(entry[metricKey])));
   // Drop a thin/partial trailing month (the stale current month) so month-over-month compares two COMPLETE months.
@@ -202,7 +219,9 @@ function tileDelta(series, metricKey, sampleField) {
   if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
   const cfg = pulseMetricConfig(metricKey);
   const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
-  const arrowFor = (dir) => (dir > 0 ? "↑" : dir < 0 ? "↓" : "→");
+  // Raw movement of the metric itself (no buyer-impact sign flip).
+  const rawDelta = (current, previous) => (Number.isFinite(Number(current)) && Number.isFinite(Number(previous)) ? Number(current) - Number(previous) : null);
+  const rawArrow = (delta) => (delta > 0 ? "↑" : delta < 0 ? "↓" : "→");
   const signalFor = (dir) => ({
     medianClosePrice: dir > 0 ? "prices rising" : dir < 0 ? "prices easing" : "prices flat",
     medianPsf: dir > 0 ? "$/sqft climbing" : dir < 0 ? "$/sqft softening" : "$/sqft steady",
@@ -214,17 +233,17 @@ function tileDelta(series, metricKey, sampleField) {
   })[metricKey] || "";
   // PRIMARY: month-over-month between the two most recent COMPLETE months (well-sampled in this slice).
   const momDir = metricDirection(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
-  const momDelta = competitiveDelta(metricKey, gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
+  const momDelta = rawDelta(gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
   // SECONDARY: 3-month vs prior-3-month median for trend context.
   let secondary = { secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
   if (gated.length >= 6) {
     const windowMedian = (entries) => medianValue(entries.map((e) => Number(e[metricKey])));
     const tDir = metricDirection(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
-    const tDelta = competitiveDelta(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
-    if (tDelta !== null) secondary = { secondaryArrow: arrowFor(tDir), secondaryTone: toneFor(tDir), secondaryLabel: `${cfg.delta(tDelta)} vs prior 3mo` };
+    const tDelta = rawDelta(windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
+    if (tDelta !== null) secondary = { secondaryArrow: rawArrow(tDelta), secondaryTone: toneFor(tDir), secondaryLabel: `${cfg.delta(tDelta)} vs prior 3mo` };
   }
   return {
-    tone: toneFor(momDir), arrow: arrowFor(momDir), deltaLabel: momDelta === null ? "n/a" : `${cfg.delta(momDelta)} MoM`, signal: signalFor(momDir),
+    tone: toneFor(momDir), arrow: momDelta === null ? "" : rawArrow(momDelta), deltaLabel: momDelta === null ? "n/a" : `${cfg.delta(momDelta)} MoM`, signal: signalFor(momDir),
     ...secondary,
   };
 }
@@ -260,7 +279,7 @@ function buyerVerdict(series) {
   return {
     tone: "flat",
     answer: "No clear tilt this month.",
-    detail: `Vs the prior complete month, ${cooler} signal(s) eased and ${hotter} tightened. Check the tiles below to see which pressures moved.`,
+    detail: `Compared with the prior complete month, ${cooler} ${cooler === 1 ? "signal" : "signals"} eased and ${hotter} tightened. Check the tiles below to see which pressures moved.`,
   };
 }
 
@@ -284,9 +303,14 @@ function insightTileHtml({ label, value, metricKey, series, explainId = "", swit
   const d = tileDelta(series, metricKey);
   const buyerPhrase = d.tone === "cooler" ? "better for you" : d.tone === "hotter" ? "tougher for you" : "";
   const signal = d.signal ? `${d.signal}${buyerPhrase ? `, ${buyerPhrase}` : ""}` : buyerPhrase;
+  // The article is a plain container (mouse clicks anywhere still navigate via
+  // the delegated data-switch-view handler), while keyboard and screen-reader
+  // users get a real button: the label itself. Keeping the explain trigger and
+  // its popover outside any role=button element is what makes them reachable
+  // by assistive tech.
   return `
-    <article class="insight-tile ${d.tone}" role="button" tabindex="0" data-switch-view="${esc(switchView)}"${note ? ` title="${esc(note)}"` : ""}>
-      <div class="tile-head"><span class="panel-kicker">${esc(label)}</span>${explainId ? renderExplainButton(explainId) : ""}</div>
+    <article class="insight-tile ${d.tone}" data-switch-view="${esc(switchView)}"${note ? ` title="${esc(note)}"` : ""}>
+      <div class="tile-head"><button type="button" class="panel-kicker tile-open" data-switch-view="${esc(switchView)}">${esc(label)}</button>${explainId ? renderExplainButton(explainId) : ""}</div>
       <div class="tile-figure">
         <strong>${esc(value)}</strong>
         <span class="tile-delta ${d.tone}">${esc(d.arrow)} ${esc(d.deltaLabel)}</span>
@@ -344,6 +368,17 @@ function commandCenterCardsHtml(costToWin) {
   const invSeries = state.derived.inventoryMonthlySeries || [];
   const window = windowLabel(state.filters);
   const closedCaption = renderUniverseCaption({ count: stats.sampleSize, universeLabel: "closed sales in your filters", windowLabel: window });
+  // The $/sqft and DOM medians rest on subsets of the closed slice (rows with
+  // recorded square footage / a usable days-on-market value), so their
+  // captions must count that subset, not the whole slice.
+  const closedRows = slices.closedSlice || [];
+  const psfCount = closedRows.filter((row) => Number(row.pricePerSqft) > 0).length;
+  const domCount = closedRows.filter((row) => domMetric(row) !== null).length;
+  const eligibleOfClosed = (count, eligibleLabel) => renderUniverseCaption({
+    count,
+    universeLabel: `${eligibleLabel}, out of ${formatWholeNumber(stats.sampleSize)} closed in your filters`,
+    windowLabel: window,
+  });
   const tiles = [
     insightTileHtml({
       label: "Median close",
@@ -361,7 +396,7 @@ function commandCenterCardsHtml(costToWin) {
       series: sliceSeries,
       explainId: "medianPsf",
       sub: "Price per square foot, so different-sized homes compare fairly.",
-      caption: closedCaption,
+      caption: eligibleOfClosed(psfCount, "sales with recorded square footage"),
     }),
     insightTileHtml({
       label: "Sold over ask",
@@ -379,7 +414,7 @@ function commandCenterCardsHtml(costToWin) {
       series: sliceSeries,
       explainId: "medianDom",
       sub: "Days a typical home sat before going pending. More days is better for you.",
-      caption: closedCaption,
+      caption: eligibleOfClosed(domCount, "sales with days-on-market data"),
     }),
     insightTileHtml({
       label: "Fast-sale share",
@@ -569,7 +604,7 @@ function changesSectionHtml(diff) {
       <div class="section-head compact">
         <div>
           <p class="eyebrow">What changed since you last looked? (${esc(sinceLabel)})</p>
-          <h3>${formatWholeNumber(totals.newActives || 0)} new on market · ${formatWholeNumber(totals.priceCuts || 0)} price cuts · ${formatWholeNumber(totals.wentPendingFast || 0)} went pending fast · ${formatWholeNumber(totals.newClosed || 0)} newly closed</h3>
+          <h3>${formatWholeNumber(totals.newActives || 0)} new on market · ${formatWholeNumber(totals.priceCuts || 0)} price cut${(totals.priceCuts || 0) === 1 ? "" : "s"} · ${formatWholeNumber(totals.wentPendingFast || 0)} went pending fast · ${formatWholeNumber(totals.newClosed || 0)} newly closed</h3>
         </div>
       </div>
       <p class="note">Compared against this exact slice, so changing filters starts a new memory.</p>
@@ -583,7 +618,7 @@ function changesSectionHtml(diff) {
 
 export function renderOverviewView(deps) {
   ctx = deps;
-  const { state, qs, icon, miniMetric, sparklineSvg, chartMetricLabel, minTileComps } = ctx;
+  const { state, qs, icon, miniMetric, sparklineSvg, chartMetricLabel, medianValue, minTileComps } = ctx;
   const wrap = qs("#view-overview");
   if (!wrap || !state.derived) return;
   const { slices } = state.derived;
@@ -607,7 +642,14 @@ export function renderOverviewView(deps) {
   const fastSaleText = pulse90?.current?.hotShare !== null && pulse90?.current?.hotShare !== undefined
     ? formatPct(pulse90.current.hotShare)
     : "n/a";
-  const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${formatMoneyOrNa(stats.medianBidUp)} median bid-up · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median DOM`;
+  // Median bid-up only means something on rows with a real list price; the
+  // normalizer writes delta=0 for every county row without one, so an
+  // unfiltered median (stats.medianBidUp) drags toward a fake $0. This mirrors
+  // the hasMarketListPrice filter buildSliceMonthlySeries uses for the trends
+  // strip, so the stance line and the charts agree.
+  const bidUpRows = (slices.closedSlice || []).filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta));
+  const stanceBidUp = bidUpRows.length ? medianValue(bidUpRows.map((row) => row.delta)) : null;
+  const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${formatMoneyOrNa(stanceBidUp)} median bid-up · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median days on market`;
   wrap.innerHTML = `
     <div class="view-band">
       ${goodTimeBannerHtml()}
@@ -633,7 +675,7 @@ export function renderOverviewView(deps) {
           <article class="decision-card">
             <span>Market stance</span>
             <strong>${esc(stance)}</strong>
-            <p>Fast-sale share is DOM-based pressure; sale/list and bid-up are price pressure.</p>
+            <p>Fast-sale share shows how quickly homes get snapped up; median close and bid-up show what winners actually paid.</p>
           </article>
           <button class="decision-action" type="button" data-switch-view="pulse">
             ${icon("activity")}
@@ -723,8 +765,8 @@ export function renderOverviewView(deps) {
               <p>${esc(entry.descriptor)}</p>
               <div class="micro-list">
                 <span>${formatWholeNumber(entry.summary.salesCount)} recent sales</span>
-                <span>${formatMoneyOrNa(entry.summary.medianClosePrice)}</span>
-                <span>${formatRatio(entry.summary.medianSaleToList)}</span>
+                <span>${formatMoneyOrNa(entry.summary.medianClosePrice)} median close</span>
+                <span>${formatRatio(entry.summary.medianSaleToList)} sale vs list</span>
               </div>
             </article>
           `).join("")}

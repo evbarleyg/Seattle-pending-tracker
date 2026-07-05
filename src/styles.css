@@ -2325,6 +2325,20 @@ th {
   gap: 6px;
 }
 
+/* The tile label is a real button (the tile's keyboard-reachable action) but
+   should look exactly like the old .panel-kicker span. */
+.tile-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-align: start;
+  cursor: pointer;
+}
+.tile-open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
 /* Over / at / under ask segmented bar. */
 .cost-bar {
   display: flex;
