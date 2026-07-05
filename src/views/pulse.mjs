@@ -25,9 +25,92 @@ import {
   metricDirection,
   rollingAverage,
 } from "../domain/pulseMetrics.mjs";
+import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
 let ctx = null;
+
+// Maps the six recent-window tile keys (and the pulseReadout bullets) to
+// their glossary ids, so "what is this?" always opens the right definition.
+const PULSE_METRIC_EXPLAIN_IDS = {
+  salesCount: "pulseSalesCount",
+  hotShare: "pulseFastSaleShare",
+  medianDom: "pulseMedianDom",
+  medianSaleToList: "pulseMedianSaleToList",
+  medianBidUp: "pulseMedianBidUp",
+  medianClosePrice: "pulseMedianClose",
+};
+
+// Caption + "what is this?" pair under a headline stat, matching the layout
+// overview.mjs uses (shares the .caption-row CSS already defined for it).
+function captionRow(captionHtml, explainId = "") {
+  const button = explainId ? renderExplainButton(explainId) : "";
+  if (!captionHtml && !button) return "";
+  return `<div class="caption-row">${captionHtml}${button}</div>`;
+}
+
+// One-sentence answer to "is my watchlist heating up?", built from the same
+// six recent-window signals the tile grid already shows (salesCount,
+// hotShare, medianDom, medianSaleToList, medianBidUp, medianClosePrice).
+// Mirrors the counting rule the Overview's good-time banner uses: needs at
+// least 2 readable signals, and a 2-signal lead to call a direction instead
+// of "no clear shift".
+export function watchlistVerdict(recent90) {
+  const current = recent90?.current || {};
+  const previous = recent90?.previous || {};
+  if (!recent90 || !current.salesCount) {
+    return {
+      tone: "flat",
+      answer: "Not enough recent watchlist sales to say.",
+      detail: "There have been too few closed sales in your watchlist pockets over the last 90 days to call a trend. Try a broader group pill above, or widen your filters.",
+    };
+  }
+  const directions = Object.keys(PULSE_METRIC_EXPLAIN_IDS).map((key) => metricDirection(key, current[key], previous[key]));
+  const hotter = directions.filter((direction) => direction > 0).length;
+  const cooler = directions.filter((direction) => direction < 0).length;
+  const readCount = hotter + cooler;
+  if (readCount < 2) {
+    return {
+      tone: "flat",
+      answer: "Hard to say from this window.",
+      detail: "Most of the six signals below have no clean comparison against the prior 90 days yet, so a trend read is not reliable here.",
+    };
+  }
+  if (hotter - cooler >= 2) {
+    return {
+      tone: "hotter",
+      answer: "Yes, this watchlist is heating up.",
+      detail: `${hotter} of ${readCount} tracked signals moved against buyers over the last 90 days compared with the 90 days before, so expect faster sales and steeper bidding on the pockets below.`,
+    };
+  }
+  if (cooler - hotter >= 2) {
+    return {
+      tone: "cooler",
+      answer: "No, this watchlist is cooling off.",
+      detail: `${cooler} of ${readCount} tracked signals eased for buyers over the last 90 days compared with the 90 days before, so there is a little more room to breathe right now.`,
+    };
+  }
+  return {
+    tone: "flat",
+    answer: "No clear shift in this watchlist right now.",
+    detail: `Over the last 90 days compared with the 90 days before, ${cooler} ${cooler === 1 ? "signal" : "signals"} eased and ${hotter} tightened. Check the tiles below to see which ones moved.`,
+  };
+}
+
+function watchlistVerdictHtml(recent90, snapshot) {
+  const v = watchlistVerdict(recent90);
+  const caption = renderUniverseCaption({
+    count: recent90?.current?.salesCount,
+    universeLabel: `closed sales in ${snapshot.selectedLabel} (last 90 days)`,
+  });
+  return `
+    <section class="section-block market-verdict ${v.tone}" aria-label="Is my watchlist heating up">
+      <p class="eyebrow">Is my watchlist heating up?</p>
+      <h2 class="hero-line">${esc(v.answer)}</h2>
+      <p class="note">${esc(v.detail)}</p>
+      ${captionRow(caption, "pulseWatchlist")}
+    </section>`;
+}
 
 export function renderPulseView(deps) {
   ctx = deps;
@@ -48,10 +131,11 @@ export function renderPulseView(deps) {
   const pockets = competitionPocketEntries(sliceRows);
   wrap.innerHTML = `
     <div class="view-band">
+      ${watchlistVerdictHtml(recent90, snapshot)}
       <section class="section-head">
         <div>
           <p class="eyebrow">Pulse</p>
-          <h2>Is my watchlist heating up?</h2>
+          <h2>Watchlist snapshot</h2>
         </div>
         <div class="segmented" id="pulseModeToggles">
           <button type="button" class="scope-pill ${state.pulseTimelineMode !== "combined" ? "active" : ""}" data-pulse-mode="compare">Compare</button>
@@ -61,26 +145,27 @@ export function renderPulseView(deps) {
       <div class="scope-row" id="pulseGroupPills">
         ${PULSE_GROUPS.map((group) => `<button class="scope-pill ${snapshot.selectedGroup === group.id ? "active" : ""}" type="button" data-pulse-group="${esc(group.id)}">${esc(group.label)}</button>`).join("")}
       </div>
-      <div id="pulseStatus" class="note">Showing ${esc(snapshot.selectedLabel)} across ${formatWholeNumber(snapshot.selectedRows.length)} MLS-enriched closed rows.</div>
+      <div id="pulseStatus" class="note">Showing ${esc(snapshot.selectedLabel)} across ${formatWholeNumber(snapshot.selectedRows.length)} MLS-enriched closed rows. ${renderExplainButton("watchlistPockets")}</div>
       <div class="pulse-grid" id="pulseRecentGrid">
         ${["salesCount", "hotShare", "medianDom", "medianSaleToList", "medianBidUp", "medianClosePrice"].map((key) => pulseMetricCard(key, recent90)).join("")}
       </div>
       <div id="pulseReadout" class="readout">${pulseReadout(snapshot)}</div>
       <div class="chart-grid">
-        ${chartPanel("Fast-sale share", "pulseChartHotShare", pulseChartSvg("hotShare", snapshot), chartSummary(snapshot.selectedMonthlySeries, "hotShare"), chartGuide("hotShare", "line"), chartInsight("hotShare"))}
-        ${chartPanel("Median DOM", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"), chartInsight("medianDom"))}
-        ${chartPanel("Sale/List price pressure", "pulseChartSaleToList", pulseChartSvg("medianSaleToList", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
-        ${chartPanel("Bid-up price pressure", "pulseChartBidUp", pulseChartSvg("medianBidUp", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianBidUp"), chartGuide("medianBidUp", "line"), chartInsight("medianBidUp"))}
-        ${chartPanel("Close price band", "pulseChartClosePrice", pulseChartSvg("medianClosePrice", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"))}
+        ${chartPanel("Fast-sale share", "pulseChartHotShare", pulseChartSvg("hotShare", snapshot), chartSummary(snapshot.selectedMonthlySeries, "hotShare"), chartGuide("hotShare", "line"), chartInsight("hotShare"), "pulseFastSaleShare")}
+        ${chartPanel("Median DOM", "pulseChartMedianDom", pulseChartSvg("medianDom", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianDom"), chartGuide("medianDom", "line"), chartInsight("medianDom"), "pulseMedianDom")}
+        ${chartPanel("Sale/List price pressure", "pulseChartSaleToList", pulseChartSvg("medianSaleToList", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"), "pulseMedianSaleToList")}
+        ${chartPanel("Bid-up price pressure", "pulseChartBidUp", pulseChartSvg("medianBidUp", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianBidUp"), chartGuide("medianBidUp", "line"), chartInsight("medianBidUp"), "pulseMedianBidUp")}
+        ${chartPanel("Close price band", "pulseChartClosePrice", pulseChartSvg("medianClosePrice", snapshot), chartSummary(snapshot.selectedMonthlySeries, "medianClosePrice"), chartGuide("medianClosePrice", "line"), chartInsight("medianClosePrice"), "pulseMedianClose")}
       </div>
       <section class="section-block">
         <div class="section-head compact">
           <div>
             <p class="eyebrow">Watchlist comparison</p>
-            <h3>Sale/List trajectory by pocket</h3>
+            <h3>Sale/List trajectory by pocket ${renderExplainButton("pulseMedianSaleToList")}</h3>
           </div>
         </div>
         <p class="note">Use this to separate broad buyer pressure from a single neighborhood spike.</p>
+        ${captionRow(renderUniverseCaption({ count: snapshot.selectedRows.length, universeLabel: `watchlist sales in ${snapshot.selectedLabel} (trailing 12 mo)` }))}
         <div id="pulseTrajectory" class="trajectory-grid">
           ${pulseTrajectoryCards(snapshot)}
         </div>
@@ -89,7 +174,7 @@ export function renderPulseView(deps) {
         <div class="section-head compact">
           <div>
             <p class="eyebrow">Whole-slice trends</p>
-            <h3>How the current filter band is moving</h3>
+            <h3>How the current filter band is moving ${renderExplainButton("pulseWeeklyGrain")}</h3>
           </div>
         </div>
         <div class="trends-controls">
@@ -100,24 +185,26 @@ export function renderPulseView(deps) {
         </div>
         <p class="note">${weekly
           ? "Each point is one calendar week keyed on sale date (not a rolling average), so you read genuine week-to-week movement. The newest week is partial and de-weighted; weeks with fewer than 5 sales show volume only — a thin-week median would whipsaw. Sale/list, pending and DOM stay on monthly grain (too sparse weekly)."
-          : "These are the old Charts view, kept here so the context sits beside the watchlist pulse."}</p>
+          : "These are the old Charts view, kept here so the context sits beside the watchlist pulse."} These four charts cover every closed sale in your current filters, not just the watchlist pockets above.</p>
+        ${captionRow(renderUniverseCaption({ count: sliceRows.length, universeLabel: "closed sales in your current filters, citywide not just the watchlist", windowLabel: "trailing 12 mo" }))}
         <div class="chart-grid">
           ${chartPanel(weekly ? "Weekly volume" : "Monthly volume", "chartVolume", barSvg(volSeries, "salesCount", grainOpts), chartSummary(volSeries, "salesCount"), chartGuide("salesCount", "bar", weekly ? "week" : "month"), chartInsight("salesCount"))}
-          ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line", weekly ? "week" : "month"), chartInsight("medianClosePrice"))}
+          ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line", weekly ? "week" : "month"), chartInsight("medianClosePrice"), "medianClose")}
           ${weekly
-            ? `<article class="chart-panel"><div class="chart-title">Median sale/list</div><p class="chart-insight">Sale/list ratio stays on monthly grain: only a small minority of recent weekly sales carry a genuine list price, so a weekly ratio would jump on n&lt;5. Switch to Monthly to read it.</p>${lineSvg(sliceSeries, "medianSaleToList")}</article>`
-            : chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"))}
-          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(priceSeries, "medianPsf", grainOpts), chartSummary(priceSeries, "medianPsf"), chartGuide("medianPsf", "line", weekly ? "week" : "month"), chartInsight("medianPsf"))}
+            ? `<article class="chart-panel"><div class="chart-title">Median sale/list ${renderExplainButton("overAskRatio")}</div><p class="chart-insight">Sale/list ratio stays on monthly grain: only a small minority of recent weekly sales carry a genuine list price, so a weekly ratio would jump on n&lt;5. Switch to Monthly to read it.</p>${lineSvg(sliceSeries, "medianSaleToList")}</article>`
+            : chartPanel("Median sale/list", "chartRatio", lineSvg(sliceSeries, "medianSaleToList"), chartSummary(sliceSeries, "medianSaleToList"), chartGuide("medianSaleToList", "line"), chartInsight("medianSaleToList"), "overAskRatio")}
+          ${chartPanel("Median $/sqft", "chartPsf", lineSvg(priceSeries, "medianPsf", grainOpts), chartSummary(priceSeries, "medianPsf"), chartGuide("medianPsf", "line", weekly ? "week" : "month"), chartInsight("medianPsf"), "medianPsf")}
         </div>
       </section>
       <section class="section-block" id="pulseCompetitionPockets">
         <div class="section-head compact">
           <div>
             <p class="eyebrow">Competition pockets</p>
-            <h3>Where fast sales concentrate</h3>
+            <h3>Where fast sales concentrate ${renderExplainButton("competitionPockets")}</h3>
           </div>
         </div>
-        <p class="note">These rows are clickable neighborhood cross-filters. Fast-sale share is DOM-based; sale/list shows price pressure.</p>
+        <p class="note">These rows are clickable neighborhood cross-filters. Fast-sale share is DOM-based; sale/list shows price pressure. Ranked across every neighborhood in your filters, not just the watchlist pockets.</p>
+        ${captionRow(renderUniverseCaption({ count: sliceRows.length, universeLabel: "closed sales grouped by neighborhood, citywide not just the watchlist", windowLabel: "trailing 12 mo" }))}
         <div class="heat-list">
           ${heatListHtml(pockets)}
         </div>
@@ -126,9 +213,11 @@ export function renderPulseView(deps) {
         <div class="section-head compact">
           <div>
             <p class="eyebrow">Micro breakout</p>
-            <h3>Watchlist neighborhoods</h3>
+            <h3>Watchlist neighborhoods ${renderExplainButton("watchlistPockets")}</h3>
           </div>
         </div>
+        <p class="note">Every watchlist pocket, no matter which pill is selected above, so you can compare all four at a glance.</p>
+        ${captionRow(renderUniverseCaption({ count: snapshot.microBreakout.reduce((sum, group) => sum + (group.totalSalesCount || 0), 0), universeLabel: "watchlist sales across all four pockets", windowLabel: "last 90 days" }))}
         <div id="pulseMicroBreakout" class="profile-grid">
           ${snapshot.microBreakout.map((group) => `
             <article class="micro-card">
@@ -158,17 +247,18 @@ function pulseMetricCard(key, recent) {
   if (delta === null) deltaLabel = "n/a vs prior";
   else if (Math.abs(delta) < 1e-9) deltaLabel = "no change vs prior";
   else deltaLabel = `${esc(config.delta(delta))} vs prior`;
+  const explainId = PULSE_METRIC_EXPLAIN_IDS[key] || "";
   return `
     <article class="metric-card ${tone}">
-      <span>${esc(config.label)}</span>
+      <span>${esc(config.label)}${explainId ? ` ${renderExplainButton(explainId)}` : ""}</span>
       <strong>${esc(config.format(current[key]))}</strong>
       <small>${deltaLabel}</small>
     </article>
   `;
 }
 
-function chartPanel(title, id, content, summary = "", guide = "", insight = "") {
-  return `<article class="chart-panel"><div class="chart-title">${esc(title)}</div>${insight}${summary}${guide}<div id="${esc(id)}">${content}</div></article>`;
+function chartPanel(title, id, content, summary = "", guide = "", insight = "", explainId = "") {
+  return `<article class="chart-panel"><div class="chart-title">${esc(title)}${explainId ? ` ${renderExplainButton(explainId)}` : ""}</div>${insight}${summary}${guide}<div id="${esc(id)}">${content}</div></article>`;
 }
 
 function chartInsight(metricKey) {
@@ -350,10 +440,23 @@ function pulseReadout(snapshot) {
   const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
   if (!recent90 || !recent90.current.salesCount) return `<p>No recent watchlist sales in this slice.</p>`;
   const bullets = [];
-  bullets.push(`${snapshot.selectedLabel} has ${formatWholeNumber(recent90.current.salesCount)} sales in the last 90-day pulse window.`);
-  if (recent90.current.medianBidUp !== null) bullets.push(`Median bid-up is ${formatMoney(recent90.current.medianBidUp)}.`);
-  if (recent90.current.medianDom !== null) bullets.push(`Median DOM is ${Math.round(recent90.current.medianDom)} days.`);
-  return bullets.map((text) => `<p>${esc(text)}</p>`).join("");
+  bullets.push({
+    text: `${snapshot.selectedLabel} has ${formatWholeNumber(recent90.current.salesCount)} sales in the last 90-day pulse window.`,
+    explainId: "pulseSalesCount",
+  });
+  if (recent90.current.medianBidUp !== null) {
+    bullets.push({
+      text: `Median bid-up is ${formatMoney(recent90.current.medianBidUp)}.`,
+      explainId: "pulseMedianBidUp",
+    });
+  }
+  if (recent90.current.medianDom !== null) {
+    bullets.push({
+      text: `Median DOM is ${Math.round(recent90.current.medianDom)} days.`,
+      explainId: "pulseMedianDom",
+    });
+  }
+  return bullets.map(({ text, explainId }) => `<p>${esc(text)} ${renderExplainButton(explainId)}</p>`).join("");
 }
 
 // Discrete weekly grain: each point is one NON-overlapping 7-day week, keyed

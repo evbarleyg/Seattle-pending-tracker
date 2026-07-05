@@ -7,6 +7,16 @@
 // them in through the deps object on every render:
 //   { state, qs, propertyAddressLink, affordTierBadge, currentPageSize,
 //     paginationControls }
+//
+// Intelligibility pass: column headers that map to a glossary entry get a
+// quiet "what is this?" trigger (data.mjs / normalizeRow already grounds a
+// row's lineage in a single field, row.dataMode, which is either
+// "PUBLIC_PROXY" (county recorded sale) or "MLS_ENRICHED" (MLS export or
+// Redfin folded in, the pipeline does not keep those two separate past that
+// point) -- so the Source column and its badge read straight off that field,
+// no new derived state. Popovers are resolved globally by
+// src/views/overview.mjs's getExplainEntry (wired once in main.mjs), so
+// dropping a renderExplainButton(id) call here is enough to make it live.
 import {
   esc,
   formatDateShort,
@@ -23,6 +33,7 @@ import {
   recordViewLabel,
   sortRows,
 } from "../domain/selectors.mjs";
+import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
 let ctx = null;
@@ -41,7 +52,12 @@ export function renderRecordsView(deps) {
     <div class="view-band">
       <section class="section-head">
         <div><p class="eyebrow">Records</p><h2>Comps and property links</h2></div>
-        <p class="note" id="recordsStatus">${page.total ? `Showing ${page.total} comps/properties in ${recordViewLabel(state.filters.recordView)}. Zillow and KC parcel links stay available for property-level review; blank MLS fields mean unavailable or unknown for that export.${state.flags.projection ? " Rows marked Projected are modeled estimates, not recorded sales." : ""}` : emptyMessage}</p>
+        <div class="caption-row">${renderUniverseCaption({
+          count: page.total,
+          universeLabel: "rows in this table",
+          windowLabel: recordViewLabel(state.filters.recordView),
+        })}${renderExplainButton("recordRows")}</div>
+        <p class="note" id="recordsStatus">${page.total ? `Showing ${page.total} comps/properties in ${recordViewLabel(state.filters.recordView)}. Zillow and KC parcel links stay available for property-level review; blank MLS fields mean unavailable or unknown for that export.${state.flags.projection ? ` Rows marked Projected are modeled estimates, not recorded sales.${renderExplainButton("projectedClose")}` : ""}` : emptyMessage}</p>
       </section>
       <div class="table-head">
         <p class="note">Showing ${page.start}-${page.end} of ${page.total}. Sorting and export use the full filtered dataset.</p>
@@ -52,6 +68,7 @@ export function renderRecordsView(deps) {
           <thead>
             <tr>
               ${recordTh("address", "Address")}
+              ${recordTh("dataMode", "Source", "recordSource")}
               ${recordTh("neighborhood", "Neighborhood")}
               ${recordTh("type", "Type")}
               ${recordTh("beds", "Beds")}
@@ -63,14 +80,14 @@ export function renderRecordsView(deps) {
               ${recordTh("saleDate", "Sale Dt")}
               ${recordTh("closePrice", "Close Price")}
               ${recordTh("originalListPrice", "Original List")}
-              ${recordTh("pendingListPrice", "Ask")}
-              ${recordTh("domMetric", "DOM")}
-              ${recordTh("hotCategory", "Hot")}
-              ${recordTh("saleToList", "S/List")}
-              ${recordTh("delta", "Bid-Up")}
+              ${recordTh("pendingListPrice", "Ask", "recordAsk")}
+              ${recordTh("domMetric", "DOM", "recordDom")}
+              ${recordTh("hotCategory", "Hot", "recordHot")}
+              ${recordTh("saleToList", "S/List", "recordSaleToList")}
+              ${recordTh("delta", "Bid-Up", "recordBidUp")}
             </tr>
           </thead>
-          <tbody id="recordRows">${page.rows.map(recordRowHtml).join("") || `<tr><td colspan="17">${esc(emptyMessage)}</td></tr>`}</tbody>
+          <tbody id="recordRows">${page.rows.map(recordRowHtml).join("") || `<tr><td colspan="18">${esc(emptyMessage)}</td></tr>`}</tbody>
         </table>
       </div>
       <div class="mobile-card-list" id="recordMobileList">${page.rows.map(recordMobileCard).join("")}</div>
@@ -78,11 +95,22 @@ export function renderRecordsView(deps) {
   `;
 }
 
-function recordTh(key, label) {
+function recordTh(key, label, explainId = "") {
   const { state } = ctx;
   const active = state.recordSort.key === key;
   const arrow = active ? (state.recordSort.dir === "asc" ? "up" : "down") : "both";
-  return `<th><button class="th-sort ${active ? "active" : ""}" type="button" data-record-sort="${esc(key)}">${esc(label)} <span class="sort-ind" data-sort-ind="${esc(key)}">${arrow === "up" ? "↑" : arrow === "down" ? "↓" : "↕"}</span></button></th>`;
+  const explain = explainId ? renderExplainButton(explainId) : "";
+  return `<th><span class="th-cell"><button class="th-sort ${active ? "active" : ""}" type="button" data-record-sort="${esc(key)}">${esc(label)} <span class="sort-ind" data-sort-ind="${esc(key)}">${arrow === "up" ? "↑" : arrow === "down" ? "↓" : "↕"}</span></button>${explain}</span></th>`;
+}
+
+// Plain-language row lineage, read straight off row.dataMode (see
+// domain/data.mjs normalizeRow/inferMode). The pipeline folds manual MLS
+// exports and Redfin into the same "MLS_ENRICHED" kind, so this is a county
+// vs. MLS-enriched split, not a three-way county/MLS/Redfin split -- there is
+// no field that tells the two enrichment sources apart on a given row.
+function recordSourceBadge(row) {
+  const isMlsEnriched = row.dataMode === "MLS_ENRICHED";
+  return `<span class="lineage-pill ${isMlsEnriched ? "mls" : "county"}">${isMlsEnriched ? "MLS-enriched" : "County record"}</span>`;
 }
 
 function hotBadge(row) {
@@ -97,6 +125,7 @@ function recordRowHtml(row) {
   return `
     <tr>
       <td>${propertyAddressLink(row)}${row.isProjectionRow ? `<span class="proj-pill">Projected</span>` : ""}${countyUrl ? `<a class="sub-link" href="${esc(countyUrl)}" target="_blank" rel="noopener noreferrer">KC Parcel</a>` : ""}${affordTierBadge(row)}</td>
+      <td>${recordSourceBadge(row)}</td>
       <td><button class="link-button" data-set-interaction="neighborhood" data-set-value="${esc(row.neighborhoodLabel)}">${esc(row.neighborhoodLabel)}</button></td>
       <td><button class="link-button" data-set-interaction="type" data-set-value="${esc(row.typeLabel)}">${esc(row.typeLabel)}</button></td>
       <td>${row.beds > 0 ? row.beds : "n/a"}</td>
@@ -163,6 +192,7 @@ function recordMobileCard(row) {
         <span>${row.isProjectionRow ? `~${formatMoneyCompact(row.projectedClosePrice)} (est.)` : formatMoneyCompact(row.closePrice || row.pendingListPrice)}</span>
       </div>
       <div class="mrow-grid">
+        <div><span>Source</span><strong>${recordSourceBadge(row)}</strong></div>
         <div><span>Neighborhood</span><strong>${esc(row.neighborhoodLabel)}</strong></div>
         <div><span>Type</span><strong>${esc(row.typeLabel)}</strong></div>
         <div><span>Beds</span><strong>${row.beds > 0 ? row.beds : "n/a"}</strong></div>

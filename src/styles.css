@@ -2419,3 +2419,107 @@ th {
   color: var(--hot);
   font-weight: 800;
 }
+
+/* ============================================================
+   records explain (src/views/records.mjs) — append-only.
+   Column-header explain triggers plus the row-lineage badge that
+   labels each comp as a county record or an MLS-enriched row.
+   ============================================================ */
+
+/* Header cell: sort button and its optional "what is this?" trigger
+   sit side by side without the button-in-a-button wrapper. */
+.th-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.th-cell .explain-trigger {
+  font-size: 0.66rem;
+}
+
+.lineage-pill {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 22px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.lineage-pill.mls {
+  background: color-mix(in srgb, var(--brand-2) 12%, var(--surface));
+  color: var(--brand-2);
+}
+
+/* ============================================================
+   bids explain (src/views/bids.mjs) — append-only.
+   Small layout tweaks so the "what is this?" trigger sits next to
+   the confidence pill and the mobile suggested-bid figure without
+   breaking their existing flex alignment. Tokens only, no new
+   colors; trigger/popover styling itself lives in the explain-layer
+   block above.
+   ============================================================ */
+
+.bid-confidence-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mrow-bid-figure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* data explain */
+.stage-funnel {
+  display: grid;
+  gap: 8px;
+  margin-block-start: 10px;
+}
+
+.stage-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.stage-row strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.02rem;
+}
+
+.stage-row span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.stage-row .stage-row-label {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.data-recheck-note {
+  margin-block-start: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .stage-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -20,6 +20,7 @@ import {
 } from "../domain/format.mjs";
 import { countyRecordUrl, domMetric, zillowUrl } from "../domain/data.mjs";
 import { recordViewLabel } from "../domain/selectors.mjs";
+import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
 let ctx = null;
@@ -52,7 +53,11 @@ function ensureGeoShell(wrap) {
   wrap.innerHTML = `
     <div class="view-band geo-view">
       <section class="section-head">
-        <div><p class="eyebrow">Geo</p><h2>Where is pressure located?</h2></div>
+        <div>
+          <p class="eyebrow">Geo</p>
+          <h2>Where is pressure located?</h2>
+          <p class="note geo-pressure-line">Pressure means how much buyers paid over or under the asking price to win a home. Each dot's color shows that for one property. ${renderExplainButton("geoPressure")}</p>
+        </div>
         <div class="geo-actions">
           <label class="check inline"><input type="checkbox" id="geoViewportFilter" /> Filter to viewport</label>
           <label class="check inline"><input type="checkbox" id="geoShowActive" checked /> Active listings</label>
@@ -65,6 +70,7 @@ function ensureGeoShell(wrap) {
         <div id="map" class="map-surface" aria-label="Seattle sales map"></div>
         <aside class="geo-side">
           <div id="geoStatus" class="note" aria-live="polite"></div>
+          <div id="geoStatusCaption" class="caption-row"></div>
           ${geoLegendHtml()}
           <div id="geoSelectedRows" aria-live="polite"></div>
         </aside>
@@ -89,6 +95,10 @@ function updateGeoShell(rows) {
     const applied = state.geo.filterPropertyKeys.length ? ` ${formatWholeNumber(state.geo.filterPropertyKeys.length)} map-selected properties are filtering the dashboard.` : " Marker clicks inspect properties only until you apply them as a filter.";
     const activeCount = rows.reduce((n, row) => n + (isActiveRow(row) ? 1 : 0), 0);
     status.textContent = `${formatWholeNumber(rows.length)} mapped properties in ${recordViewLabel(state.filters.recordView)}${activeCount ? ` (${formatWholeNumber(activeCount)} active)` : ""}. ${drawnCount < rows.length ? `Drawing ${formatWholeNumber(drawnCount)} of ${formatWholeNumber(rows.length)} for speed (all active listings shown).` : "All visible points are drawn."} Color = sale/list pressure; grey = sold, no list price; violet ring = active listing.${applied}`;
+  }
+  const statusCaption = qs("#geoStatusCaption");
+  if (statusCaption) {
+    statusCaption.innerHTML = `${renderUniverseCaption({ count: rows.length, universeLabel: `mapped properties in ${recordViewLabel(state.filters.recordView)}` })}${renderExplainButton("recordRows")}`;
   }
   const legend = qs(".geo-legend");
   if (legend) legend.outerHTML = geoLegendHtml();
@@ -315,8 +325,11 @@ export function renderGeoSelectedRows(deps) {
   if (!wrap || !state.derived) return;
   const selected = state.derived.viewRows.filter((row) => state.geo.selectedPropertyKeys.includes(row.mapPropertyKey));
   const filterCount = state.geo.filterPropertyKeys.length;
+  const selectedCaption = selected.length
+    ? `<div class="caption-row">${renderUniverseCaption({ count: selected.length, universeLabel: "properties picked from the map" })}</div>`
+    : "";
   wrap.innerHTML = selected.length
-    ? `<div class="geo-selected-status">${formatWholeNumber(selected.length)} selected for inspection${filterCount ? ` · ${formatWholeNumber(filterCount)} applied as dashboard filter` : ""}</div>${selected.map((row) => { const dates = geoDatesLineHtml(row); return `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span>${dates}</article>`; }).join("")}`
+    ? `<div class="geo-selected-status">${formatWholeNumber(selected.length)} selected for inspection${filterCount ? ` · ${formatWholeNumber(filterCount)} applied as dashboard filter` : ""}</div>${selectedCaption}${selected.map((row) => { const dates = geoDatesLineHtml(row); return `<article class="mini-record">${propertyAddressLink(row, "mini-record-link")}<span>${esc(row.neighborhoodLabel)} · ${formatMoneyOrNa(row.closePrice || row.pendingListPrice)}</span>${dates}</article>`; }).join("")}`
     : `<div class="empty-state">Click map points to inspect properties. Use "Filter dashboard to selected" only when you want the rest of the app to narrow.</div>`;
 }
 

@@ -7,6 +7,14 @@
 // them in through the deps object on every render:
 //   { state, qs, miniMetric, buttonIcon, optionHtml, propertyAddressLink,
 //     affordTierBadge, currentPageSize, paginationControls }
+//
+// Intelligibility treatment (same pattern as the answer-first Overview, see
+// docs/superpowers/specs/2026-07-05-answer-first-overview-design.md): every
+// suggested-bid card and the manual bid panel carry "what is this?" explain
+// triggers on the suggested bid and the confidence score, a plain-language
+// caption naming the comp basis ("of 28 nearby single family comps"), and
+// cost-to-win-style over/at/under-ask wording instead of raw ratio jargon
+// like "S/List".
 import {
   esc,
   formatMoney,
@@ -26,9 +34,56 @@ import {
   scoreBidForRow,
   sortRows,
 } from "../domain/selectors.mjs";
+import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
 let ctx = null;
+
+// ---------------------------------------------------------------------------
+// Shared small helpers. The shared miniMetric() passed in through deps
+// escapes its whole label, so it cannot carry an explain trigger; these
+// local variants mirror src/views/overview.mjs's statItem/captionRow so the
+// two tabs read the same way.
+
+function metricWithExplain(label, value, explainId = "") {
+  return `<div class="mini-metric"><span>${esc(label)}${explainId ? ` ${renderExplainButton(explainId)}` : ""}</span><strong>${esc(value)}</strong></div>`;
+}
+
+function captionRow(captionHtml, explainId = "") {
+  const button = explainId ? renderExplainButton(explainId) : "";
+  if (!captionHtml && !button) return "";
+  return `<div class="caption-row">${captionHtml}${button}</div>`;
+}
+
+// Plain-language scope word for which comp pool backed a suggested bid,
+// mirroring bidTierLabel's tiers (computeBidCompTiers in selectors.mjs).
+export function compScopeLabel(tier) {
+  if (tier === "T1_NEIGHBORHOOD_TYPE") return "nearby";
+  if (tier === "T2_ZIP_TYPE") return "same-zip";
+  if (tier === "T3_CITY_TYPE") return "citywide";
+  return "";
+}
+
+// "of 28 nearby single family comps" style caption for a scored bid, reusing
+// the same shared universe-caption component the Overview uses so both tabs
+// state their comp basis the same way.
+export function compBasisCaption(compCount, tier, typeLabel) {
+  if (!compCount) return "";
+  const scope = compScopeLabel(tier);
+  const typeWord = String(typeLabel || "home").toLowerCase();
+  const universeLabel = [scope, `${typeWord} comps`].filter(Boolean).join(" ");
+  return renderUniverseCaption({ count: compCount, universeLabel });
+}
+
+// Cost-to-win-style wording for how a suggested bid compares with the asking
+// price, matching the Overview's over-ask/at-ask/under-ask phrasing instead
+// of a raw "+X% vs ask" delta.
+export function overAskPhrase(overAskPct) {
+  if (overAskPct === null || overAskPct === undefined) return "";
+  if (overAskPct > 0) return `${overAskPct}% over ask`;
+  if (overAskPct < 0) return `${Math.abs(overAskPct)}% under ask`;
+  return "at ask";
+}
 
 export function renderBidsView(deps) {
   ctx = deps;
@@ -62,9 +117,9 @@ export function renderBidsView(deps) {
       <div class="metric-row">
         ${miniMetric("Active listings", formatWholeNumber(stats.activeCount))}
         ${miniMetric("Scored", formatWholeNumber(stats.scoredCount))}
-        ${miniMetric("High confidence", formatWholeNumber(stats.highConfidenceCount))}
+        ${metricWithExplain("High confidence", formatWholeNumber(stats.highConfidenceCount), "bidConfidence")}
         ${miniMetric("Watched", formatWholeNumber(watchedCount))}
-        ${miniMetric("Median over ask", `${(stats.medianOverAskPct || 0).toFixed(1)}%`)}
+        ${metricWithExplain("Median over ask", `${(stats.medianOverAskPct || 0).toFixed(1)}%`, "bidMedianOverAsk")}
       </div>
       <section class="section-block">
         <div class="section-head compact">
@@ -100,11 +155,11 @@ export function renderBidsView(deps) {
                 ${bidTh("originalListPrice", "Original List")}
                 ${bidTh("pendingListPrice", "List@Pending")}
                 ${bidTh("dom", "DOM/CDOM")}
-                ${bidTh("suggestedBid", "Suggested Bid")}
-                ${bidTh("bidRange", "Bid Range")}
-                ${bidTh("ratio", "Suggested S/List")}
-                ${bidTh("confidence", "Confidence")}
-                ${bidTh("compCount", "Comp Count")}
+                ${bidTh("suggestedBid", "Suggested Bid", "suggestedBid")}
+                ${bidTh("bidRange", "Bid Range", "bidRange")}
+                ${bidTh("ratio", "Bid vs Ask", "suggestedSaleList")}
+                ${bidTh("confidence", "Confidence", "bidConfidence")}
+                ${bidTh("compCount", "Comp Count", "bidCompBasis")}
                 ${bidTh("compTier", "Comp Tier")}
               </tr>
             </thead>
@@ -132,7 +187,8 @@ function bidCardHtml(row) {
     : null;
   const overAskBadge = overAsk === null
     ? ""
-    : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${overAsk > 0 ? "+" : ""}${overAsk}% vs ask</span>`;
+    : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${esc(overAskPhrase(overAsk))}</span>`;
+  const compCaption = scored ? compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel) : "";
   return `
     <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
       <header class="bid-card-head">
@@ -145,18 +201,22 @@ function bidCardHtml(row) {
       </header>
       <div class="bid-card-bid">
         <div class="bid-suggested-block">
-          <span class="bid-suggested-label">Suggested bid</span>
+          <span class="bid-suggested-label">Suggested bid ${renderExplainButton("suggestedBid")}</span>
           <strong class="bid-suggested-value">${suggested}</strong>
           ${overAskBadge}
         </div>
-        <span class="conf-pill ${esc(confTone)}">${esc(row.bidConfidenceLabel || "n/a")} (${row.bidConfidence || 0})</span>
+        <div class="bid-confidence-inline">
+          <span class="conf-pill ${esc(confTone)}">${esc(row.bidConfidenceLabel || "n/a")} (${row.bidConfidence || 0})</span>
+          ${renderExplainButton("bidConfidence")}
+        </div>
       </div>
+      ${scored ? captionRow(compCaption, "bidCompBasis") : ""}
       <div class="bid-card-grid-meta">
         <div><span>Range</span><strong>${range}</strong></div>
         <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
         <div><span>Original list</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
         <div><span>DOM</span><strong>${dom ?? "n/a"}</strong></div>
-        <div><span>Sugg S/List</span><strong>${ratio}</strong></div>
+        <div><span>Bid vs ask price</span><strong>${ratio}</strong></div>
         <div><span>Comps</span><strong>${row.bidCompCount || 0} (${esc(bidTierLabel(row.bidCompTier))})</strong></div>
       </div>
       <footer class="bid-card-footer">
@@ -173,7 +233,7 @@ export function renderManualBidPanel() {
   return `
     <section class="manual-bid-wrap">
       <div class="section-head compact">
-        <div><p class="eyebrow">Comp Finder</p><h3>Prospective listing comps</h3></div>
+        <div><p class="eyebrow">Comp Finder</p><h3>Prospective listing comps ${renderExplainButton("bidCompBasis")}</h3></div>
         <span class="note" id="manualBidStatus">${result?.status || compLookup?.status || "Load a listing or enter an address to find comps."}</span>
       </div>
       <div class="manual-bid-form">
@@ -196,7 +256,7 @@ export function renderManualBidPanel() {
       </div>
       <div class="table-wrap manual-bid-table-wrap">
         <table class="manual-bid-table">
-          <thead><tr><th>Comp</th><th>Neighborhood</th><th>Close</th><th>S/List</th><th>DOM</th><th>Bid-Up</th></tr></thead>
+          <thead><tr><th>Comp</th><th>Neighborhood</th><th>Close price</th><th>Sale vs ask</th><th>DOM</th><th>Over/under ask</th></tr></thead>
           <tbody id="manualBidCompRows">${compLookup?.rowsHtml || result?.compRows || `<tr><td colspan="6">${esc(compLookup?.status || "Find comps to populate this list.")}</td></tr>`}</tbody>
         </table>
       </div>
@@ -259,7 +319,7 @@ function computeManualComps() {
 }
 
 function computeManualBid() {
-  const { state, miniMetric } = ctx;
+  const { state } = ctx;
   const row = manualScenarioRow();
   if (!row.pendingListPrice) return { status: "Enter Ask Price to estimate bid.", html: "", compRows: "" };
   const scored = scoreBidForRow(row, state.derived.compPool, state.bid.strategy, true);
@@ -273,21 +333,22 @@ function computeManualBid() {
   return {
     status: `Estimated using ${scored.bidCompCount} comps (${bidTierLabel(scored.bidCompTier)}).`,
     html: `
-      ${miniMetric("Suggested bid", formatMoney(scored.bidSuggested))}
-      ${miniMetric("Range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`)}
-      ${miniMetric("S/List", `${scored.bidRatio.toFixed(2)}x`)}
-      ${miniMetric("Confidence", `${scored.bidConfidenceLabel} (${scored.bidConfidence})`)}
-      ${miniMetric("Comp basis", `${scored.bidCompCount} comps · ${bidTierLabel(scored.bidCompTier)}`)}
+      ${metricWithExplain("Suggested bid", formatMoney(scored.bidSuggested), "suggestedBid")}
+      ${metricWithExplain("Range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`, "bidRange")}
+      ${metricWithExplain("Bid vs ask price", `${scored.bidRatio.toFixed(2)}x`, "suggestedSaleList")}
+      ${metricWithExplain("Confidence", `${scored.bidConfidenceLabel} (${scored.bidConfidence})`, "bidConfidence")}
+      ${metricWithExplain("Comp basis", `${scored.bidCompCount} comps · ${bidTierLabel(scored.bidCompTier)}`, "bidCompBasis")}
     `,
     compRows: compRowsHtml(scored.bidCompRows || []),
   };
 }
 
-function bidTh(key, label) {
+function bidTh(key, label, explainId = "") {
   const { state } = ctx;
   const active = state.bidSort.key === key;
   const arrow = active ? (state.bidSort.dir === "asc" ? "up" : "down") : "both";
-  return `<th><button class="th-sort ${active ? "active" : ""}" type="button" data-bid-sort="${esc(key)}">${esc(label)} <span class="sort-ind" data-bid-sort-ind="${esc(key)}">${arrow === "up" ? "↑" : arrow === "down" ? "↓" : "↕"}</span></button></th>`;
+  const explain = explainId ? renderExplainButton(explainId) : "";
+  return `<th><span class="th-cell"><button class="th-sort ${active ? "active" : ""}" type="button" data-bid-sort="${esc(key)}">${esc(label)} <span class="sort-ind" data-bid-sort-ind="${esc(key)}">${arrow === "up" ? "↑" : arrow === "down" ? "↓" : "↕"}</span></button>${explain}</span></th>`;
 }
 
 function bidRowHtml(row) {
@@ -315,17 +376,18 @@ function bidRowHtml(row) {
 
 function bidMobileCard(row) {
   const { propertyAddressLink } = ctx;
+  const scored = row.bidStatus === "SCored";
   return `
     <article class="mrow">
       <div class="mrow-head-static">
         ${propertyAddressLink(row, "mrow-address-link")}
-        <span>${row.bidStatus === "SCored" ? formatMoneyCompact(row.bidSuggested) : "n/a"}</span>
+        <span class="mrow-bid-figure">${scored ? formatMoneyCompact(row.bidSuggested) : "n/a"}${renderExplainButton("suggestedBid")}</span>
       </div>
       <div class="mrow-grid">
         <div><span>Neighborhood</span><strong>${esc(row.neighborhoodLabel)}</strong></div>
         <div><span>Ask</span><strong>${formatMoneyCompact(row.pendingListPrice)}</strong></div>
-        <div><span>Range</span><strong>${row.bidStatus === "SCored" ? `${formatMoneyCompact(row.bidLow)} - ${formatMoneyCompact(row.bidHigh)}` : "n/a"}</strong></div>
-        <div><span>Confidence</span><strong>${esc(row.bidConfidenceLabel)} (${row.bidConfidence || 0})</strong></div>
+        <div><span>Range</span><strong>${scored ? `${formatMoneyCompact(row.bidLow)} - ${formatMoneyCompact(row.bidHigh)}` : "n/a"}</strong></div>
+        <div><span>Confidence ${renderExplainButton("bidConfidence")}</span><strong>${esc(row.bidConfidenceLabel)} (${row.bidConfidence || 0})</strong></div>
       </div>
       <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use In Manual Scenario</button>
     </article>

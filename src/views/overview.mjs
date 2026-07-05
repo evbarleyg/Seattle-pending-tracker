@@ -168,6 +168,7 @@ function liveCoverageNote(metric, state) {
   const stats = slices.stats || {};
   const closedCount = (slices.closedSlice || []).length;
   const openCount = (slices.openRows || []).length + (slices.projectedRows || []).length;
+  // Per-id notes first: these carry more context than the universe default.
   switch (metric.id) {
     case "overAskRatio":
     case "shareOverAsk":
@@ -176,15 +177,35 @@ function liveCoverageNote(metric, state) {
       const ctw = computeCostToWin(slices.closedSlice || []);
       return `Right now ${formatWholeNumber(ctw.eligibleCount)} of ${formatWholeNumber(ctw.totalCount)} closed comps in your slice carry a real list price.`;
     }
-    case "activePending":
-    case "actives":
-      return `Right now ${formatWholeNumber(openCount)} open or pending listings match your filters.`;
-    case "allRows":
-    case "freshness":
-      return `Right now ${formatWholeNumber(state.dataSource?.rowCount || 0)} rows are loaded from ${state.dataSource?.datasetName || "the default dataset"}.`;
+    case "projectedClose": {
+      const projectedCount = (state?.derived?.viewRows || []).filter((row) => row.isProjectionRow).length;
+      return `Right now ${formatWholeNumber(projectedCount)} projected rows appear in your record view.`;
+    }
     case "savedMatches":
     case "bidQueue":
       return "";
+    default:
+      break;
+  }
+  // Otherwise the glossary's own universe decides which live count fits, so
+  // every tab's popovers stay honest without a per-id case here: Pulse ids
+  // count the watchlist, Records and Geo ids count the record view, Afford
+  // ids get a config note instead of a listing count.
+  switch (metric.universeId) {
+    case "actives":
+      return `Right now ${formatWholeNumber(openCount)} open or pending listings match your filters.`;
+    case "allRows":
+      return `Right now ${formatWholeNumber(state.dataSource?.rowCount || 0)} rows are loaded from ${state.dataSource?.datasetName || "the default dataset"}.`;
+    case "pulseWatchlist": {
+      const watchlistCount = state?.derived?.pulse?.selectedRows?.length;
+      return Number.isFinite(watchlistCount)
+        ? `Right now ${formatWholeNumber(watchlistCount)} MLS-enriched watchlist sales back this read.`
+        : "";
+    }
+    case "recordRows":
+      return `Right now ${formatWholeNumber((state?.derived?.viewRows || []).length)} rows are in your record view, counting closed, projected, and open rows together.`;
+    case "affordScenario":
+      return "These numbers come from your affordability config file, not from the homes in your filters.";
     default:
       return `Right now ${formatWholeNumber(stats.sampleSize ?? closedCount)} closed sales pass your filters.`;
   }
