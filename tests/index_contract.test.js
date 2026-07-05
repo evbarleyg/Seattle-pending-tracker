@@ -10,6 +10,15 @@ const html = fs.readFileSync(indexPath, "utf8");
 const source = [
   html,
   fs.readFileSync(path.resolve(__dirname, "..", "src", "main.mjs"), "utf8"),
+  // The tab renderers were extracted out of main.mjs; their markup still
+  // participates in the same static contract.
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "overview.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "pulse.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "bids.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "afford.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "records.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "geo.mjs"), "utf8"),
+  fs.readFileSync(path.resolve(__dirname, "..", "src", "views", "data.mjs"), "utf8"),
   fs.readFileSync(path.resolve(__dirname, "..", "src", "domain", "selectors.mjs"), "utf8"),
 ].join("\n");
 
@@ -112,7 +121,9 @@ test("pulse tab exposes local controls and visualization anchors", () => {
     assert.match(source, new RegExp(`data-pulse-group=\\\"\\$\\{esc\\(group\\.id\\)\\}|data-pulse-group=\\\"${escaped}\\\"`));
   });
 
-  assert.match(source, /from "\.\/domain\/pulseMetrics\.mjs"/);
+  // The Pulse renderer lives in src/views/pulse.mjs, so the import path is
+  // relative to src/views ("../domain/..."); accept either depth.
+  assert.match(source, /from "\.\.?\/domain\/pulseMetrics\.mjs"/);
   assert.match(source, /data-pulse-mode=\"compare\"/);
   assert.match(source, /data-pulse-mode=\"combined\"/);
 });

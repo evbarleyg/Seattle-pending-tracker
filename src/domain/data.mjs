@@ -342,6 +342,12 @@ export function normalizeRow(source) {
     || num(source.mlsListPriceAtPending) > 0
     || num(source.saleToListRatio) > 0
     || num(source.bidUpAmount) !== 0;
+  // Stricter flag: an actual dollar list price came straight from a listing
+  // column. Only then is listPriceAtPending the real asking price rather than
+  // the assessed-value/close-price fallback above, so dollar math (cost to
+  // win) can trust it directly instead of reconstructing it from a possibly
+  // rounded CSV ratio.
+  const hasDollarListPrice = num(source.mlsListingPrice) > 0 || num(source.mlsListPriceAtPending) > 0;
   const daysToPendingRaw = daysBetween(listDate, pendingDate);
   const daysToPending = dataMode === "MLS_ENRICHED" ? daysToPendingRaw : null;
   const mlsDOMRaw = String(source.mlsDOMRaw ?? source.mlsDOM ?? "").trim();
@@ -471,6 +477,7 @@ export function normalizeRow(source) {
     yearBuilt: num(source.yearBuilt),
     daysToPending,
     hasMarketListPrice,
+    hasDollarListPrice,
     saleToList,
     saleToOriginalList,
     delta,
