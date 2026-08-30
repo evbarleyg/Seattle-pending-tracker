@@ -46,7 +46,7 @@
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-08-29T13:45:23.716Z",
+    "generatedAt": "2026-08-30T14:31:17.573Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
@@ -57,15 +57,15 @@
       "realtorSource": "local"
     },
     "counts": {
-      "outputRows": 19485,
+      "outputRows": 19479,
       "modes": {
         "PUBLIC_PROXY": 11208,
-        "MLS_ENRICHED": 8277
+        "MLS_ENRICHED": 8271
       },
-      "mlsRows": 8277,
+      "mlsRows": 8271,
       "mlsSoldRows": 6546,
-      "mlsOpenRows": 1731,
-      "mlsActiveRows": 1647
+      "mlsOpenRows": 1725,
+      "mlsActiveRows": 1641
     }
   }
 }
