@@ -86,6 +86,48 @@ test("summarizePriceCuts is null-safe when nothing is tracked", async () => {
   assert.equal(summarizePriceCuts(null, null).trackedCount, 0);
 });
 
+test("days to first cut counts only listings tracked from the day they listed", async () => {
+  const { parseLedgerCsv, buildLedgerIndex, priceCutFor, summarizePriceCuts } = await mod();
+  const header = `${HEADER},lastAskChangeDate,firstAskChangeDate,askChangeCount`;
+  const csv = [
+    header,
+    // Seen the day after listing, first cut 24 days in, cut twice.
+    "10,10 Fresh St,98103,Single Family,2026-07-02,2026-09-19,2026-09-19,1300000,1200000,2026-07-01,80,Active,2026-08-20,2026-07-25,2",
+    // On the market since 2025, first SEEN when tracking began: its wait is not knowable.
+    "20,20 Old Rd,98103,Single Family,2026-06-08,2026-09-19,2026-09-19,1500000,1400000,2025-07-11,430,Active,2026-07-13,2026-07-13,1",
+    // Tracked from listing, first cut 10 days in, once.
+    "30,30 Quick Ave,98107,Single Family,2026-08-01,2026-09-19,2026-09-19,1250000,1200000,2026-08-01,49,Active,2026-08-11,2026-08-11,1",
+    // No cut at all.
+    "40,40 Firm Ln,98107,Single Family,2026-09-10,2026-09-19,2026-09-19,1200000,1200000,2026-09-09,10,Active,,,0",
+  ].join("\n");
+  const index = buildLedgerIndex(parseLedgerCsv(csv));
+
+  const fresh = priceCutFor(listing(10), index);
+  assert.equal(fresh.daysToFirstCut, 24);
+  assert.equal(fresh.changeCount, 2);
+  assert.equal(priceCutFor(listing(20), index).daysToFirstCut, null, "first seen 11 months after listing: an earlier cut could have been missed");
+  assert.equal(priceCutFor(listing(30), index).daysToFirstCut, 10);
+
+  const s = summarizePriceCuts([listing(10), listing(20), listing(30), listing(40)], index);
+  assert.equal(s.cutCount, 3);
+  assert.equal(s.firstCutSampleCount, 2, "the old listing is a cut but is not in the wait sample");
+  assert.equal(s.medianDaysToFirstCut, 17);
+  assert.equal(s.multiCutCount, 1);
+});
+
+test("a ledger without the ask-change columns still reports cuts, with no wait", async () => {
+  const { parseLedgerCsv, buildLedgerIndex, priceCutFor, summarizePriceCuts } = await mod();
+  const index = buildLedgerIndex(parseLedgerCsv(CSV));
+  const cut = priceCutFor(listing(100), index);
+  assert.equal(cut.cutAmount, 100000);
+  assert.equal(cut.daysToFirstCut, null);
+  assert.equal(cut.changeCount, null);
+  const s = summarizePriceCuts([listing(100), listing(400)], index);
+  assert.equal(s.medianDaysToFirstCut, null);
+  assert.equal(s.firstCutSampleCount, 0);
+  assert.equal(s.multiCutCount, 0);
+});
+
 test("buildPriceCutVerdict says it in plain words and scales the wording to the share", async () => {
   const { buildPriceCutVerdict } = await mod();
   const base = { trackedCount: 216, cutCount: 71, cutShare: 71 / 216, medianCutPct: 0.043, medianCutAmount: 55000, medianDaysListedCut: 61, medianDaysListedUncut: 9 };

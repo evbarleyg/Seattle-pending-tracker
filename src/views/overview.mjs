@@ -638,6 +638,14 @@ function priceCutsSectionHtml(activeListings) {
     stats.push(statItem("Typical cut", `${formatMoneyCompact(summary.medianCutAmount, 0)} (${formatPct(summary.medianCutPct)})`));
     if (summary.medianDaysListedCut !== null) stats.push(statItem("Days listed, homes that cut", `${Math.round(summary.medianDaysListedCut)} days`));
     if (summary.medianDaysListedUncut !== null) stats.push(statItem("Days listed, homes that have not", `${Math.round(summary.medianDaysListedUncut)} days`));
+    // Only homes watched since the day they listed can say how long the seller
+    // held out, so the label carries that sample size.
+    if (summary.medianDaysToFirstCut !== null) {
+      stats.push(statItem(`Typical wait before a first cut (${formatWholeNumber(summary.firstCutSampleCount)} tracked from listing)`, `${Math.round(summary.medianDaysToFirstCut)} days`));
+    }
+    if (summary.multiCutCount > 0) {
+      stats.push(statItem("Have cut more than once", `${formatWholeNumber(summary.multiCutCount)} of ${formatWholeNumber(summary.cutCount)}`));
+    }
   }
   const cutPct = (summary.cutShare || 0) * 100;
   const bar = summary.cutCount > 0 ? `
@@ -653,7 +661,7 @@ function priceCutsSectionHtml(activeListings) {
       <div class="changes-group">
         <h4>Largest cuts on homes still for sale</h4>
         <ul class="changes-list">
-          ${summary.biggest.map(({ row, cut }) => `<li><a class="changes-link" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer">${esc(row.address || "Address unavailable")}</a>${row.neighborhoodLabel ? ` · ${esc(row.neighborhoodLabel)}` : ""} · was ${esc(formatMoneyCompact(cut.firstAsk))}, now ${esc(formatMoneyCompact(cut.lastAsk))} (down ${esc(formatMoneyCompact(cut.cutAmount, 0))}, ${esc(formatPct(cut.cutPct))})${cut.daysListed !== null && cut.daysListed !== undefined ? ` · ${Math.round(cut.daysListed)} days listed` : ""}</li>`).join("")}
+          ${summary.biggest.map(({ row, cut }) => `<li><a class="changes-link" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer">${esc(row.address || "Address unavailable")}</a>${row.neighborhoodLabel ? ` · ${esc(row.neighborhoodLabel)}` : ""} · was ${esc(formatMoneyCompact(cut.firstAsk))}, now ${esc(formatMoneyCompact(cut.lastAsk))} (down ${esc(formatMoneyCompact(cut.cutAmount, 0))}, ${esc(formatPct(cut.cutPct))})${cut.daysListed !== null && cut.daysListed !== undefined ? ` · ${Math.round(cut.daysListed)} days listed` : ""}${(cut.changeCount ?? 0) >= 2 ? ` · cut ${cut.changeCount} times` : ""}</li>`).join("")}
         </ul>
       </div>` : "";
   return `

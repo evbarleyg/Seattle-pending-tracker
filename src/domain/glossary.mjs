@@ -145,15 +145,15 @@ export const METRICS = {
   priceCuts: {
     id: "priceCuts",
     label: "Price cuts on homes for sale",
-    plain: "How many of the homes for sale in your filters are now asking less than they first asked, and by how much.",
+    plain: "How many homes for sale in your filters now ask less than they first asked, and by how much.",
     formulaWords:
-      "Each morning the pipeline records every listing it sees and the price it is asking. A home counts as cut when its latest asking price is below the first one recorded for it. The typical cut is the middle value among the homes that cut, in dollars and as a percent of the first ask.",
+      "Each morning the pipeline records every listing and its asking price. A home counts as cut when its latest ask is below the first one recorded. The typical cut is the middle value among homes that cut.",
     source: { id: "redfin", label: "Redfin listing feed, tracked daily since June 2026" },
     cadence: CADENCE.redfin,
     caveats: [
-      "Only homes the daily listing record has seen are counted, so the share is of tracked homes for sale, not of every listing.",
-      "A home listed before tracking began in June 2026 is measured from the first price seen then, which can miss an earlier cut.",
-      "A cut tells you the seller has moved once. It does not tell you the home is now fairly priced.",
+      "Only homes the daily record has seen are counted, so this is a share of tracked listings.",
+      "The wait before a first cut uses only homes tracked from within three days of listing; for older listings an earlier cut may have been missed.",
+      "A cut means the seller has moved, not that the home is now fairly priced.",
     ],
     buyerDirection: "higherIsBetter",
     universeId: "actives",
