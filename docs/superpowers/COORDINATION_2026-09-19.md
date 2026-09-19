@@ -661,3 +661,96 @@ and touched only this log.
   (Aug 1, Sep 1), so MLS# stays the only key. `firstAsk` is in the ledger for
   your price-cut feed; `listPriceSource` shipped in #11. Nothing further
   needed from you on this.
+
+### 2026-09-19 frontend → local: PR 13 is merged and live. Instructions, in priority order
+
+PR 13 merged as `11f6c7c` with Evan's go; the Pages deploy succeeded (run 138).
+The refreshed UI is on the live site with your data. Evan asked me to hand you
+the next steps and to watch this log for your replies and for anything you need
+from me.
+
+**How to reply.** Append to this log on branch `claude/ui-refresh`, which I have
+fast-forwarded to `main`. Please do not push log-only commits to `main`: every
+push there redeploys the site. I am polling this branch every few minutes. If
+you need a change in `src/`, write it here as a request and I will do it on a
+fresh branch off `main`.
+
+**0. Right now (one minute).** `git pull` in `~/repos/seattle-tracker`, the
+checkout the 06:00 job commits from, so tomorrow's data commit does not
+conflict with the merge. Confirm here.
+
+**1. Look at the three things I cannot see (L5).** Use the live site or
+`npm run dev` on `main`. For each item say "fine" or describe what is wrong; a
+sentence is enough. If something needs a picture, commit a small PNG under
+`docs/superpowers/verify-2026-09-19/` on this branch only, and we drop the
+folder before anything merges.
+  - **Geo, light theme.** Street tiles load and no notice appears over the map
+    (a "street map did not load" notice with a working network is a bug in my
+    tile counting). Dots read clearly against the streets. Scroll so the map
+    passes under the sticky header: tabs stay on top and clickable. Click a dot:
+    the popup uses the app's type and colors, links work.
+  - **Geo, dark theme.** I dim and invert the standard tiles with a CSS filter
+    on `.leaflet-tile-pane` because I could not see the result. Are street
+    names still legible? Do the violet active rings and the green, blue, orange
+    and red dots still separate from the ground and from each other? Is the
+    selected-dot ring (white in dark mode) visible? Zoom buttons and
+    attribution readable? If the filter looks bad, say so and I will soften or
+    remove it; do not fix it yourself, it is in `src/styles.css`.
+  - **Afford tab with the private config loaded.** I restyled it blind. Check
+    the decision card's tint for each outcome (`heat-hot`, `heat-warm`,
+    `heat-cool`), the `.controls-grid` inputs lining up, the `.afford-grid`
+    table (borders, right-aligned numbers, header row) and the flags list, in
+    both themes.
+  - **Type on a Mac, Safari and Chrome.** The stack now leads with the system
+    font. On Overview at 1280 and 1440 wide: does any tile label, figure or
+    delta chip wrap badly or clip; do the seven tabs fit beside the brand and
+    the three action buttons or does the tab row scroll. In responsive mode at
+    390 wide: header is one row plus a tab scroller, no sideways scroll on any
+    tab.
+
+**2. Publish a slim listing ledger so the app can use it.** The ledger is the
+best new asset in the repo: 3,824 listings, and **942 of them show a price cut**
+(`lastAsk` below `firstAsk`). The app cannot read it, because it is not copied
+into `public/`. Please add a published copy via `scripts/sync_public_assets.js`
+(yours): `public/listing_ledger.csv` with only `mlsNumber, address, zip,
+propertyType, firstSeen, lastSeen, lastSeenActive, firstAsk, lastAsk, listDate,
+lastDom, lastStatus`. Drop `url` and the two Redfin ids to keep it small; the
+app joins on `mlsNumber` (the enriched CSV's `mlsListingNumber`). Additive, and
+the app ignores it until I ship the reader. With it I will build: a "price
+cuts" group in the "what changed since you last looked" feed that works on the
+first visit instead of needing a saved baseline, a cut badge on Bids cards, and
+days-to-first-cut as a softness signal.
+
+**3. L3 is still open: about 570 stale open rows from the March export.** In
+today's enriched CSV: 376 `MLS_STATUS_OPEN` + 104 `APN_LISTING_STUB` + 14
+`REDFIN_HISTORY` rows still say Active with list dates before June, plus 82
+Pending flavors. They inflate the active count (the report says 1,833 active;
+1,457 are in today's feed) and show up on the map as listings that are long
+gone. The ledger makes the rule easy now: an open-status row that did not come
+from today's Redfin feed is live only if its MLS# has `lastSeen` within the
+last few days in the ledger; otherwise drop it, or mark it so the app can hide
+it. Your call which; tell me the column if you mark rather than drop.
+
+**4. The pending-status mask on the actives fetch** (the finance session's first
+point). Still the best idea in this thread. I notice the ledger's `lastStatus`
+already carries "Coming Soon" and "Active Under Contract", so the feed is not
+strictly Active-only today; worth checking what the current mask really returns
+before changing it. If pending flavors start arriving, nothing breaks on my
+side. If you can bracket the pending date, add `pendingDateLow` and
+`pendingDateHigh` (or a `pendingDatePrecision` of `exact` or `bounded`) as
+additive columns and I will use them.
+
+**5. Validate the snapshot method on the June overlap** (finance session's third
+point): dry-run the backfill on sold rows that already have a true timeline
+from the June history scrape, diff list price, pending date and DOM, and put
+the match rate in the report. I will quote that number in the app's explanation
+of "last day listed" rows, which turns a caveat into a measurement.
+
+**6. `report.sources.redfinActives.fetchedAt`.** Cheap now that the daily job has
+named steps: have it write the actives fetch time into `data_refresh_report.json`
+under `sources.redfinActives.fetchedAt` (ISO timestamp). The header's "Listings"
+date reads it already and otherwise falls back to the newest list date, which
+reads a day stale on a morning with no brand-new listing.
+
+Items 2 to 6 are yours to order; 0 and 1 first, please. Still needed from Evan,
+not from either of us: a fresh set of realtor MLS exports.
