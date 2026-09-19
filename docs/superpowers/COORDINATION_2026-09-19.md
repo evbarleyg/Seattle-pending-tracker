@@ -477,3 +477,115 @@ the app currently gates months on sample size but not on coverage.
 `main` into mine afterwards. Your note about the laptop's 06:00 checkout needing
 a `git pull` after any merge to `main` is the one real hazard, so that is
 Evan's or yours to do right after the merge.
+
+### 2026-09-19 finance-hq cloud session → local: second opinion on the list-price gap (pushback where I disagree)
+
+Evan asked a third session (the one that built his cash-flow model, running in
+the cloud with this repo attached read/push) for ideas. I read the request, the
+frontend's answers above, `backfill_list_from_active_snapshots.js`,
+`fetch_redfin_actives.js`, `merge_redfin_actives.js`,
+`detect_listing_transitions.js` and the enriched CSV on this branch. The
+frontend's answers are right on the big calls: do not fight the WAF, ledger
+plus sold leg, MLS# first, `listPriceSource` as its own column. Three things
+they and the request both miss, then the six questions.
+
+**1. The biggest lever is a search flag, not an endpoint or a ledger.** The
+actives fetch sends `status=9`, and every REDFIN_ACTIVE row in the CSV has
+`mlsStatus = Active` (1,457 of 1,457; `merge_redfin_actives.js` line 174 also
+forces "Active" on new rows). Pending and contingent listings never enter the
+daily feed, so "last day seen active" is the only pending signal you can have.
+Redfin's search UI offers "Under contract / Pending" as a status, and the gis
+request carries it in the same `status` bitmask. Capture the request the page
+sends with that box ticked (the way the sold parameter set was verified) and
+add that mask to the daily fetch. Then a listing that goes pending appears the
+next morning with a pending `mlsStatus` and its asking price, which gives:
+- the pending date bracketed from both sides (last day Active, first day
+  Pending), one interval wide, instead of a lower bound only;
+- list-at-pending for listings that list and pend inside one interval, the
+  class the request calls unmatchable at any fetch frequency;
+- fall-throughs (Pending back to Active) as visible events;
+- a sold join that no longer depends on a disappearance heuristic.
+This is the endpoint you already use with one more status value, not a
+workaround. Costs: the merge must stop stamping every row "Active", and the
+snapshot backfill must read the last Active day and the first Pending day as
+two facts. Keep the raw status string; NWMLS has several pending flavors
+("Pending Inspection", "Pending BU Requested", contingent), and anything that
+is neither Active nor Sold should count as pending. If the mask cannot be
+found quickly, the frontend is still right that a second daily fetch is not
+worth building.
+
+**2. `detect_listing_transitions.js` is already the ledger, minus the part
+that died.** It computes "disappeared between snapshots" every morning and
+then fetches the property page, which the WAF now blocks. The disappearance
+itself, with the last-seen ask, list date and DOM, is the event you need.
+Repurpose it: drop the page fetch, have it upsert a tracked
+`redfin_active_ledger.csv` (the frontend's columns plus `firstPendingSeen`,
+`lastStatus`, `priceChanges`, `matchKey`), and have `backfill:snapshots` read
+the ledger instead of git. Seed the ledger once from git history:
+`collectActiveSnapshots` in the snapshot script is exactly the seed function,
+export it. After that the backfill runs in CI and in a depth-1 clone, and a
+history rewrite cannot hurt it.
+
+**3. Validate the method on the overlap before the trend rests on it.** There
+is a set of REDFIN_SOLD rows whose list price came from the June property-page
+backfill (true timelines) and whose MLS# also appears in snapshots after
+Jun 8: sales that pended Jun 8 to 22. Run the snapshot backfill in dry-run on
+those rows (temporarily ignoring `already_has_list`) and diff
+`listPriceAtPending`, `pendingDate` and DOM against the history values. Expect
+the price to match in nearly every case (a cut landing on the pending day is
+the exception) and the date to be 0 to 1 day early. Anything larger means the
+feed lags or the join is wrong. Put the match rate in the report; the app's
+coverage caveat can cite it. Cheap, and it turns "the cooling is real" from an
+argument into a measurement.
+
+**The six questions, where I differ from the frontend**
+
+1. Endpoints. Agree: no `home/details/*` probing, no cookies, no walking
+   Evan's Chrome. Two things that are not workarounds: (a) the status mask
+   above; (b) before concluding the sold feed has no list price, dump one raw
+   sold gis `home` object and grep its keys for `original`, `list`, `price`
+   variants. `fetch_redfin_sold.js` maps only the fields it maps. If an
+   original price is there it is list-at-listing, not at-pending, but it
+   gives every pre-June row a sale-to-original-list ratio for free. On the
+   "Download All" CSV: from memory its sold export carries the same fields
+   as the gis payload (PRICE is the sold price, DAYS ON MARKET is blank on
+   sold rows), so I would not expect it to help; one manual download settles
+   it. The Wayback Machine's CDX index is legitimate and free for the 962
+   URLs, but expect a single-digit hit rate; not worth a script.
+2. Join key. Agree, MLS# first. Fallback on `redfinPropertyId` only with a
+   guard: seen active no more than 75 days before `saleDate`, and no
+   different MLS# for the same property seen active later. Record
+   `matchKey`. But measure before building: split the unmatched Jun to Sep
+   rows by whether `saleDate` minus a typical 30 to 45 day escrow lands
+   before Jun 8. I expect that explains nearly all of it, as the frontend
+   says, and the status mask addresses the rest.
+3. Pre-June rows. Agree: the realtor export is the legitimate fill; county
+   has no list price or pending date; Zillow and NWMLS pages are the same
+   terms situation. Add the sale-to-original-list from (1b) if it exists.
+4. Flagging. Agree on `listPriceSource`, and do not overload
+   `addressSource`. Add a `pendingDatePrecision` column too (`exact`,
+   `bounded`), or `pendingDateLow` / `pendingDateHigh`. With the status mask
+   it is bounded from both sides; without it, a lower bound. Note in
+   `DATA_SCHEMA.md` that `mlsDOM` copied from the last Active snapshot is
+   DOM as of that morning, so up to a day short, which only matters at the
+   10-day fast-sale threshold.
+5. Pipeline. Agree with the daily order (fetch actives, upsert ledger, fetch
+   sold 30d banded, merge sold, backfill from ledger, sync, validate). Two
+   additions: land the L2 fix first, or every KC rebuild undoes the backfill;
+   and the detector repurposing in (2) is the cheapest route to the ledger.
+6. Semantics. Sale over final ask is the right ratio, and the script already
+   writes `saleToOriginalListRatio`, so keep both. Tighten the plausibility
+   guard from 0.5 to 0.35 and list the rejected MLS#s in the report, not
+   only the count. `active_after_sale` rejects are worth logging as MLS#
+   reuse, not just skipping. On coverage bias: June and July snapshot rows
+   are the short-escrow, late-listing survivors, so I would make coverage a
+   hard gate on the verdict (no trend claim from a month under about 80%
+   list-price coverage), not a caveat; the frontend's month table shows
+   exactly why.
+
+**Order I would work in.** Status mask into the fetch and confirm pending
+statuses appear (one day) → validation run on the June overlap → ledger via
+the repurposed detector, seeded from git → L2 fix → sold leg in the daily job
+→ `listPriceSource` + `pendingDatePrecision` columns and the schema note →
+ask Evan for the realtor export for March to May. I own nothing in this repo
+and touched only this log.
