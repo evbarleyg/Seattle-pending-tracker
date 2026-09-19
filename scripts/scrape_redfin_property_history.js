@@ -106,7 +106,23 @@ async function fetchPropertyHtml(url) {
     err.status = res.status;
     throw err;
   }
-  return res.text();
+  const html = await res.text();
+  if (isWafChallenge(html)) {
+    // Since 2026-09 Redfin answers server-side page fetches with an AWS WAF
+    // challenge (~2.4KB, no listing content). Throw so callers cache an ERROR
+    // (retried later) rather than an empty summary (skipped forever).
+    const err = new Error("Redfin WAF challenge page (no listing content)");
+    err.code = "WAF";
+    throw err;
+  }
+  return html;
+}
+
+// The challenge page is tiny and names awswaf; a real property page is
+// hundreds of KB and carries the history strip anchor.
+function isWafChallenge(html) {
+  const text = String(html || "");
+  return text.length < 20000 && /awswaf/i.test(text) && !text.includes("propertyHistoryTabPanels");
 }
 
 async function fetchAndParse(url) {
@@ -134,5 +150,4 @@ module.exports = {
   parsePropertyHistory,
   summarizeMostRecentSale,
   fetchPropertyHtml,
-  fetchAndParse,
-};
+  fetchAndParse, isWafChallenge };
