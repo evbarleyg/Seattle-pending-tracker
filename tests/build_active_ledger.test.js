@@ -165,6 +165,9 @@ test("a doubled unit suffix is repaired on insert and when loading an older ledg
   const map = new Map();
   upsertObservations(map, [obs({ address: "2727 Fairview Ave E #4 #4" })]);
   assert.strictEqual(map.get("2400001").address, "2727 Fairview Ave E #4");
+  const filled = new Map();
+  upsertObservations(filled, [obs({ address: "", date: "2026-07-17" }), obs({ address: "2605 22nd AVE W Unit B Unit B", date: "2026-07-18" })]);
+  assert.strictEqual(filled.get("2400001").address, "2605 22nd AVE W Unit B", "a blank address back-filled from a later sighting is repaired too");
   const loaded = ledgerRowsToMap([{ mlsNumber: "9", address: "708 N 102nd St #2 #2", firstSeen: "2026-06-01", lastSeen: "2026-06-10", firstAsk: "1", lastAsk: "1" }]);
   assert.strictEqual(loaded.get("9").address, "708 N 102nd St #2");
   assert.strictEqual(loaded.get("9").askChangeCount, "0", "older ledgers get the new columns defaulted");
