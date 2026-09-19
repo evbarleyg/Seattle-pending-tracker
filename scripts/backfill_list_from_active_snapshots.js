@@ -22,6 +22,11 @@
 // Supplement-only: touches REDFIN_SOLD rows that have no list price yet, and
 // never mutates county/MLS/history rows. Rerun after every merge:sold, because
 // merge_redfin_sold.js re-appends bare REDFIN_SOLD rows.
+//
+// Lineage lives in its own additive column, `listPriceSource = ACTIVE_SNAPSHOT`
+// (added to the header when absent). `addressSource` and `mlsJoinMethod` are
+// left alone: the former describes where the ADDRESS came from, the latter is
+// what merge_redfin_sold.js keys its strip-and-replace on.
 
 const fs = require("fs");
 const path = require("path");
@@ -33,9 +38,14 @@ const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_snapshot_backfill_report.j
 const DEFAULT_REF = "main";
 const DEFAULT_SNAPSHOT_SINCE = "2026-06-01";
 const REDFIN_SOLD = "REDFIN_SOLD";
-const PROVENANCE = "REDFIN_SOLD+ACTIVE_SNAPSHOT";
+const LIST_PRICE_SOURCE_COLUMN = "listPriceSource";
+const LIST_PRICE_SOURCE = "ACTIVE_SNAPSHOT";
 const MAX_PENDING_TO_SALE_DAYS = 180;
-const MAX_RATIO_DEVIATION = 0.5;
+// A close more than 35% away from the last ask is far likelier to be an MLS#
+// collision than a real outcome; such rows are rejected AND written to the
+// report so a bad join shows up there instead of in the data.
+const MAX_RATIO_DEVIATION = 0.35;
+const MAX_REJECT_SAMPLES = 200;
 
 function parseCsvLine(line) {
   const out = [];
@@ -168,12 +178,16 @@ function applySnapshotToRow(row, rec) {
   if (toPending !== null && toPending >= 0) row.mlsDaysToPending = String(toPending);
   const toSale = daysBetween(rec.date, row.saleDate);
   if (toSale !== null && toSale >= 0) row.mlsDaysPendingToSale = String(toSale);
-  row.addressSource = PROVENANCE;
+  row[LIST_PRICE_SOURCE_COLUMN] = LIST_PRICE_SOURCE;
   return true;
 }
 
+// Reasons worth surfacing row-by-row: each one means a snapshot DID match the
+// MLS# but the pairing looked wrong, which is the signature of a bad join.
+const REPORTED_REJECTS = new Set(["implausible_ratio", "active_after_sale", "stale_snapshot"]);
+
 function backfillFromSnapshots(rows, lastSeen) {
-  const report = { candidates: 0, applied: 0, skipped: {}, byMonth: {} };
+  const report = { candidates: 0, applied: 0, skipped: {}, byMonth: {}, rejected: [] };
   for (const row of rows) {
     if (row.mlsJoinMethod !== REDFIN_SOLD) continue;
     report.candidates += 1;
@@ -184,6 +198,20 @@ function backfillFromSnapshots(rows, lastSeen) {
     const reason = rejectReason(row, rec);
     if (reason) {
       report.skipped[reason] = (report.skipped[reason] || 0) + 1;
+      if (REPORTED_REJECTS.has(reason) && report.rejected.length < MAX_REJECT_SAMPLES) {
+        const close = num(row.closePrice);
+        report.rejected.push({
+          reason,
+          address: row.address || "",
+          zip: row.zip || "",
+          mlsListingNumber: row.mlsListingNumber || "",
+          saleDate: row.saleDate || "",
+          closePrice: close,
+          lastSeenActive: rec.date,
+          lastAsk: rec.list,
+          ratio: rec.list > 0 ? Number((close / rec.list).toFixed(3)) : null,
+        });
+      }
       continue;
     }
     applySnapshotToRow(row, rec);
@@ -256,6 +284,7 @@ function main() {
   const lastSeen = collectActiveSnapshots(snapshots);
   console.log(`Snapshots: ${snapshots.length} (${snapshots[0].date} -> ${snapshots[snapshots.length - 1].date}); active MLS# seen: ${lastSeen.size}`);
   const { headers, rows } = readCsvText(fs.readFileSync(enrichedPath, "utf8"));
+  if (!headers.includes(LIST_PRICE_SOURCE_COLUMN)) headers.push(LIST_PRICE_SOURCE_COLUMN); // additive column
   const report = backfillFromSnapshots(rows, lastSeen);
   const summary = {
     generatedAt: new Date().toISOString(),
@@ -263,18 +292,23 @@ function main() {
     snapshotCount: snapshots.length,
     snapshotRange: { min: snapshots[0].date, max: snapshots[snapshots.length - 1].date },
     activeListingsSeen: lastSeen.size,
-    provenance: PROVENANCE,
+    listPriceSource: LIST_PRICE_SOURCE,
+    maxRatioDeviation: MAX_RATIO_DEVIATION,
     dryRun: opts.dryRun,
     ...report,
   };
   fs.writeFileSync(path.resolve(opts.report), `${JSON.stringify(summary, null, 2)}\n`);
   console.log(`REDFIN_SOLD candidates: ${report.candidates}; applied list@pending to ${report.applied}; skipped: ${JSON.stringify(report.skipped)}`);
+  if (report.rejected.length) console.log(`Rejected joins written to the report: ${report.rejected.length} (first: ${report.rejected[0].reason} ${report.rejected[0].address} close ${report.rejected[0].closePrice} vs ask ${report.rejected[0].lastAsk})`);
   console.log(`By sale month: ${Object.entries(report.byMonth).sort().map(([m, v]) => `${m}=${v.applied}/${v.candidates}`).join("  ")}`);
   if (opts.dryRun) { console.log("Dry run: CSV not written."); return; }
   writeCsv(enrichedPath, headers, rows);
   console.log(`Wrote ${relFile} (${rows.length} rows). Report: ${path.relative(PROJECT_DIR, path.resolve(opts.report))}`);
 }
 
-module.exports = { collectActiveSnapshots, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween, PROVENANCE };
+module.exports = {
+  collectActiveSnapshots, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween,
+  LIST_PRICE_SOURCE, LIST_PRICE_SOURCE_COLUMN, MAX_RATIO_DEVIATION,
+};
 
 if (require.main === module) main();

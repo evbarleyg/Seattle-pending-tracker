@@ -8,7 +8,9 @@ const {
   applySnapshotToRow,
   backfillFromSnapshots,
   rejectReason,
-  PROVENANCE,
+  LIST_PRICE_SOURCE,
+  LIST_PRICE_SOURCE_COLUMN,
+  MAX_RATIO_DEVIATION,
 } = require("../scripts/backfill_list_from_active_snapshots.js");
 
 const SNAP_HEADERS = "mlsJoinMethod,mlsListingNumber,mlsListingPrice,listPriceAtPending,mlsOriginalPrice,mlsListDate,listDate,mlsDOM,mlsCDOM,zip";
@@ -21,6 +23,8 @@ function soldRow(overrides = {}) {
   return {
     mlsJoinMethod: "REDFIN_SOLD",
     mlsListingNumber: "2400001",
+    address: "10038 13th Ave NW",
+    zip: "98177",
     saleDate: "2026-08-19",
     closePrice: "1070000",
     listPriceAtPending: "",
@@ -40,9 +44,12 @@ function soldRow(overrides = {}) {
     mlsDaysToPending: "",
     mlsDaysPendingToSale: "",
     addressSource: "REDFIN_SOLD",
+    listPriceSource: "",
     ...overrides,
   };
 }
+
+const REC = { date: "2026-07-30", list: 1100000, originalList: 1150000, listDate: "2026-07-17", dom: "13", cdom: "13", zip: "98177" };
 
 test("collectActiveSnapshots keeps the LAST day each MLS# was seen active", () => {
   const lastSeen = collectActiveSnapshots([
@@ -70,12 +77,12 @@ test("collectActiveSnapshots ignores non-active rows and actives without a price
   assert.strictEqual(lastSeen.size, 0);
 });
 
-test("applySnapshotToRow fills list@pending, pending date, DOM and ratios", () => {
+test("applySnapshotToRow fills list@pending, pending date, DOM and ratios, and tags lineage in its own column", () => {
   const row = soldRow();
-  const rec = { date: "2026-07-30", list: 1100000, originalList: 1150000, listDate: "2026-07-17", dom: "13", cdom: "13", zip: "98177" };
-  assert.strictEqual(applySnapshotToRow(row, rec), true);
+  assert.strictEqual(applySnapshotToRow(row, REC), true);
   assert.strictEqual(row.listPriceAtPending, "1100000");
   assert.strictEqual(row.mlsListingPrice, "1100000");
+  assert.strictEqual(row.mlsListPriceAtPending, "1100000");
   assert.strictEqual(row.mlsOriginalPrice, "1150000");
   assert.strictEqual(row.pendingDate, "2026-07-30");
   assert.strictEqual(row.mlsPendingDate, "2026-07-30");
@@ -87,7 +94,10 @@ test("applySnapshotToRow fills list@pending, pending date, DOM and ratios", () =
   assert.ok(Math.abs(Number(row.saleToOriginalListRatio) - 1070000 / 1150000) < 1e-9);
   assert.strictEqual(row.mlsDaysToPending, "13");
   assert.strictEqual(row.mlsDaysPendingToSale, "20");
-  assert.strictEqual(row.addressSource, PROVENANCE);
+  assert.strictEqual(LIST_PRICE_SOURCE_COLUMN, "listPriceSource");
+  assert.strictEqual(row.listPriceSource, LIST_PRICE_SOURCE);
+  assert.strictEqual(row.listPriceSource, "ACTIVE_SNAPSHOT");
+  assert.strictEqual(row.addressSource, "REDFIN_SOLD", "addressSource describes the address and must not be overloaded");
   assert.strictEqual(row.mlsJoinMethod, "REDFIN_SOLD", "join method must stay REDFIN_SOLD so merge:sold reruns still strip it");
 });
 
@@ -100,38 +110,62 @@ test("a genuine sold-at-asking yields sale/list = 1 (asking price came from the 
 });
 
 test("rejectReason guards: non-sold rows, rows with a list price, missing/implausible/relisted snapshots", () => {
-  const rec = { date: "2026-07-30", list: 1100000, originalList: 1100000, listDate: "2026-07-17", dom: "13", cdom: "13", zip: "98177" };
-  assert.strictEqual(rejectReason(soldRow({ mlsJoinMethod: "APN_PRICE_DATE_WINDOW" }), rec), "not_redfin_sold");
-  assert.strictEqual(rejectReason(soldRow({ listPriceAtPending: "1000000" }), rec), "already_has_list");
+  assert.strictEqual(rejectReason(soldRow({ mlsJoinMethod: "APN_PRICE_DATE_WINDOW" }), REC), "not_redfin_sold");
+  assert.strictEqual(rejectReason(soldRow({ listPriceAtPending: "1000000" }), REC), "already_has_list");
   assert.strictEqual(rejectReason(soldRow(), undefined), "no_snapshot");
-  assert.strictEqual(rejectReason(soldRow({ closePrice: "0" }), rec), "no_close_price");
-  assert.strictEqual(rejectReason(soldRow({ saleDate: "2026-07-01" }), rec), "active_after_sale");
-  assert.strictEqual(rejectReason(soldRow({ saleDate: "2027-03-01" }), rec), "stale_snapshot");
-  assert.strictEqual(rejectReason(soldRow({ closePrice: "2500000" }), rec), "implausible_ratio");
-  assert.strictEqual(rejectReason(soldRow(), rec), null);
+  assert.strictEqual(rejectReason(soldRow({ closePrice: "0" }), REC), "no_close_price");
+  assert.strictEqual(rejectReason(soldRow({ saleDate: "2026-07-01" }), REC), "active_after_sale");
+  assert.strictEqual(rejectReason(soldRow({ saleDate: "2027-03-01" }), REC), "stale_snapshot");
+  assert.strictEqual(rejectReason(soldRow({ closePrice: "2500000" }), REC), "implausible_ratio");
+  assert.strictEqual(rejectReason(soldRow(), REC), null);
   const untouched = soldRow({ saleDate: "2026-07-01" });
-  assert.strictEqual(applySnapshotToRow(untouched, rec), false);
+  assert.strictEqual(applySnapshotToRow(untouched, REC), false);
   assert.strictEqual(untouched.listPriceAtPending, "");
+  assert.strictEqual(untouched.listPriceSource, "");
 });
 
-test("backfillFromSnapshots only touches REDFIN_SOLD rows and reports per month", () => {
+test("the ratio guard is 35%: 1.36x the ask is rejected, 1.27x is accepted", () => {
+  assert.strictEqual(MAX_RATIO_DEVIATION, 0.35);
+  assert.strictEqual(rejectReason(soldRow({ closePrice: "1500000" }), REC), "implausible_ratio"); // 1.364
+  assert.strictEqual(rejectReason(soldRow({ closePrice: "1400000" }), REC), null); // 1.273
+  assert.strictEqual(rejectReason(soldRow({ closePrice: "700000" }), REC), "implausible_ratio"); // 0.636
+  assert.strictEqual(rejectReason(soldRow({ closePrice: "720000" }), REC), null); // 0.655
+});
+
+test("backfillFromSnapshots only touches REDFIN_SOLD rows, reports per month, and logs suspicious joins", () => {
   const lastSeen = collectActiveSnapshots([
     snapshot("2026-07-30", ["REDFIN_ACTIVE,2400001,1100000,,1100000,2026-07-17,2026-07-17,13,13,98177"]),
     snapshot("2026-08-12", ["REDFIN_ACTIVE,2400003,1125000,,1125000,2026-08-07,2026-08-07,5,5,98177"]),
+    snapshot("2026-08-20", ["REDFIN_ACTIVE,2400004,600000,,600000,2026-08-01,2026-08-01,19,19,98103"]),
   ]);
   const county = { mlsJoinMethod: "APN_PRICE_DATE_WINDOW", mlsListingNumber: "2400001", saleDate: "2026-08-19", closePrice: "1070000", listPriceAtPending: "" };
+  const collision = soldRow({ mlsListingNumber: "2400004", address: "1 Collision Ct", zip: "98103", saleDate: "2026-09-10", closePrice: "1300000" });
   const rows = [
     soldRow(),
     soldRow({ mlsListingNumber: "2400003", saleDate: "2026-09-03", closePrice: "1125000" }),
     soldRow({ mlsListingNumber: "2400099", saleDate: "2026-09-10", closePrice: "800000" }),
+    collision,
     county,
   ];
   const report = backfillFromSnapshots(rows, lastSeen);
-  assert.strictEqual(report.candidates, 3);
+  assert.strictEqual(report.candidates, 4);
   assert.strictEqual(report.applied, 2);
-  assert.deepStrictEqual(report.skipped, { no_snapshot: 1 });
+  assert.deepStrictEqual(report.skipped, { no_snapshot: 1, implausible_ratio: 1 });
   assert.deepStrictEqual(report.byMonth["2026-08"], { candidates: 1, applied: 1 });
-  assert.deepStrictEqual(report.byMonth["2026-09"], { candidates: 2, applied: 1 });
+  assert.deepStrictEqual(report.byMonth["2026-09"], { candidates: 3, applied: 1 });
   assert.strictEqual(county.listPriceAtPending, "", "county rows are never mutated");
   assert.strictEqual(rows[2].listPriceAtPending, "");
+  assert.strictEqual(collision.listPriceAtPending, "", "an implausible join leaves the row untouched");
+  assert.strictEqual(report.rejected.length, 1);
+  assert.deepStrictEqual(report.rejected[0], {
+    reason: "implausible_ratio",
+    address: "1 Collision Ct",
+    zip: "98103",
+    mlsListingNumber: "2400004",
+    saleDate: "2026-09-10",
+    closePrice: 1300000,
+    lastSeenActive: "2026-08-20",
+    lastAsk: 600000,
+    ratio: 2.167,
+  });
 });

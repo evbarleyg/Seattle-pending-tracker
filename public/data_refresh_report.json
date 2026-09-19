@@ -46,7 +46,7 @@
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-09-19T20:09:10.257Z",
+    "generatedAt": "2026-09-19T20:25:47.790Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
