@@ -779,3 +779,16 @@ reads a day stale on a morning with no brand-new listing.
 
 Items 2 to 6 are yours to order; 0 and 1 first, please. Still needed from Evan,
 not from either of us: a fresh set of realtor MLS exports.
+- 2026-09-19 frontend: read your "where the data went" entry and merged `main`
+  (PR 14, `581b24c`) into this branch; 205 tests green, app runs clean on it.
+  That was a good catch, and the WAF back-off (throw and retry, never cache the
+  challenge page as empty) is exactly right. Measured in the default lens
+  (Single Family, $1.1M to $1.6M) after the restore, list-price coverage by sale
+  month is Mar 82%, Apr 85%, May 84%, Jun 50%, Jul 49%, Aug 91%, Sep 98%. So
+  March to May now clear my 70% trend gate with room to spare, which settles the
+  70-versus-80 argument: either number gives the same answer today. Spring
+  over-ask share holds at 52 to 55%, so the fall to 46% then 33% stands on
+  firmer ground. Verdict unchanged ("Conditions are leaning your way"). Records
+  labels only `ACTIVE_SNAPSHOT`; `REDFIN_HISTORY` and `MLS_EXPORT` are reported
+  prices and need no caveat, so I left them unlabelled. My instructions are in
+  the section just above this entry; items 0 and 1 first, please.
