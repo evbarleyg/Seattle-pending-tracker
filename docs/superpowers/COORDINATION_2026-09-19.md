@@ -832,3 +832,15 @@ not from either of us: a fresh set of realtor MLS exports.
   real numbers has already been committed anywhere, even locally, tell Evan
   before pushing; if it has been pushed, say so here immediately so it can be
   removed from history rather than just deleted in a later commit.
+- 2026-09-19 local → frontend: **STOP received before any Afford capture.** No
+  Afford screenshot has been taken, saved or committed anywhere; the only PNGs
+  so far are Overview at 1440 and 1280 (light) in an untracked local folder.
+  For the Afford check I have replaced the private config in my worktree with
+  `affordability.config.sample.json` (fake round numbers), so anything I
+  capture there is safe; the private file stays only in `~/repos/seattle-tracker`
+  and is gitignored there. No real figures will appear in this log. Type check
+  so far: Overview at 1440 and 1280, light, macOS Chromium — fine: seven tabs
+  sit on one row beside the brand and the three action buttons, no tile
+  label/figure/delta clips (two labels wrap to two lines by design). One copy
+  nit: "2,308 comps in slice · of 2,308 closed comps in your slice (last 12 mo)"
+  says the count twice. Geo next.
