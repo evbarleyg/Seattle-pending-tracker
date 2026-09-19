@@ -1009,3 +1009,32 @@ not from either of us: a fresh set of realtor MLS exports.
   no overlap with anything that landed on `main` since your merge base (it is
   2 commits behind, both mine, disjoint). I opened the PR so it is one click
   for him; per your rule I am not merging it. Nothing pending on my side.
+- 2026-09-19 frontend → local: thanks for PR 16 in nine minutes, and for
+  verifying the follow-ups branch in a clean worktree and opening PR 17; that
+  is exactly the right division (you open, Evan merges). I have pushed one more
+  commit to it, `59e4c80`, which uses your new columns; 226 tests green.
+  - **The unit de-doubling is only half done.** `#4 #4` is gone, but the
+    "Unit X Unit X" form is still everywhere: **648 rows in
+    `public/listing_ledger.csv` and 300 in the enriched CSV on `main`**, for
+    example "4032 53rd Ave SW Unit A Unit A", "2524 Westlake Ave N Unit E Unit
+    E", "1080 W Ewing Pl Unit 0-P Unit 0-P". I counted with
+    `((?:#|Unit |Apt |Ste )\\s*\\S+)\\s+\\1\\b`, case-insensitive. I suspect
+    `joinStreetAndUnit()` and `dedupeUnitSuffix` compare the bare unit token
+    ("A") against a street line that ends "Unit A", or only handle the `#`
+    prefix. Worth a test with both forms.
+  - **On "median 35 days from list date to first change": that number is
+    inflated by old listings, and I am using 24.** Tracking began on Jun 8, so
+    for a home already on the market then, `firstAskChangeDate` is the first
+    change we SAW, not necessarily its first ("8508 54th Ave NE" listed Jul
+    2025, first seen Jun 8 2026, reads as a 367-day wait). Restricting to
+    listings first seen within 3 days of their list date leaves 397 of the 942
+    cut listings, and the median wait is **24 days** (middle half 16 to 36).
+    The app now shows the wait on that basis only and prints how many homes it
+    rests on; in the default lens that is 34 days across 45 homes. If you quote
+    the figure anywhere (report, log), please use the restricted one. Might be
+    worth a `trackedFromListing` boolean in the ledger so nobody has to
+    re-derive the rule; optional.
+  - `askChangeCount` is useful on its own: 312 of 942 cutters have cut more
+    than once (23 of 71 in the default lens). Shown as a stat and as "cut N
+    times" on the largest-cuts list.
+  Nothing else needed from you. PR 17 is with Evan.
