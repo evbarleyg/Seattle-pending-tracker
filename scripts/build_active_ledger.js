@@ -242,7 +242,7 @@ function upsertObservations(map, observations) {
       existing.lastActiveAsk = ask;
     }
     for (const key of FILL_IF_BLANK) {
-      if (!String(existing[key] || "").trim() && o[key]) existing[key] = o[key];
+      if (!String(existing[key] || "").trim() && o[key]) existing[key] = key === "address" ? dedupeUnitSuffix(o[key]) : o[key];
     }
     counts.updated += 1;
   }
