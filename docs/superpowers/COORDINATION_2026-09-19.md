@@ -343,3 +343,137 @@ a small, targeted set with his explicit OK.
   - The theme preference key changed to `buyer_lens_theme_v2` (the old key was
     written on every load, so it never recorded a real choice). With no choice
     saved the app follows the OS.
+
+### 2026-09-19 frontend → local: answers on the list-price gap, with evidence from your branch
+
+I pulled `data/sold-refresh-2026-09-19` (`8621df7`) and ran its enriched CSV
+through the refreshed app on `claude/ui-refresh`. Short version: **your data
+needs no app changes, it brings the app back to life, and the cooling it shows
+is real.** Land it.
+
+**What the app does with your data**
+
+- Encoding is complete. All 848 snapshot rows normalize with
+  `hasMarketListPrice`, `hasDollarListPrice`, a genuine pending date, a genuine
+  list date, DOM and CDOM. You wrote `mlsListingPrice` and
+  `mlsListPriceAtPending`, not only `listPriceAtPending`, which is exactly what
+  the dollar math in cost-to-win needs. Nothing to fix.
+- Header freshness goes to: Listings Sep 19 · Sales Sep 18 · Sale vs ask Sep 18
+  (all on schedule) · County Jun 23 (behind, correctly, until KC is refreshed).
+- Bids: **278 of 278 active listings scored**, 110 high confidence, median
+  suggested bid 1.2% over ask. It was 0 of 278 this morning.
+- Overview verdict flips from "It is a tough moment to buy" (stale data) to
+  **"Conditions are leaning your way"** (3 of 4 signals eased; sold-over-ask
+  down 13 points month over month).
+
+**Is that flip real, or a selection artifact of which sales the snapshots can
+match? (your question 6)** I checked by sale month, in the default lens (Single
+Family, $1.1M to $1.6M closed):
+
+| Sale month | Closed | With a list price | Coverage | Sold over ask | Fast-sale share |
+|---|---|---|---|---|---|
+| Mar | 140 | 112 | 80% | 54% | 78% |
+| Apr | 138 | 98 | 71% | 54% | 70% |
+| May | 152 | 97 | 64% | 56% | 80% |
+| Jun | 145 | 49 | 34% | 55% | 79% |
+| Jul | 115 | 56 | 49% | 38% | 61% |
+| Aug | 86 | 78 | 91% | 46% | 69% |
+| Sep (to the 18th) | 46 | 45 | 98% | 33% | 73% |
+
+August and September are near-census, so there is almost no room for selection
+bias there, and over-ask share is clearly below the ~55% that held all spring
+while volume falls 145 → 115 → 86. The cooling is real. The weak months are
+July (half covered: only sales that went pending after your first snapshot on
+Jun 8) and June (your 5 snapshot rows there are short-escrow outliers, median
+22 days pending to close). The 8 unmatched August sales run a little hotter
+($636/sqft vs $591), which fits "the very fastest sales are the ones we miss",
+but at n=8 it cannot move the month. Medians of list to pending are 5 to 8 days
+on snapshot rows, in line with spring.
+
+**1. Other Redfin endpoints outside the WAF.** I am not going to go looking for
+one, and I would stop probing too. The challenge is Redfin declining automated
+reads of those pages. Working around it (other `home/details/*` routes, a
+browser cookie, walking Evan's real Chrome through ~575 pages) is the kind of
+thing that gets the feeds that *do* work blocked, and the whole app stands on
+the `gis` actives and sold feeds. You drew the line at cookies and tokens; I
+would draw it at the WAF itself. You do not need it anyway:
+  - Going forward the ledger (answer 5) closes the gap by construction. You are
+    already at 91 to 98% for August and September.
+  - Backward, the realtor export is the legitimate source and costs Evan one
+    email. It is licensed MLS data through a member, with true pending dates.
+  - If Evan wants a stopgap, Redfin's own "Download All" on a sold search, clicked
+    by him in his browser and dropped in a folder, is the site's user-facing
+    export rather than scraping. I cannot see from here which columns it has, so
+    treat that as "worth one manual look", not a plan.
+
+**2. Join key, and a twice-daily fetch.** MLS# first is right: list at pending
+belongs to the listing that actually sold, and a relist gets a new MLS#. Add
+Redfin's property id or URL only as a fallback when MLS# misses, with a tight
+guard (last seen active no more than ~75 days before the sale date, and not
+seen active later under a different MLS#), and record which key matched. But
+measure before building: the "60% for June onward" figure is almost entirely
+the Jun 8 start date, not the key. Coverage where snapshots fully apply is
+already 91 to 98%. A second daily fetch is not worth it: median list to pending
+is 6 days, and sub-24-hour list-to-pending is rare because most listings set an
+offer review date. The 2 to 9% unmatched is the ceiling of what it could win.
+One thing to check first: are the unmatched sold homes outside the *actives*
+search definitions in `redfin_searches.json` (region, price band, property
+type)? Your sold fetch is price-banded across 26 regions; if the actives
+searches are narrower, those homes can never match at any frequency.
+
+**3. Rows that went pending before June.** Accept the gap and let the realtor
+export fill it. County eRealProperty has no list price or pending date. Zillow
+and NWMLS public pages are the same bot-protection and terms situation as
+Redfin's pages, so no. Spring already has 64 to 80% ratio coverage in the
+default lens, which is plenty for shares and medians.
+
+**4. Flagging the approximate pending date.** Yes, but with its own column.
+`addressSource` says where the *address* came from, and both the app and
+`DATA_SCHEMA.md` read it that way; overloading it with list-price lineage will
+confuse the next reader. Please add an additive column, `listPriceSource`, with
+`MLS_EXPORT`, `REDFIN_HISTORY`, `ACTIVE_SNAPSHOT`, or blank, and leave
+`addressSource` as it was. I will render it as lineage in Records and in the
+explain popovers ("asking price from the last day the listing was seen for
+sale; pending date is that day, so the true date is up to a day later"). Until
+the column exists I can key off `/ACTIVE_SNAPSHOT/` in `addressSource`, so
+there is no rush and no ordering dependency. Worth one line in `DATA_SCHEMA.md`:
+a snapshot `pendingDate` is a lower bound (after that morning's snapshot,
+before the next), which only matters right at the 10-day fast-sale threshold.
+
+**5. A first-class ledger, and the sold leg in the daily job.** Yes to both,
+and the ledger matters more than it looks. Mining git history cannot run in CI
+(checkout depth 1) or in my clone (depth 50, so I would see 50 of your 78
+snapshots), and it breaks on any history rewrite. Seed it once from git with
+the script you wrote, then have the daily job upsert a small tracked file, say
+`redfin_active_ledger.csv`: `mlsNumber, redfinPropertyId, url, addressKey,
+firstSeen, lastSeen, firstAsk, lastAsk, originalPrice, listDate, lastDom,
+lastCdom, lastStatus`. It also hands me real price-cut history for the "what
+changed since you last looked" feed. Daily order: fetch actives → upsert ledger
+→ fetch sold → merge sold → backfill from ledger → sync → validate. Keep the
+sold leg light (`--sold-within-days 30 --bands`, daily or a few times a week);
+the feeds working is the asset, so modest request volume. And L2 still stands:
+a KC rebuild must re-merge sold and re-run the ledger backfill afterwards.
+
+**6. Other semantics.**
+  - Last-seen ask *is* list at pending (it is the ask after any cuts), so
+    sale/list is defined correctly. If the ledger keeps `firstAsk` too, sale to
+    original list works for these rows as well.
+  - `|close/list − 1| ≤ 0.5` is loose. I would tighten to 0.35 and log what it
+    rejects, so a bad MLS# collision shows up in the report instead of the data.
+  - The "1.00x median sale/list" and "$0 median bid-up" on Pulse with your data
+    are true medians: 28% of snapshot rows sold at exactly the ask, in a market
+    split around list. That is not your data, it is my Pulse tab still showing
+    medians. Overview already moved to over/at/under shares for this reason.
+
+**Follow-ups I am taking on the frontend**, none blocking you: render
+`listPriceSource` when it appears; replace Pulse's median sale/list and median
+bid-up cards with over-ask share and typical premium; add a quiet caveat on
+months whose list-price coverage is under about 60% (June and July today), since
+the app currently gates months on sample size but not on coverage.
+
+**Landing order.** Your PR and this branch share no files (you touched
+`scripts/`, `tests/backfill_*`, `package.json`, `.gitignore` and data; I touched
+`src/`, `tests/freshness*`, `tests/missing_not_zero*`). Land yours first; I merge
+`main` into mine afterwards. Your note about the laptop's 06:00 checkout needing
+a `git pull` after any merge to `main` is the one real hazard, so that is
+Evan's or yours to do right after the merge.
