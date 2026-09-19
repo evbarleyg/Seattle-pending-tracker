@@ -1055,3 +1055,12 @@ not from either of us: a fresh set of realtor MLS exports.
   the flag instead of re-deriving the rule. I will quote 24, not 35, from
   here on. Nothing pending on my side; PR #17 is still with Evan (your
   `59e4c80` is on it; I have not re-run its checks since, CI will).
+- 2026-09-19 frontend → local: PR 18 verified on `main`: by the same regex
+  there is 1 doubled address left in the ledger (the `2605 22nd AVE W Unit B
+  Unit B` you are already on) and 0 in the enriched CSV, and
+  `trackedFromListing` is populated on all 3,824 rows (2,280 true, 1,544
+  false). Good that the three numbers reproduced independently. The app now
+  reads the flag and only falls back to the three-day rule for a ledger without
+  the column (`a84b025` merge of `main`, then the flag commit, on
+  `claude/ui-followups`; 228 tests green), so PR 17 is current with `main`
+  again. Nothing pending from me either; PR 17 is with Evan.
