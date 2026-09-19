@@ -149,6 +149,32 @@ test("watchlist verdict does not call a trend from windows with no readable sign
   assert.doesNotMatch(verdict.answer, /cooling off|heating up/i);
 });
 
+test("competition pockets rank on rows with a DOM signal and put unknown pockets last", async () => {
+  const { competitionPocketEntries } = await importModule("src/views/pulse.mjs");
+  const groupRows = (rows, keyFn) => rows.reduce((acc, row) => { (acc[keyFn(row)] ||= []).push(row); return acc; }, {});
+  const medianValue = (values) => { const n = values.filter(Number.isFinite).sort((a, b) => a - b); return n.length ? n[Math.floor(n.length / 2)] : null; };
+  const row = (neighborhoodLabel, extra) => ({ neighborhoodLabel, closePrice: 1200000, saleToList: 0, dataMode: "MLS_ENRICHED", isHotMarket: false, hasMlsDomValue: false, daysToPending: null, ...extra });
+  const rows = [
+    // Ballard: 1 fast of the 2 rows with DOM data, plus 2 rows with none.
+    row("Ballard", { hasMlsDomValue: true, mlsDOM: 4, isHotMarket: true }),
+    row("Ballard", { hasMlsDomValue: true, mlsDOM: 30 }),
+    row("Ballard", {}),
+    row("Ballard", {}),
+    // Magnolia: every sale is a Redfin-sold row with no DOM reading at all.
+    row("Magnolia", {}), row("Magnolia", {}), row("Magnolia", {}),
+    // Fremont: slow, but known.
+    row("Fremont", { hasMlsDomValue: true, mlsDOM: 45 }),
+  ];
+  const entries = competitionPocketEntries(rows, { groupRows, medianValue });
+  const byName = Object.fromEntries(entries.map((entry) => [entry.name, entry]));
+
+  assert.equal(byName.Ballard.hotShare, 0.5, "1 of 2 rows with DOM data, not 1 of 4");
+  assert.equal(byName.Ballard.heatCount, 2);
+  assert.equal(byName.Fremont.hotShare, 0, "a known slow pocket is a real 0%");
+  assert.equal(byName.Magnolia.hotShare, null, "no DOM data anywhere is unknown, not 0%");
+  assert.deepEqual(entries.map((entry) => entry.name), ["Ballard", "Fremont", "Magnolia"], "unknown sorts after a known 0%");
+});
+
 test("hasHeatSignal treats hot rows and rows with any DOM reading as known", async () => {
   const { hasHeatSignal } = await importModule("src/domain/data.mjs");
   assert.equal(hasHeatSignal({ isHotMarket: true }), true, "tagged hot with no DOM number is still a signal");

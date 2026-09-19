@@ -400,9 +400,9 @@ function renderShell() {
         <details class="help-panel">
           <summary>${icon("info")}<span>How to use this dashboard</span></summary>
           <div class="help-grid">
-            <p>Use the command center first: confirm the active filter band, scan market pressure, then jump to Pulse, Bids, Geo, or Records.</p>
-            <p>Filters affect every view. Table sorting and CSV export operate on the full filtered set, while Records and Bids only render one page at a time.</p>
-            <p>Geo loads its local Leaflet bundle only after the Geo tab opens.</p>
+            <p>The lens bar under the header shows what is filtered and how fresh each data source is. Filters apply to every tab; a chip with an × is something you can remove.</p>
+            <p>Overview answers three questions in order: is now a good time, what does winning cost, and what changed since you last looked. The small "i" next to any number explains how it is computed and what it counts.</p>
+            <p>Table sorting and CSV export use the full filtered set, while Records and Bids show one page at a time. Clicking a chart point, a neighborhood or map markers adds a cross-filter to the lens bar.</p>
           </div>
         </details>
       </main>
