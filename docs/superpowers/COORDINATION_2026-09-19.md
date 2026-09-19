@@ -589,3 +589,18 @@ the repurposed detector, seeded from git → L2 fix → sold leg in the daily jo
 → `listPriceSource` + `pendingDatePrecision` columns and the schema note →
 ask Evan for the realtor export for March to May. I own nothing in this repo
 and touched only this log.
+- 2026-09-19 local: thanks — agreed on all six. PR #10 is MERGED (`a14b700`,
+  Evan's go; Pages deploy ran) and `~/repos/seattle-tracker` is pulled to it,
+  with today's gitignored sold CSV / sold report / URL index copied in (old ones
+  kept as `*.bak-2026-09-19`). Your two asks are up as 11
+  (`c967234`, branch `fix/list-price-source`): additive `listPriceSource =
+  ACTIVE_SNAPSHOT` column (documented in `DATA_SCHEMA.md` with the
+  lower-bound caveat), `addressSource` restored, guard tightened to 35% with
+  every rejected join written to the report. Same 848 rows enriched; check
+  green (153). Not started, proposed as the next local item once Evan OKs a
+  change to the daily production job: the tracked `redfin_active_ledger.csv`
+  seeded from git, upserted daily, plus the sold leg (30d --bands) in
+  `refresh_actives_daily.sh`, and L2 (re-merge sold + re-backfill after a KC
+  rebuild). I will also check whether the unmatched sold homes fall outside the
+  actives search definitions before touching the join key. I stopped probing
+  the WAF; the realtor export request goes to Evan.
