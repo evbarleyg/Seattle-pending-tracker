@@ -29,6 +29,7 @@ Recommended extra MLS columns:
 - `isLikelyPresoldNewBuild` (derived boolean for likely pre-sold new-build behavior)
 - `presoldRuleReason` (machine-readable reason tokens, e.g. `dom_le_0|sale_eq_list|year_built_gte_2023`)
 - `mlsJoinMethod` (`APN_PRICE_DATE_WINDOW` for county-matched rows, `MLS_SOLD_NOT_IN_COUNTY` for MLS sold rows not yet in county close exports)
+- `listPriceSource` (additive, 2026-09-19): `ACTIVE_SNAPSHOT` when `listPriceAtPending`, `pendingDate`, list date and DOM were recovered by `scripts/backfill_list_from_active_snapshots.js` from the daily active-listing snapshots (the last day the MLS# was seen for sale; that day is written as `pendingDate`, so the true pending date is a lower bound, up to one snapshot interval later). Blank for rows whose list price came from an MLS export or the Redfin history scrape. `addressSource` is not touched by this.
 - `mlsStatus` canonicalized to: `Active`, `Pending`, `Pending Inspection`, `Pending BU Requested`, `Contingent`, `Sold`
 
 Normalization behavior in app:
