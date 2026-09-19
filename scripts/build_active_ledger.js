@@ -66,11 +66,15 @@ const LEDGER_COLUMNS = [
 const UNIT_PHRASE = "(?:#\\s*\\S+|(?:unit|apt|ste|suite)\\s+\\S+)";
 const DOUBLED_UNIT_RE = new RegExp(`^(.*?)\\s*(${UNIT_PHRASE})\\s+(${UNIT_PHRASE})$`, "i");
 function dedupeUnitSuffix(address) {
-  const s = String(address || "").trim().replace(/\s+/g, " ");
-  const m = s.match(DOUBLED_UNIT_RE);
-  if (!m) return s;
+  let s = String(address || "").trim().replace(/\s+/g, " ");
   const norm = (t) => t.replace(/^(#|unit|apt|ste|suite)\s*/i, "").replace(/\s+/g, "").toUpperCase();
-  return norm(m[2]) === norm(m[3]) ? `${m[1]} ${m[2]}`.trim() : s;
+  // Collapse one repetition per pass; an old snapshot held a TRIPLED unit.
+  for (let guard = 0; guard < 5; guard += 1) {
+    const m = s.match(DOUBLED_UNIT_RE);
+    if (!m || norm(m[2]) !== norm(m[3])) break;
+    s = `${m[1]} ${m[2]}`.trim();
+  }
+  return s;
 }
 
 // A listing whose first sighting is within this many days of its list date
