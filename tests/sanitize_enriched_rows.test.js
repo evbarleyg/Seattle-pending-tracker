@@ -48,9 +48,14 @@ test("sanitize drops stale rows, keeps ledger-proven ones, blanks fabricated tim
     fabricated,
     { mlsJoinMethod: "APN_PRICE_DATE_WINDOW", mlsListingNumber: "2200001", address: "4 Sold St", mlsStatus: "Sold", closePrice: "800000", mlsListingPrice: "790000", mlsListDate: "2026-04-01", mlsPendingDate: "2026-04-01", mlsDOM: "0" },
   ];
+  const doubled = { mlsJoinMethod: "REDFIN_ACTIVE", mlsListingNumber: "2500002", address: "4032 53rd Ave SW Unit A Unit A", mlsStatus: "Active", mlsListDate: "2026-09-10", closePrice: "" };
+  rows.push(doubled);
   const { rows: kept, report } = sanitize(rows, ledger, OPTS);
-  assert.strictEqual(report.rowsBefore, 5);
-  assert.strictEqual(report.rowsAfter, 4);
+  assert.strictEqual(report.rowsBefore, 6);
+  assert.strictEqual(report.rowsAfter, 5);
+  assert.strictEqual(report.doubledUnitsRepaired, 1);
+  assert.strictEqual(doubled.address, "4032 53rd Ave SW Unit A");
+  assert.ok(kept.includes(doubled));
   assert.strictEqual(report.staleOpenDropped, 1);
   assert.strictEqual(report.staleOpenKeptViaLedger, 1);
   assert.deepStrictEqual(report.staleReasons, { list_date_stale_and_not_in_ledger: 1 });

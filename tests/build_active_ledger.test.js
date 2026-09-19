@@ -153,6 +153,12 @@ test("a doubled unit suffix is repaired on insert and when loading an older ledg
   const { dedupeUnitSuffix } = require("../scripts/build_active_ledger.js");
   assert.strictEqual(dedupeUnitSuffix("2727 Fairview Ave E #4 #4"), "2727 Fairview Ave E #4");
   assert.strictEqual(dedupeUnitSuffix("9057 Greenwood Ave N #306 #306"), "9057 Greenwood Ave N #306");
+  assert.strictEqual(dedupeUnitSuffix("4032 53rd Ave SW Unit A Unit A"), "4032 53rd Ave SW Unit A", "the Unit-prefixed form");
+  assert.strictEqual(dedupeUnitSuffix("1080 W Ewing Pl Unit 0-P Unit 0-P"), "1080 W Ewing Pl Unit 0-P");
+  assert.strictEqual(dedupeUnitSuffix("500 Pine St Apt 3B apt 3b"), "500 Pine St Apt 3B", "prefix and case may differ between the copies");
+  assert.strictEqual(dedupeUnitSuffix("500 Pine St Ste 200 Ste 200"), "500 Pine St Ste 200");
+  assert.strictEqual(dedupeUnitSuffix("4032 53rd Ave SW Unit A"), "4032 53rd Ave SW Unit A", "a single unit is left alone");
+  assert.strictEqual(dedupeUnitSuffix("4032 53rd Ave SW Unit A Unit B"), "4032 53rd Ave SW Unit A Unit B", "two different units are not a double");
   assert.strictEqual(dedupeUnitSuffix("2727 Fairview Ave E #4"), "2727 Fairview Ave E #4");
   assert.strictEqual(dedupeUnitSuffix("100 4th Ave #4"), "100 4th Ave #4", "a street number that matches the unit is not a doubled suffix");
   assert.strictEqual(dedupeUnitSuffix("1 Main St"), "1 Main St");
@@ -162,6 +168,21 @@ test("a doubled unit suffix is repaired on insert and when loading an older ledg
   const loaded = ledgerRowsToMap([{ mlsNumber: "9", address: "708 N 102nd St #2 #2", firstSeen: "2026-06-01", lastSeen: "2026-06-10", firstAsk: "1", lastAsk: "1" }]);
   assert.strictEqual(loaded.get("9").address, "708 N 102nd St #2");
   assert.strictEqual(loaded.get("9").askChangeCount, "0", "older ledgers get the new columns defaulted");
+});
+
+test("trackedFromListing is true only when the first sighting is within 3 days of the list date", () => {
+  const { trackedFromListing } = require("../scripts/build_active_ledger.js");
+  assert.strictEqual(trackedFromListing({ listDate: "2026-07-17", firstSeen: "2026-07-17" }), "true");
+  assert.strictEqual(trackedFromListing({ listDate: "2026-07-17", firstSeen: "2026-07-20" }), "true");
+  assert.strictEqual(trackedFromListing({ listDate: "2026-07-17", firstSeen: "2026-07-21" }), "false");
+  assert.strictEqual(trackedFromListing({ listDate: "2025-07-01", firstSeen: "2026-06-08" }), "false", "already on the market when tracking began");
+  assert.strictEqual(trackedFromListing({ listDate: "", firstSeen: "2026-06-08" }), "");
+  const map = new Map();
+  upsertObservations(map, [obs({ date: "2026-07-18", listDate: "2026-07-17" }), obs({ mlsNumber: "old", date: "2026-06-08", listDate: "2025-07-01" })]);
+  const rows = ledgerMapToRows(map);
+  assert.strictEqual(rows.find((r) => r.mlsNumber === "2400001").trackedFromListing, "true");
+  assert.strictEqual(rows.find((r) => r.mlsNumber === "old").trackedFromListing, "false");
+  assert.ok(LEDGER_COLUMNS.includes("trackedFromListing"));
 });
 
 test("ledger rows round-trip through the map and come back newest-last-seen first", () => {
