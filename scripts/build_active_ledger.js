@@ -53,17 +53,37 @@ const LEDGER_COLUMNS = [
   // Ask-change history (requested by the frontend for days-to-first-cut):
   // the day lastAsk last moved, the day it FIRST moved, and how many times.
   "lastAskChangeDate", "firstAskChangeDate", "askChangeCount",
+  // "true" when the listing was first seen within 3 days of its list date,
+  // so its first recorded ask change really is its first cut.
+  "trackedFromListing",
 ];
 
 // The actives fetch used to append the unit to a street line that already
 // carried it ("2727 Fairview Ave E #4 #4"). Fixed at the source; this repairs
 // rows already in the ledger and any older feed file replayed into it.
+// Handles every prefix form the feed has produced: "#4 #4", "Unit A Unit A",
+// "Apt 3B Apt 3B", "Ste 200 Ste 200", and mixed case. Idempotent.
+const UNIT_PHRASE = "(?:#\\s*\\S+|(?:unit|apt|ste|suite)\\s+\\S+)";
+const DOUBLED_UNIT_RE = new RegExp(`^(.*?)\\s*(${UNIT_PHRASE})\\s+(${UNIT_PHRASE})$`, "i");
 function dedupeUnitSuffix(address) {
-  const s = String(address || "").trim();
-  const m = s.match(/^(.*\S)\s+(\S+)\s+(\S+)$/);
+  const s = String(address || "").trim().replace(/\s+/g, " ");
+  const m = s.match(DOUBLED_UNIT_RE);
   if (!m) return s;
   const norm = (t) => t.replace(/^(#|unit|apt|ste|suite)\s*/i, "").replace(/\s+/g, "").toUpperCase();
-  return m[2].startsWith("#") && norm(m[2]) === norm(m[3]) ? `${m[1]} ${m[2]}` : s;
+  return norm(m[2]) === norm(m[3]) ? `${m[1]} ${m[2]}`.trim() : s;
+}
+
+// A listing whose first sighting is within this many days of its list date
+// has been tracked from the start, so its first ask change is its FIRST cut.
+// Listings already on the market when tracking began (Jun 8) are not.
+const TRACKED_FROM_LISTING_DAYS = 3;
+function trackedFromListing(entry) {
+  const listDate = String(entry.listDate || "").trim();
+  const firstSeen = String(entry.firstSeen || "").trim();
+  if (!listDate || !firstSeen) return "";
+  const gap = (Date.parse(firstSeen) - Date.parse(listDate)) / 86400000;
+  if (!Number.isFinite(gap)) return "";
+  return gap <= TRACKED_FROM_LISTING_DAYS ? "true" : "false";
 }
 const ACTIVE_STATUSES = new Set(["ACTIVE", "COMING SOON", "FIRST LOOK"]);
 
@@ -230,6 +250,7 @@ function upsertObservations(map, observations) {
 }
 
 function ledgerMapToRows(map) {
+  for (const e of map.values()) e.trackedFromListing = trackedFromListing(e);
   return [...map.values()].sort((a, b) => {
     if (a.lastSeen !== b.lastSeen) return a.lastSeen < b.lastSeen ? 1 : -1; // newest first
     return a.mlsNumber < b.mlsNumber ? -1 : a.mlsNumber > b.mlsNumber ? 1 : 0;
@@ -320,7 +341,7 @@ function main() {
 }
 
 module.exports = {
-  LEDGER_COLUMNS, ACTIVE_STATUSES, isActiveStatus, toPacificDate, dedupeUnitSuffix,
+  LEDGER_COLUMNS, ACTIVE_STATUSES, isActiveStatus, toPacificDate, dedupeUnitSuffix, trackedFromListing,
   observationsFromActives, observationsFromEnrichedSnapshot,
   ledgerRowsToMap, upsertObservations, ledgerMapToRows,
 };

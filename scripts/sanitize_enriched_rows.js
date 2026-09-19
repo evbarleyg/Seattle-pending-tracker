@@ -71,14 +71,23 @@ function blankTimeline(row) {
   }
 }
 
+// 3. Repair doubled unit suffixes in addresses ("… Unit A Unit A", "… #4 #4"),
+//    left by the actives fetcher before it stopped appending a unit the
+//    street line already carried. Idempotent; see build_active_ledger.js.
+const { dedupeUnitSuffix } = require("./build_active_ledger.js");
+
 function sanitize(rows, ledgerLastSeen, opts) {
   const kept = [];
   const report = {
     today: opts.today, maxOpenAgeDays: opts.maxOpenAgeDays, ledgerGraceDays: opts.ledgerGraceDays,
     rowsBefore: rows.length, staleOpenDropped: 0, staleOpenKeptViaLedger: 0, staleReasons: {}, dropped: [],
-    fabricatedTimelinesBlanked: 0, blanked: [],
+    fabricatedTimelinesBlanked: 0, blanked: [], doubledUnitsRepaired: 0,
   };
   for (const row of rows) {
+    if (row.address) {
+      const repaired = dedupeUnitSuffix(row.address);
+      if (repaired !== String(row.address).trim().replace(/\s+/g, " ")) { row.address = repaired; report.doubledUnitsRepaired += 1; }
+    }
     const reason = staleReason(row, ledgerLastSeen, opts);
     if (reason) {
       report.staleOpenDropped += 1;
@@ -156,7 +165,7 @@ function main() {
   report.generatedAt = new Date().toISOString();
   report.dryRun = opts.dryRun;
   fs.writeFileSync(path.resolve(opts.report), `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`Sanitize: dropped ${report.staleOpenDropped} stale open rows (${JSON.stringify(report.staleReasons)}; ${report.staleOpenKeptViaLedger} kept because the ledger saw them recently); blanked ${report.fabricatedTimelinesBlanked} fabricated timelines. Rows ${report.rowsBefore} -> ${report.rowsAfter}.`);
+  console.log(`Sanitize: dropped ${report.staleOpenDropped} stale open rows (${JSON.stringify(report.staleReasons)}; ${report.staleOpenKeptViaLedger} kept because the ledger saw them recently); blanked ${report.fabricatedTimelinesBlanked} fabricated timelines; repaired ${report.doubledUnitsRepaired} doubled unit suffixes. Rows ${report.rowsBefore} -> ${report.rowsAfter}.`);
   if (opts.dryRun) { console.log("Dry run: CSV not written."); return; }
   writeCsv(enrichedPath, headers, kept);
 }

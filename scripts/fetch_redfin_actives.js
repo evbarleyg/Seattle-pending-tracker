@@ -90,8 +90,12 @@ function joinStreetAndUnit(street, unit) {
   if (!u) return s;
   if (!s) return u;
   const norm = (t) => t.replace(/^(#|unit|apt|ste|suite)\s*/i, "").replace(/\s+/g, "").toUpperCase();
-  const tail = s.split(/\s+/).pop() || "";
-  if (norm(tail) && norm(tail) === norm(u)) return s;
+  const words = s.split(/\s+/);
+  const tail1 = words[words.length - 1] || "";
+  const tail2 = words.slice(-2).join(" ");
+  // "…Unit B" + "Unit B" (phrase match) or "…#4" + "#4" / "…Unit B" + "B" (token match).
+  if (norm(tail2) && norm(tail2) === norm(u) && /^(#|unit|apt|ste|suite)$/i.test(words[words.length - 2] || "")) return s;
+  if (norm(tail1) && norm(tail1) === norm(u)) return s;
   return `${s} ${u}`;
 }
 
