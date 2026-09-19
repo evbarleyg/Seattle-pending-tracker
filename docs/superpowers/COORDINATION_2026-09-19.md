@@ -72,15 +72,15 @@ as a request instead of making it.
 |---|---|---|---|
 | Redfin actives | Sep 19 | fresh | daily launchd job |
 | Redfin sold | Aug 18 | ~1 month | `npm run refresh:sold` (not in the daily job) |
-| KC recorded sales | Jun 24 | ~3 months | `npm run refresh:kc-fresh` |
-| Redfin history (pending date, list at pending) | Jun 12 | ~3 months | `npm run backfill:history` |
+| KC recorded sales | Jun 23 | ~3 months | `npm run refresh:kc-fresh` |
+| Redfin history (newest sale that has a list price) | Jun 22 | ~3 months | `npm run backfill:history` |
 | Realtor MLS exports | Mar 19–20 | ~6 months | manual re-export from the realtor |
 
 Consequences visible in the app today:
 
 - **Bids tab is dead.** All 278 active listings show "n/a, insufficient comps".
-  A bid comp needs a sold row with a real list price in the last 90 days; the
-  newest one is Jun 12. Restoring it needs fresh sold rows *and* their history
+  A bid comp needs at least 6 sold rows with a real list price in the last 90
+  days; the newest such row is Jun 22, so almost none are in the window. Restoring it needs fresh sold rows *and* their history
   backfill (the sold feed itself carries no list price).
 - **~480 zombie actives.** Rows from the March realtor export are still flagged
   Active/Pending with list dates on or before Mar 20. The report says 1,833
@@ -192,3 +192,32 @@ days-on-market signal", not "all closed rows".
 - 2026-09-19 frontend: audited all 7 tabs at desktop and mobile, light and
   dark. Baseline `npm run check` equivalents green (146 tests). Landed F1
   (`031549f`, 156 tests green). Wrote this plan. Starting F2.
+- 2026-09-19 frontend: F2 to F5 landed (`1816294`, `b67311c`). `npm run check`
+  green, 166 tests. Every tab checked at 1440, 900 and 390 wide in both themes:
+  no horizontal overflow, no console errors. Notes for the local agent:
+  - **Headline numbers moved because of F1, not because of new data.** Overview
+    now reads "It is a tough moment to buy" (was "No clear tilt") and fast-sale
+    share is 70.0% (was 55.7%), since rows with no days-on-market data are no
+    longer counted as slow. Pulse now says "Hard to say from this window"
+    instead of "cooling off", which was an artifact of missing data. Expect
+    these to move again, legitimately, once L1 lands.
+  - **Section 7 contract, as built:** the app reads only
+    `report.sources.redfinActives.fetchedAt` (any ISO timestamp) and uses it as
+    the listings date when it is newer than the newest list date in the rows.
+    The other keys in the proposed block are not read yet; add them if useful
+    and say so here. Everything else in the header pill and the Data tab's
+    "Where each source stands" table is derived from the rows.
+  - `npm run build` / `npm run check` rewrite `data_refresh_report.json` and
+    `public/data_refresh_report.json` (validation timestamp). Those are yours;
+    I revert them before every commit so this branch never touches them.
+  - **Please verify (L5), I cannot see these:** (1) Geo with real map tiles in
+    both themes. Dark mode dims the basemap with a CSS filter on
+    `.leaflet-tile-pane`; check the markers still read against it. A notice
+    now appears over the map when tiles fail to load, so if you see it with a
+    working network, that is a bug. (2) The Afford tab with the private config
+    loaded. I restyled it blind: the decision card's `heat-hot/warm/cool` tone,
+    the `.controls-grid` inputs and the `.afford-grid` table. (3) Type rendering
+    on macOS; the stack now leads with the system font rather than Inter.
+  - The theme preference key changed to `buyer_lens_theme_v2` (the old key was
+    written on every load, so it never recorded a real choice). With no choice
+    saved the app follows the OS.
