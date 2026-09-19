@@ -534,12 +534,14 @@ function commandCenterCardsHtml(costToWin) {
 function commandCenterSectionHtml(costToWin) {
   const { state } = ctx;
   const closedCount = (state.derived?.slices?.closedSlice || []).length;
+  // The headline carries the count; the caption only says what is being counted,
+  // so the same number is not printed twice on one line.
   return `
     <section class="command-center compact" id="commandCenter" aria-label="Buyer command center">
       <div class="hero-strip">
         <p class="eyebrow">The numbers behind that read</p>
         <h2 class="hero-line">${esc(filtersToSummary(state.filters).join(" + "))} · ${formatWholeNumber(closedCount)} comps in slice</h2>
-        ${captionRow(renderUniverseCaption({ count: closedCount, universeLabel: "closed comps in your slice", windowLabel: windowLabel(state.filters) }), "closedSlice")}
+        ${captionRow(renderUniverseCaption({ universeLabel: "closed sales passing your filters", windowLabel: windowLabel(state.filters) }), "closedSlice")}
       </div>
       <div class="command-stack" id="commandGrid">
         ${commandCenterCardsHtml(costToWin)}
