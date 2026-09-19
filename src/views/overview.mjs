@@ -239,6 +239,8 @@ function liveCoverageNote(metric, state) {
 function tileSampleField(metricKey) {
   if (metricKey === "medianSaleToList" || metricKey === "overAskShare") return "ratioSampleSize";
   if (metricKey === "medianBidUp") return "bidUpSampleSize";
+  if (metricKey === "hotShare") return "heatSampleSize";
+  if (metricKey === "medianDom") return "domSampleSize";
   return undefined;
 }
 
@@ -456,7 +458,7 @@ function commandCenterCardsHtml(costToWin) {
       series: sliceSeries,
       explainId: "fastSaleShare",
       sub: "Share of homes gone in 10 days or less, a competition gauge.",
-      caption: closedCaption,
+      caption: eligibleOfClosed(stats.heatSampleSize ?? domCount, "sales with days-on-market data"),
     }),
     insightTileHtml({
       label: "Active + pending (MLS only)",

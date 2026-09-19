@@ -16,6 +16,7 @@ import {
   PRICE_SLIDER_CAP,
   domMetric,
   findDefaultSingleFamilyLabel,
+  hasHeatSignal,
   hotCategory,
   inRatioBucket,
   matchesSpecialSaleFilter,
@@ -161,13 +162,21 @@ export function recordViewLabel(value) {
 export function computeBaseStats(rows) {
   const list = rows || [];
   const ratioCount = list.filter((row) => row.saleToList > 0).length;
+  // Fast-sale share is only answerable on rows with a days-on-market signal;
+  // county-only and Redfin-sold rows are unknown, not slow (see hasHeatSignal).
+  const heatRows = list.filter(hasHeatSignal);
+  // delta=0 is the normalizer's placeholder on rows without a real list price;
+  // only an explicit false flag marks it, so legacy rows without the flag count.
+  const bidUpRows = list.filter((row) => row.hasMarketListPrice !== false && Number.isFinite(row.delta));
   return {
     medianClose: median(list.map((row) => row.closePrice).filter((value) => Number.isFinite(value))),
     medianPsf: median(list.filter((row) => row.pricePerSqft > 0).map((row) => row.pricePerSqft)),
     medianDom: nullableMedian(list.map(domMetric).filter((value) => value !== null)),
     medianSaleToList: nullableMedian(list.map((row) => row.saleToList).filter((value) => value > 0)),
-    medianBidUp: nullableMedian(list.map((row) => row.delta).filter((value) => Number.isFinite(value))),
-    hotShare: list.length ? list.filter((row) => row.isHotMarket).length / list.length : null,
+    medianBidUp: nullableMedian(bidUpRows.map((row) => row.delta)),
+    hotShare: heatRows.length ? heatRows.filter((row) => row.isHotMarket).length / heatRows.length : null,
+    heatSampleSize: heatRows.length,
+    bidUpSampleSize: bidUpRows.length,
     ratioSampleSize: ratioCount,
     sampleSize: list.length,
   };
@@ -425,6 +434,7 @@ export function pulseRowSummary(row) {
     domValue: domMetric(row),
     saleToList: row.saleToList,
     delta: row.delta,
+    hasMarketListPrice: row.hasMarketListPrice,
     closePrice: row.closePrice,
     pricePerSqft: row.pricePerSqft,
   };

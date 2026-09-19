@@ -533,6 +533,18 @@ export function domMetric(row) {
   return null;
 }
 
+// True when we can actually say whether a sale was fast: the row is flagged hot
+// (by tag or DOM), or it carries some days-on-market reading. County-only and
+// Redfin-sold rows have neither, so they are "unknown", not "slow", and must
+// stay out of a fast-sale share's denominator. Accepts full normalized rows and
+// the slim pulse summaries (which precompute domValue).
+export function hasHeatSignal(row) {
+  if (!row) return false;
+  if (row.isHotMarket) return true;
+  if (row.domValue !== undefined) return row.domValue !== null && Number.isFinite(Number(row.domValue));
+  return domMetric(row) !== null;
+}
+
 export function hotCategory(row) {
   if (row?.isUltraHot) return "Ultra Hot";
   if (row?.isHotMarket) return "Hot";

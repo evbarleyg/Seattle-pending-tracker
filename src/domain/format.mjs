@@ -15,7 +15,10 @@ export function num(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// Number(null) and Number("") are both 0, so an absent reading has to be caught
+// before coercion or it turns into a real zero downstream.
 export function safeNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }

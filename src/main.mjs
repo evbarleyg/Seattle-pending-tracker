@@ -33,6 +33,7 @@ import {
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_STEP,
   domMetric,
+  hasHeatSignal,
   parseCsv,
   specialSaleFilterLabel,
   zillowUrl,
@@ -813,6 +814,8 @@ function defaultSampleField(metricKey) {
   if (metricKey === "medianSaleToList") return "ratioSampleSize";
   if (metricKey === "overAskShare") return "ratioSampleSize";
   if (metricKey === "medianBidUp") return "bidUpSampleSize";
+  if (metricKey === "hotShare") return "heatSampleSize";
+  if (metricKey === "medianDom") return "domSampleSize";
   return undefined;
 }
 
@@ -913,8 +916,16 @@ function buildSliceMonthlySeries(rows) {
       return ratioRows.length ? ratioRows.filter((row) => row.saleToList > 1).length / ratioRows.length : null;
     })(),
     medianPsf: medianValue(monthRows.map((row) => row.pricePerSqft).filter((value) => value > 0)),
-    hotShare: monthRows.length ? monthRows.filter((row) => row.isHotMarket).length / monthRows.length : null,
+    // Rows with no days-on-market signal (county-only, Redfin sold) are unknown,
+    // not slow: they stay out of the share, and heatSampleSize gates the month
+    // so a month with too few DOM readings is dropped instead of plotted as 0%.
+    hotShare: (() => {
+      const heatRows = monthRows.filter(hasHeatSignal);
+      return heatRows.length ? heatRows.filter((row) => row.isHotMarket).length / heatRows.length : null;
+    })(),
+    heatSampleSize: monthRows.filter(hasHeatSignal).length,
     medianDom: medianValue(monthRows.map((row) => domMetric(row)).filter((value) => value !== null && value !== undefined)),
+    domSampleSize: monthRows.filter((row) => domMetric(row) !== null).length,
     medianBidUp: (() => { const b = monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)); return b.length ? medianValue(b.map((row) => row.delta)) : null; })(),
     bidUpSampleSize: monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)).length,
     ratioSampleSize: monthRows.filter((row) => row.saleToList > 0).length,
