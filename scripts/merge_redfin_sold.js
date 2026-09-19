@@ -19,7 +19,12 @@ const { uiPropertyTypeToAppType, zipNeighborhood } = require("./merge_redfin_act
 
 const PROJECT_DIR = path.resolve(__dirname, "..");
 const DEFAULT_ENRICHED = path.join(PROJECT_DIR, "public_sales_proxy_mls_enriched_last12mo.csv");
-const DEFAULT_REDFIN = path.join(PROJECT_DIR, "redfin_sold_listings.csv");
+const RAW_REDFIN = path.join(PROJECT_DIR, "redfin_sold_listings.csv");
+const CUMULATIVE_REDFIN = path.join(PROJECT_DIR, "redfin_sold_cumulative.csv");
+// Prefer the tracked cumulative file (accumulate_redfin_sold.js folds every fetch
+// into it), so a short re-fetch window can never strip older REDFIN_SOLD rows.
+// The raw fetch output is the fallback for a checkout that has not accumulated yet.
+const DEFAULT_REDFIN = fs.existsSync(CUMULATIVE_REDFIN) ? CUMULATIVE_REDFIN : RAW_REDFIN;
 const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_sold_merge_report.json");
 
 const SALE_DATE_MATCH_DAYS = 14;

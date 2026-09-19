@@ -124,6 +124,20 @@ else
 fi
 
 echo ""
+echo "===== 3b/5  Re-merging Redfin sold + list@pending from the actives ledger ====="
+# A rebuild drops every REDFIN_SOLD row (L2); put them back before the history
+# backfill so it can enrich them too.
+if [[ -f "redfin_sold_cumulative.csv" || -f "redfin_sold_listings.csv" ]]; then
+  node scripts/merge_redfin_sold.js
+else
+  echo "No Redfin sold file — run 'npm run refresh:sold' first."
+fi
+if [[ -f "redfin_active_ledger.csv" ]]; then
+  node scripts/backfill_list_from_active_snapshots.js
+else
+  echo "redfin_active_ledger.csv missing — run 'npm run ledger:seed'."
+fi
+echo ""
 echo "===== 4/5  Re-applying Redfin bid-up backfill (uses cache) ====="
 if [[ -f "redfin_history_cache.json" && -f "redfin_url_index.json" ]]; then
   # Re-run on the standard buyer-relevant band; cache makes this fast since
