@@ -80,6 +80,21 @@ function strFromLeveled(obj) {
   return v === null || v === undefined ? "" : String(v);
 }
 
+// Redfin's streetLine sometimes already carries the unit ("2727 Fairview Ave
+// E #4" with unitNumber "#4"); appending it again produced "… #4 #4" on ~40
+// listings a day. Append only when the street line does not already end with
+// the same unit token (compared without "#"/"Unit"/"Apt" prefixes or case).
+function joinStreetAndUnit(street, unit) {
+  const s = String(street || "").trim();
+  const u = String(unit || "").trim();
+  if (!u) return s;
+  if (!s) return u;
+  const norm = (t) => t.replace(/^(#|unit|apt|ste|suite)\s*/i, "").replace(/\s+/g, "").toUpperCase();
+  const tail = s.split(/\s+/).pop() || "";
+  if (norm(tail) && norm(tail) === norm(u)) return s;
+  return `${s} ${u}`;
+}
+
 async function fetchGis(query, options) {
   const params = new URLSearchParams({
     al: "1",
@@ -145,7 +160,7 @@ function homeToRow(home, query, fetchedAt) {
   const lon = home.latLong?.value?.longitude;
   const street = strFromLeveled(home.streetLine);
   const unit = strFromLeveled(home.unitNumber);
-  const fullAddress = unit ? `${street} ${unit}` : street;
+  const fullAddress = joinStreetAndUnit(street, unit);
   return {
     fetchedAt,
     queryLabel: query.label,
@@ -412,5 +427,4 @@ module.exports = {
   passesFilters,
   dedupeRows,
   UI_PROPERTY_TYPE_LABELS,
-  OUTPUT_COLUMNS,
-};
+  OUTPUT_COLUMNS, joinStreetAndUnit };
