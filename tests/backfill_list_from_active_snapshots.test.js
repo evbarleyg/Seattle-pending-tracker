@@ -14,6 +14,33 @@ const {
   MAX_RATIO_DEVIATION,
 } = require("../scripts/backfill_list_from_active_snapshots.js");
 
+test("validateOverlap compares history-scraped rows with the ledger and reports match rates", () => {
+  const { validateOverlap } = require("../scripts/backfill_list_from_active_snapshots.js");
+  const lastSeen = new Map([
+    ["1", { date: "2026-07-30", list: 1100000, originalList: 1100000, listDate: "2026-07-17", dom: "13", cdom: "13", zip: "98177" }],
+    ["2", { date: "2026-08-10", list: 900000, originalList: 900000, listDate: "2026-08-01", dom: "9", cdom: "9", zip: "98103" }],
+    ["3", { date: "2026-08-01", list: 700000, originalList: 700000, listDate: "2026-07-20", dom: "12", cdom: "12", zip: "98103" }],
+  ]);
+  const rows = [
+    { mlsJoinMethod: "REDFIN_HISTORY", mlsListingNumber: "1", address: "A", mlsListingPrice: "1100000", mlsPendingDate: "2026-07-31", mlsDOM: "14" }, // exact ask, pending one day after last listed, DOM within 2
+    { mlsJoinMethod: "REDFIN_SOLD", listPriceSource: "REDFIN_HISTORY", mlsListingNumber: "2", address: "B", mlsListingPrice: "905000", mlsPendingDate: "2026-08-10", mlsDOM: "9" }, // within 1%, same day
+    { mlsJoinMethod: "REDFIN_HISTORY", mlsListingNumber: "3", address: "C", mlsListingPrice: "650000", mlsPendingDate: "2026-08-09", mlsDOM: "30" }, // differs: price off 7.7%, pending 8 days later, DOM off
+    { mlsJoinMethod: "REDFIN_HISTORY", mlsListingNumber: "1", address: "old", mlsListingPrice: "1100000", mlsPendingDate: "2026-05-01", mlsDOM: "1" }, // before `since`: ignored
+    { mlsJoinMethod: "REDFIN_SOLD", listPriceSource: "ACTIVE_SNAPSHOT", mlsListingNumber: "1", address: "snap", mlsListingPrice: "1100000", mlsPendingDate: "2026-07-30" }, // not a history row: ignored
+  ];
+  const v = validateOverlap(rows, lastSeen, { since: "2026-06-08" });
+  assert.strictEqual(v.compared, 3);
+  assert.deepStrictEqual(v.price, { exact: 1, within1pct: 1, differs: 1 });
+  assert.strictEqual(v.pendingDate.same, 1);
+  assert.strictEqual(v.pendingDate.ledgerEarlier1, 1);
+  assert.strictEqual(v.pendingDate.ledgerEarlier4plus, 1);
+  assert.deepStrictEqual(v.dom, { same: 1, within2: 1, differs: 1, missing: 0 });
+  assert.strictEqual(v.rates.priceExactOrWithin1pct, 66.7);
+  assert.strictEqual(v.rates.pendingSameOrOneDayEarly, 66.7);
+  assert.strictEqual(v.samples.length, 1);
+  assert.strictEqual(v.samples[0].address, "C");
+});
+
 test("loadLedgerMap uses the last GENUINELY active day and ask, and firstAsk as the original list", () => {
   const text = [
     "mlsNumber,redfinPropertyId,redfinListingId,url,address,zip,propertyType,firstSeen,lastSeen,lastSeenActive,firstAsk,lastAsk,lastActiveAsk,listDate,lastDom,lastCdom,lastStatus",

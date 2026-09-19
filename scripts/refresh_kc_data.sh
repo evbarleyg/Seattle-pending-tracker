@@ -139,6 +139,7 @@ else
 fi
 if [[ -f "redfin_active_ledger.csv" ]]; then
   node scripts/backfill_list_from_active_snapshots.js
+  node scripts/sanitize_enriched_rows.js
 else
   echo "redfin_active_ledger.csv missing — run 'npm run ledger:seed'."
 fi

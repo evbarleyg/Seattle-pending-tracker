@@ -15,7 +15,7 @@
     "refresh:actives": "node scripts/fetch_redfin_actives.js && node scripts/merge_redfin_actives.js && node scripts/sync_public_assets.js",
     "fetch:sold": "node scripts/fetch_redfin_sold.js",
     "merge:sold": "node scripts/merge_redfin_sold.js",
-    "refresh:sold": "node scripts/fetch_redfin_sold.js && node scripts/accumulate_redfin_sold.js && node scripts/merge_redfin_sold.js && node scripts/sold_enrichment_ledger.js && node scripts/backfill_list_from_active_snapshots.js && node scripts/sync_public_assets.js",
+    "refresh:sold": "node scripts/fetch_redfin_sold.js && node scripts/accumulate_redfin_sold.js && node scripts/merge_redfin_sold.js && node scripts/sold_enrichment_ledger.js && node scripts/backfill_list_from_active_snapshots.js && node scripts/sanitize_enriched_rows.js && node scripts/stamp_report_sources.js && node scripts/sync_public_assets.js",
     "build:url-index": "node scripts/build_redfin_url_index.js",
     "backfill:history": "node scripts/backfill_redfin_history.js",
     "detect:transitions": "node scripts/detect_listing_transitions.js",
@@ -33,7 +33,9 @@
     "sold:accumulate": "node scripts/accumulate_redfin_sold.js",
     "refresh:sold-daily": "node scripts/fetch_redfin_sold.js --sold-within-days 30 --bands --out redfin_sold_recent.csv --report redfin_sold_recent_report.json && node scripts/accumulate_redfin_sold.js --in redfin_sold_recent.csv && node scripts/merge_redfin_sold.js && node scripts/sold_enrichment_ledger.js",
     "enrichment:seed": "node scripts/sold_enrichment_ledger.js --seed-from-git --seed-from-cache",
-    "enrichment:apply": "node scripts/sold_enrichment_ledger.js"
+    "enrichment:apply": "node scripts/sold_enrichment_ledger.js",
+    "report:sources": "node scripts/stamp_report_sources.js",
+    "sanitize:rows": "node scripts/sanitize_enriched_rows.js"
   },
   "engines": {
     "node": ">=22"
