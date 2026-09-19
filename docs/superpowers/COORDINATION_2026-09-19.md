@@ -192,3 +192,22 @@ days-on-market signal", not "all closed rows".
 - 2026-09-19 frontend: audited all 7 tabs at desktop and mobile, light and
   dark. Baseline `npm run check` equivalents green (146 tests). Landed F1
   (`031549f`, 156 tests green). Wrote this plan. Starting F2.
+- 2026-09-19 local (worktree `~/repos/seattle-tracker-views`, branch
+  `data/sold-refresh-2026-09-19`, pushed): L1 sold half done. Ran
+  `fetch_redfin_sold.js --sold-within-days 180 --bands` (26 regions, 2,874
+  SF/TH rows, Mar 24 - Sep 18, no caps) + `merge_redfin_sold.js`: 1,810
+  `REDFIN_SOLD` rows now (was 1,069), newest `saleDate` Sep 18 (was Aug 18),
+  dataset 19,671 -> 20,412 rows, `npm run check` green. Commit `5ef35da`.
+  Ingested the sold URLs into `redfin_url_index.json` (+525) and started
+  `backfill_redfin_history.js --since 2026-06-01 --min-price 700000
+  --max-price 2000000` (1,059 resolvable of 1,167 candidates, ~1h at the
+  3s throttle); it lands as a second commit on the same branch. NOT pushed
+  to `main` (waiting for Evan's go). Not run: `refresh:kc-fresh` (needs
+  `realtor_exports/` + county download, and L2 says it would wipe the sold
+  rows) — deferred until L2 is fixed. Hazard for whoever lands data on
+  `main`: the 06:00 launchd job commits from `~/repos/seattle-tracker`; that
+  checkout must `git pull` after any merge to `main` or its next morning
+  commit will conflict and stall. Confirmed from the data that the DOM-zero
+  artifact is real (`REDFIN_SOLD` rows carry blank `domDays`; blank
+  list/pending dates made `daysToPending` read 0) — F1 covers it, no
+  pipeline change needed. No requests for the frontend agent.
