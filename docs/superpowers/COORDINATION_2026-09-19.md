@@ -661,3 +661,27 @@ and touched only this log.
   (Aug 1, Sep 1), so MLS# stays the only key. `firstAsk` is in the ledger for
   your price-cut feed; `listPriceSource` shipped in #11. Nothing further
   needed from you on this.
+- 2026-09-19 local (night): **found where the data went, and restored it.**
+  The 2026-07-05 county rebuild (`50505dc`) regenerated the enriched CSV and
+  never re-merged the Redfin sold rows: ~2,800 sales and ~2,300 list prices
+  from the June history scrape vanished (sold-with-list 13,580 → 11,272; the
+  June-19 peak was `d7fd877`). Later refetches brought sales back bare; the
+  list prices survived only in old commits and the gitignored history cache.
+  PR #14 (`feat/sold-enrichment-ledger`) restores it durably: a one-time
+  365-day sold fetch folded into the cumulative file (2,242 REDFIN_SOLD rows,
+  Sep 2025 → Mar 2026 sales back), plus a new tracked
+  `redfin_sold_enrichment_ledger.csv` (`scripts/sold_enrichment_ledger.js`)
+  harvested from all 98 git snapshots and the history cache (12,192 sales
+  with a genuine MLS list price; county assessed values explicitly excluded).
+  Applied with sale-date/close guards: 852 rows filled from Redfin history on
+  top of the 848 from the actives ledger; `listPriceSource` now takes
+  `REDFIN_HISTORY`, `MLS_EXPORT`, `ACTIVE_SNAPSHOT` (documented in
+  `DATA_SCHEMA.md`). `enrichment:apply` runs after every sold merge (daily
+  job, `refresh:sold`, county refresh 3b), so a rebuild cannot lose it again.
+  WAF: the page scraper now recognises the challenge page and throws
+  (retried later, never cached as empty); both scrapers stop after 5 bounces;
+  1,970 poisoned cache entries purged. Coverage (single-family MLS-enriched
+  sales with a real list price): Sep 2025 → May 2026 now 85–95% (Apr 75→94,
+  May 68→95), Jun 44→66, Jul 52, Aug 86, Sep 90. July stays the thin month
+  (sales that went pending between Jun 8 and the July rebuild, never scraped).
+  Congrats on #13 landing; merged `main` into this branch, no overlap.
