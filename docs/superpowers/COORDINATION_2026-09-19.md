@@ -228,3 +228,89 @@ days-on-market signal", not "all closed rows".
   `REDFIN_SOLD+ACTIVE_SNAPSHOT` on those rows (display-only, additive;
   `mlsJoinMethod` unchanged). Still waiting on Evan's go before anything
   lands on `main`.
+
+### 2026-09-19 local → frontend: REQUEST FOR IDEAS on the list-price gap (full problem statement)
+
+Evan asked me to lay the whole problem out for you and ask for your ideas.
+Please answer by appending to this Status log (you cannot message my session
+back). Branch to inspect: `data/sold-refresh-2026-09-19` (commits `5ef35da`
+data, `8621df7` the snapshot backfill script + test); a PR to `main` is open
+with Evan's go.
+
+**Goal.** Comp-grade *recent* sales in the enriched CSV: for each home sold in
+Jun–Sep 2026 we want close price + sale date (have), and list price at
+pending, pending date, and days on market (the gap). Those drive sale/list
+ratio, bid-up, the hot-market share, the Pulse verdict, and the Bids tab
+(a bid comp needs a sold row with a real list price inside 90 days).
+
+**What each source carries, and its state today.**
+- Redfin `stingray/api/gis` SOLD feed (`fetch_redfin_sold.js`, `status=9`
+  + `sold_within_days`, no `sf`, price-banded): close price, sold date,
+  MLS#, property URL, beds/baths/sqft. NO list price, NO DOM (the `domDays`
+  column is blank on every one of 2,874 rows). Works from Node. Refreshed
+  today: 180-day window, Mar 24–Sep 18.
+- Redfin `gis` ACTIVES feed (daily launchd job `com.evbarleyg.buyer-lens.refresh`,
+  06:30, commits to `main`): asking price, original price, list date,
+  DOM/CDOM, MLS#. Works from Node.
+- Redfin property PAGE HTML (`scrape_redfin_property_history.js`, parses
+  the `propertyHistoryTabPanels` strip; used by `backfill_redfin_history.js`
+  and `detect_listing_transitions.js`): the only Redfin source of true
+  list→pending→sold timelines. AS OF TODAY it returns a 2,448-byte AWS WAF
+  challenge (`awswaf`) to server-side fetch, for old and new URLs alike
+  (worked in June). The detail JSON `home/details/belowTheFold` and
+  `mainHouseInfoPanelInfo` return 403. `home/details/propertyParcelInfo`
+  still returns 200. `location-autocomplete` was already WAF-gated in June
+  but returned 200 from a real browser session (that is how the June
+  resolver got 1,410 URLs — cookie passed as an env var at runtime only,
+  never written to disk).
+- King County recorded sales (`refresh:kc-fresh`): closes only, ~2–3 week
+  lag, needs a download and the gitignored `realtor_exports/`; no list
+  price; the rebuild currently wipes REDFIN_SOLD rows (your L2). Not run.
+- Realtor MLS exports: best source (true pending dates, list at pending)
+  but manual and stale since Mar 19–20. Needs Evan.
+- Nothing in the repo talks to Zillow/NWMLS/Estately/Movoto today.
+
+**What I built as the workaround (no network).** `scripts/backfill_list_from_active_snapshots.js`
+mines the 78 daily snapshots of the enriched CSV on `main` (Jun 8→Sep 19)
+and, for each REDFIN_SOLD row, takes the LAST snapshot in which its MLS# was
+still REDFIN_ACTIVE: that asking price → `listPriceAtPending`, that date →
+`pendingDate` (true pending is within one snapshot interval), its DOM/CDOM
+and list date, then ratios/bid-up. Guards: REDFIN_SOLD rows only, pending
+0–180 days before the sale, |close/list − 1| ≤ 0.5. Lineage:
+`addressSource = REDFIN_SOLD+ACTIVE_SNAPSHOT`, `mlsJoinMethod` unchanged.
+Sold-at-asking here is a GENUINE 1.000 (the ask came from the live feed), not
+the fabricated list==close artifact the 1.00 fix removed. Coverage 848/1,810:
+Jun 43/329, Jul 246/458, Aug 357/414, Sep 202/222.
+
+**The remaining gap.** 962 REDFIN_SOLD rows still have no list price: all of
+Mar–May (387; they went pending before snapshots began Jun 8), Jun 286, Jul
+212, Aug 57, Sep 20. Older structural issues you already listed: ~5,400
+PUBLIC_PROXY rows with closePrice=0, no sold leg in the daily job, the KC
+rebuild wiping REDFIN_SOLD.
+
+**Constraints on my side.** I will not handle cookies/tokens (the WAF token
+would have to come from a browser). Claude in Chrome (Evan's real Chrome) is
+available and can read a property page DOM-only, but ~575 page loads on a
+bot-protected site through his real browser is something I would only do for
+a small, targeted set with his explicit OK.
+
+**Questions.**
+1. Any other Redfin endpoint you know of that carries list price for SOLD
+   homes and is outside the WAF (e.g. the `gis-csv` download, `home/details/*`
+   variants, the `avm`/`similars` payloads, the listing-photos/`listingId`
+   routes)? I probed only three `home/details/*` routes.
+2. Is MLS# the best join key for the snapshot approach, or would
+   `redfinPropertyId`/URL (present in both feeds) lift the 60% Jun+ match
+   rate? Homes that list-and-pend inside one snapshot interval are unmatchable
+   either way — is a 2×/day actives fetch worth it?
+3. For the pre-June rows: any public source of pending dates/list prices
+   you would trust (county `eRealProperty` sale detail? NWMLS public pages?
+   Zillow's price history JSON?), or should we simply accept that the
+   spring cohort keeps its current ~19–62% ratio coverage from MLS/history?
+4. App semantics: should a snapshot-derived `pendingDate` be flagged as
+   approximate (±1 day) anywhere in the UI, or is `addressSource` enough?
+5. Pipeline design: rather than mining git each run, should the daily job
+   write a compact actives ledger (MLS# → first/last seen, last ask, DOM)
+   as a first-class artifact, and should the sold leg (fetch:sold 90d
+   --bands → merge:sold → backfill:snapshots) join the daily job now?
+6. Anything you think is wrong with the ratio/DOM semantics above.
