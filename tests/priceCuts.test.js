@@ -115,6 +115,24 @@ test("days to first cut counts only listings tracked from the day they listed", 
   assert.equal(s.multiCutCount, 1);
 });
 
+test("the published trackedFromListing flag decides, and wins over the derived rule", async () => {
+  const { parseLedgerCsv, buildLedgerIndex, priceCutFor } = await mod();
+  const header = `${HEADER},lastAskChangeDate,firstAskChangeDate,askChangeCount,trackedFromListing`;
+  const csv = [
+    header,
+    // Dates alone say "tracked from listing", but the pipeline says no: trust it.
+    "10,10 Flag No St,98103,Single Family,2026-07-02,2026-09-19,2026-09-19,1300000,1200000,2026-07-01,80,Active,2026-07-25,2026-07-25,1,false",
+    // Dates alone say "not tracked" (first seen a year late), the flag says yes.
+    "20,20 Flag Yes Rd,98103,Single Family,2026-06-08,2026-09-19,2026-09-19,1500000,1400000,2026-06-01,110,Active,2026-07-01,2026-07-01,1,true",
+    // Flag blank: fall back to the dates (seen 1 day after listing: tracked).
+    "30,30 No Flag Ave,98107,Single Family,2026-08-02,2026-09-19,2026-09-19,1250000,1200000,2026-08-01,49,Active,2026-08-11,2026-08-11,1,",
+  ].join("\n");
+  const index = buildLedgerIndex(parseLedgerCsv(csv));
+  assert.equal(priceCutFor(listing(10), index).daysToFirstCut, null);
+  assert.equal(priceCutFor(listing(20), index).daysToFirstCut, 30);
+  assert.equal(priceCutFor(listing(30), index).daysToFirstCut, 10);
+});
+
 test("a ledger without the ask-change columns still reports cuts, with no wait", async () => {
   const { parseLedgerCsv, buildLedgerIndex, priceCutFor, summarizePriceCuts } = await mod();
   const index = buildLedgerIndex(parseLedgerCsv(CSV));

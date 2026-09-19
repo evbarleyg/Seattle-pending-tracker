@@ -78,13 +78,24 @@ export function priceCutFor(listing, index) {
   };
 }
 
+// Whether the ledger has watched this listing since it was listed. The pipeline
+// publishes the answer as `trackedFromListing` ("true"/"false"); a ledger from
+// before that column falls back to the same rule computed here, so both agree.
+function isTrackedFromListing(entry) {
+  const flag = String(entry?.trackedFromListing ?? "").trim().toLowerCase();
+  if (flag === "true") return true;
+  if (flag === "false") return false;
+  if (!entry?.listDate || !entry.firstSeen) return false;
+  const seenLag = daysBetween(entry.listDate, entry.firstSeen);
+  return seenLag !== null && seenLag <= TRACKED_FROM_LISTING_DAYS;
+}
+
 // Days from listing to the first ask change, or null when it cannot be trusted:
 // the columns are missing, a date is bad, or the listing was not tracked from
-// the start (see TRACKED_FROM_LISTING_DAYS).
+// the start.
 function daysToFirstCut(entry) {
-  if (!entry?.listDate || !entry.firstSeen || !entry.firstAskChangeDate) return null;
-  const seenLag = daysBetween(entry.listDate, entry.firstSeen);
-  if (seenLag === null || seenLag > TRACKED_FROM_LISTING_DAYS) return null;
+  if (!entry?.listDate || !entry.firstAskChangeDate) return null;
+  if (!isTrackedFromListing(entry)) return null;
   const wait = daysBetween(entry.listDate, entry.firstAskChangeDate);
   return wait !== null && wait >= 0 ? wait : null;
 }
