@@ -19,6 +19,7 @@ import {
   formatRatio,
   formatWholeNumber,
   monthLabelCompact,
+  safeNumber,
 } from "../domain/format.mjs";
 import { domMetric } from "../domain/data.mjs";
 import { filtersToSummary, recordViewLabel } from "../domain/selectors.mjs";
@@ -245,14 +246,50 @@ function tileSampleField(metricKey) {
   return undefined;
 }
 
+// A month-over-month read is only as good as the share of that month's sales it
+// rests on. Sale-versus-ask, days on market and fast-sale share are computed on
+// a subset (rows with a list price, or with a days-on-market signal). When that
+// subset is a small slice of the month it is not a random one: June and July
+// 2026 list-price rows were the short-escrow, late-listing survivors of the
+// snapshot backfill, which would have faked a trend. So a delta, and through it
+// the verdict, is only drawn when the subset covers at least this share of the
+// closed sales in BOTH months being compared. Metrics computed on every sale
+// (median close) have coverage 1 by definition and are unaffected.
+export const MIN_TREND_COVERAGE = 0.7;
+
+// Share of a month's closed sales that a subset metric rests on (0 to 1).
+// A metric with no sampleField is computed on every sale, so it is fully covered.
+export function monthCoverage(entry, sampleField) {
+  if (!sampleField || !entry) return 1;
+  const total = Number(entry.salesCount ?? entry.sampleSize ?? 0);
+  const subset = Number(entry[sampleField] ?? 0);
+  if (!(total > 0)) return 1;
+  return Math.min(1, subset / total);
+}
+
+// Months a trend comparison may use for one metric, oldest first: enough comps
+// in the metric's own subset and a finite value, with a thin trailing month (the
+// still-filling current one) dropped so two COMPLETE months are compared.
+// Coverage is judged separately, on the specific months compared, so a
+// low-coverage month can never be skipped over to reach an older one.
+export function trendMonths(series, metricKey, { sampleField, minComps } = {}) {
+  const size = (entry) => (sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount;
+  // safeNumber, not Number: Number(null) is 0, which would pass as a reading.
+  let months = (series || []).filter((entry) => (size(entry) ?? Infinity) >= minComps && safeNumber(entry[metricKey]) !== null);
+  if (months.length >= 2 && (size(months[months.length - 1]) ?? 0) < 0.5 * (size(months[months.length - 2]) ?? 0)) months = months.slice(0, -1);
+  return months;
+}
+
 function tileDelta(series, metricKey, sampleFieldOverride) {
   const { pulseMetricConfig, medianValue, minTileComps } = ctx;
   const sampleField = sampleFieldOverride || tileSampleField(metricKey);
-  const sampleOf = (e) => ((sampleField ? e[sampleField] : undefined) ?? e.sampleSize ?? e.salesCount ?? 0);
-  let gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= minTileComps && Number.isFinite(Number(entry[metricKey])));
-  // Drop a thin/partial trailing month (the stale current month) so month-over-month compares two COMPLETE months.
-  if (gated.length >= 2 && sampleOf(gated[gated.length - 1]) < 0.5 * sampleOf(gated[gated.length - 2])) gated = gated.slice(0, -1);
-  if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
+  const gated = trendMonths(series, metricKey, { sampleField, minComps: minTileComps });
+  const noRead = (deltaLabel) => ({ tone: "flat", arrow: "", deltaLabel, signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" });
+  if (gated.length < 2) return noRead("insufficient history");
+  const covered = (entry) => monthCoverage(entry, sampleField) >= MIN_TREND_COVERAGE;
+  // Both compared months must be covered. A flat tone keeps an uncovered metric
+  // out of the verdict's eased/tightened count, the same as any other no-read.
+  if (!covered(gated[gated.length - 1]) || !covered(gated[gated.length - 2])) return noRead("too few sales with this data");
   const cfg = pulseMetricConfig(metricKey);
   const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
   // Raw movement of the metric itself (no buyer-impact sign flip).
@@ -272,7 +309,7 @@ function tileDelta(series, metricKey, sampleFieldOverride) {
   const momDelta = rawDelta(gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
   // SECONDARY: 3-month vs prior-3-month median for trend context.
   let secondary = { secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
-  if (gated.length >= 6) {
+  if (gated.length >= 6 && gated.slice(-6).every(covered)) {
     const windowMedian = (entries) => medianValue(entries.map((e) => Number(e[metricKey])));
     const tDir = metricDirection(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
     const tDelta = rawDelta(windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));

@@ -74,3 +74,12 @@ test("watchlistVerdict: an even split reads as no clear shift", async () => {
   assert.match(v.answer, /No clear shift/);
   assert.match(v.detail, /3 signals eased and 3 tightened/);
 });
+
+test("bidUpSentence explains a $0 median instead of printing it bare", async () => {
+  const mod = await import("../src/views/pulse.mjs");
+  assert.match(mod.bidUpSentence(0), /exactly the asking price/);
+  assert.match(mod.bidUpSentence(0), /half of recent winners paid list or less/);
+  assert.match(mod.bidUpSentence(49000), /\$49,000 over the asking price/);
+  assert.match(mod.bidUpSentence(-12000), /\$12,000 under the asking price/);
+  assert.match(mod.bidUpSentence(0.4), /exactly the asking price/, "rounds to the dollar before deciding");
+});

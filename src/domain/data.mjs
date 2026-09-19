@@ -148,6 +148,9 @@ export function parseCsv(text) {
       id: pick("id"),
       address: pick("address"),
       addressSource: pick("addressSource"),
+      // Where the asking price came from when it was recovered rather than
+      // reported: ACTIVE_SNAPSHOT (last day the listing was seen for sale), else blank.
+      listPriceSource: pick("listPriceSource"),
       major: pick("major"),
       minor: pick("minor"),
       parcelNbr: pick("parcelNbr"),

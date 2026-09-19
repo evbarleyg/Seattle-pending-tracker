@@ -437,6 +437,16 @@ function lineSvg(series, metricKey, options = {}) {
   `;
 }
 
+// A median bid-up of exactly $0 is a real reading, not a gap: when sales split
+// around the asking price the middle sale lands on it. Printed bare ("Median
+// bid-up is $0.") it looks broken, so say what it means for a buyer instead.
+export function bidUpSentence(medianBidUp) {
+  const amount = Math.round(Number(medianBidUp));
+  if (amount === 0) return "The middle winner paid exactly the asking price, so at least half of recent winners paid list or less.";
+  if (amount > 0) return `The middle winner paid ${formatMoney(amount)} over the asking price.`;
+  return `The middle winner paid ${formatMoney(Math.abs(amount))} under the asking price.`;
+}
+
 function pulseReadout(snapshot) {
   const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
   if (!recent90 || !recent90.current.salesCount) return `<p>No recent watchlist sales in this slice.</p>`;
@@ -446,10 +456,7 @@ function pulseReadout(snapshot) {
     explainId: "pulseSalesCount",
   });
   if (recent90.current.medianBidUp !== null) {
-    bullets.push({
-      text: `Median bid-up is ${formatMoney(recent90.current.medianBidUp)}.`,
-      explainId: "pulseMedianBidUp",
-    });
+    bullets.push({ text: bidUpSentence(recent90.current.medianBidUp), explainId: "pulseMedianBidUp" });
   }
   if (recent90.current.medianDom !== null) {
     bullets.push({

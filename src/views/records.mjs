@@ -137,13 +137,21 @@ function recordRowHtml(row) {
       <td>${formatDateShort(row.saleDate || row.pendingDate)}</td>
       <td>${row.isProjectionRow ? `~${formatMoneyOrNa(row.projectedClosePrice)} (est.)` : formatMoneyOrNa(row.closePrice)}</td>
       <td>${formatMoneyOrNa(row.originalListPrice)}</td>
-      <td>${formatMoneyOrNa(row.pendingListPrice)}</td>
+      <td>${recordAskCell(row)}</td>
       <td>${recordDomCell(row)}</td>
       <td>${hotBadge(row)}</td>
       <td>${recordSaleListCell(row)}</td>
       <td>${recordBidUpCell(row)}</td>
     </tr>
   `;
+}
+
+// Ask cell. A recovered asking price says where it came from, so a reader can
+// tell a reported list price from one read off the last day the home was listed.
+function recordAskCell(row) {
+  const primary = formatMoneyOrNa(row.pendingListPrice);
+  if (row.listPriceSource !== "ACTIVE_SNAPSHOT") return primary;
+  return `${primary}<span class="cell-sub" title="Asking price and pending date taken from the last morning this listing was still seen for sale">last day listed</span>`;
 }
 
 function recordDomCell(row) {
