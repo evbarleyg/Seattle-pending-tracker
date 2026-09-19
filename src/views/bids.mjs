@@ -38,6 +38,7 @@ import {
   sortRows,
 } from "../domain/selectors.mjs";
 import { formatAge } from "../domain/freshness.mjs";
+import { priceCutFor } from "../domain/priceCuts.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
@@ -198,6 +199,16 @@ export function renderBidsView(deps) {
   `;
 }
 
+// Ask, with a small note when the listing ledger shows the seller has already
+// come down from the first asking price. Useful context for a bid: a home that
+// has cut once is a different negotiation from one still at its opening ask.
+function askWithCutHtml(row) {
+  const ask = formatMoneyOrNa(row.pendingListPrice);
+  const cut = ctx.state.ledger?.ready ? priceCutFor(row, ctx.state.ledger.index) : null;
+  if (!cut) return ask;
+  return `${ask}<span class="cell-sub price-cut-note" title="First seen asking ${esc(formatMoney(cut.firstAsk))}">cut ${esc(formatMoneyCompact(cut.cutAmount, 0))} (${(cut.cutPct * 100).toFixed(1)}%)</span>`;
+}
+
 function bidCardHtml(row) {
   const { state, propertyAddressLink, affordTierBadge } = ctx;
   const isWatched = state.watched.has(row.id);
@@ -220,7 +231,7 @@ function bidCardHtml(row) {
     <article class="bid-card unscored ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
       ${head}
       <div class="bid-card-grid-meta">
-        <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
+        <div><span>Ask</span><strong>${askWithCutHtml(row)}</strong></div>
         <div><span>First listed at</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
         <div><span>Days listed</span><strong>${dom ?? "n/a"}</strong></div>
       </div>
@@ -259,7 +270,7 @@ function bidCardHtml(row) {
       ${captionRow(compCaption, "bidCompBasis")}
       <div class="bid-card-grid-meta">
         <div><span>Range</span><strong>${range}</strong></div>
-        <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
+        <div><span>Ask</span><strong>${askWithCutHtml(row)}</strong></div>
         <div><span>Original list</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
         <div><span>DOM</span><strong>${dom ?? "n/a"}</strong></div>
         <div><span>Bid vs ask price</span><strong>${ratio}</strong></div>

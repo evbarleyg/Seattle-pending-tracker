@@ -28,6 +28,7 @@ import {
 import {
   BUYER_PROFILE_FILE,
   DEFAULT_DATASET,
+  LISTING_LEDGER_FILE,
   REFRESH_REPORT_FILE,
   PRICE_SLIDER_CAP,
   PRICE_SLIDER_MIN,
@@ -48,6 +49,7 @@ import {
   esc,
 } from "./domain/format.mjs";
 import { computeSourceFreshness, formatAge } from "./domain/freshness.mjs";
+import { buildLedgerIndex, parseLedgerCsv } from "./domain/priceCuts.mjs";
 import {
   DEFAULT_PROFILE_MEMORY,
   normalizeProfileMemory,
@@ -209,6 +211,10 @@ const state = {
     manualSourceKey: "",
     activeLookup: new Map(),
   },
+  // Listing ledger (first and latest asking price per MLS number), for price
+  // cuts. Optional: absent on older deploys, in which case the views that use it
+  // simply leave their price-cut parts out.
+  ledger: { index: null, ready: false },
   watched: loadWatchedIds(),
   manualBid: {
     address: "",
@@ -1550,6 +1556,21 @@ async function loadBuyerProfileMemory() {
   markDirty("overview");
 }
 
+// Listing ledger, published by the pipeline. Small (a few hundred KB), parsed on
+// the main thread. A missing file is normal on a deploy that predates it.
+async function loadListingLedger() {
+  try {
+    const response = await fetch(publicUrl(LISTING_LEDGER_FILE), { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const rows = parseLedgerCsv(await response.text());
+    state.ledger = { index: buildLedgerIndex(rows), ready: rows.length > 0 };
+  } catch {
+    state.ledger = { index: null, ready: false };
+  }
+  markDirty("overview");
+  markDirty("bids");
+}
+
 // Private affordability config. Served only from a gitignored local file, so on
 // the public deploy this fetch 404s and the feature stays inert (ready=false).
 // A config with all-zero balances (the sample) is treated as unconfigured.
@@ -1602,6 +1623,7 @@ function init() {
   loadRefreshReport();
   loadBuyerProfileMemory();
   loadAffordabilityConfig();
+  loadListingLedger();
   loadDefaultDataset();
 }
 
