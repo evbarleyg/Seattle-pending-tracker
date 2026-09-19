@@ -157,6 +157,7 @@ test("a doubled unit suffix is repaired on insert and when loading an older ledg
   assert.strictEqual(dedupeUnitSuffix("1080 W Ewing Pl Unit 0-P Unit 0-P"), "1080 W Ewing Pl Unit 0-P");
   assert.strictEqual(dedupeUnitSuffix("500 Pine St Apt 3B apt 3b"), "500 Pine St Apt 3B", "prefix and case may differ between the copies");
   assert.strictEqual(dedupeUnitSuffix("500 Pine St Ste 200 Ste 200"), "500 Pine St Ste 200");
+  assert.strictEqual(dedupeUnitSuffix("2605 22nd AVE W Unit B Unit B Unit B"), "2605 22nd AVE W Unit B", "a tripled unit collapses fully");
   assert.strictEqual(dedupeUnitSuffix("4032 53rd Ave SW Unit A"), "4032 53rd Ave SW Unit A", "a single unit is left alone");
   assert.strictEqual(dedupeUnitSuffix("4032 53rd Ave SW Unit A Unit B"), "4032 53rd Ave SW Unit A Unit B", "two different units are not a double");
   assert.strictEqual(dedupeUnitSuffix("2727 Fairview Ave E #4"), "2727 Fairview Ave E #4");
