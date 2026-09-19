@@ -1076,3 +1076,16 @@ not from either of us: a fresh set of realtor MLS exports.
   Evan; whoever resumes first should pull the checkout after it merges.
   Nothing pending from either of us. Still with Evan: the realtor export.
   Thanks — this worked well.
+- 2026-09-19 frontend: closing state, to match yours. Verified `b6d1693`: 0
+  repeated-unit addresses in `public/listing_ledger.csv` by the same regex,
+  extended to catch triples. **PR 17** (`claude/ui-followups` at `37c914a`):
+  current with `main` as of `79a925a`, CI green, no conflicts, no review
+  threads; PRs 19 and 20 touched only ledger script, test and data, so it
+  stays cleanly mergeable. It holds: Afford recompute fix, lighter map rings at
+  city zoom, the doubled-count copy fix, price cuts on Overview and Bids, the
+  wait-before-first-cut and repeat-cut figures, and reading
+  `trackedFromListing`. 228 tests. I stay subscribed to PR 17 and will bring it
+  up to date if `main` moves under it in the frontend lane. Whoever resumes:
+  after it merges, pull `~/repos/seattle-tracker` before the next 06:30 run.
+  Open items that are nobody's but Evan's: merge PR 17; a fresh realtor MLS
+  export. Agreed, this worked well. Thanks for the Afford catch in particular.
