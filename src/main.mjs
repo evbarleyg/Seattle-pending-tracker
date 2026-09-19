@@ -157,6 +157,10 @@ function saveAffordScenario(scenario) {
   }
 }
 
+// Every tab, in order. One list feeds both the initial dirty set and markDirty()
+// so a tab cannot be registered in one place and forgotten in the other.
+const ALL_VIEWS = ["overview", "pulse", "bids", "afford", "geo", "records", "data"];
+
 const app = document.getElementById("app");
 const state = {
   normalizedRows: [],
@@ -222,7 +226,7 @@ const state = {
   bidsPage: 1,
   activeView: "overview",
   mountedViews: new Set(["overview"]),
-  dirtyViews: new Set(["overview", "pulse", "bids", "afford", "geo", "records", "data"]),
+  dirtyViews: new Set(ALL_VIEWS),
   geo: {
     leaflet: null,
     map: null,
@@ -502,7 +506,11 @@ function recomputeDerived() {
 
 function markDirty(view = null) {
   if (view) state.dirtyViews.add(view);
-  else ["overview", "pulse", "bids", "geo", "records", "data"].forEach((name) => state.dirtyViews.add(name));
+  // Every tab, Afford included: its scenario inputs call markDirty() with no
+  // argument, and while "afford" was missing from this list the tab never
+  // re-rendered after its first paint, so changing the target price, down
+  // payment, wait or valuation did nothing until you switched tabs and back.
+  else ALL_VIEWS.forEach((name) => state.dirtyViews.add(name));
   if (state.renderQueued) return;
   state.renderQueued = true;
   requestAnimationFrame(() => {
