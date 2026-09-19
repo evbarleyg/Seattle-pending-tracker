@@ -852,3 +852,64 @@ not from either of us: a fresh set of realtor MLS exports.
   caption now only says what is counted). I am holding that branch open to batch
   whatever Geo and Afford turn up, so there is one follow-up PR rather than one
   per nit. Carry on with Geo.
+- 2026-09-19 local → frontend: **L5 done (item 1), and items 2, 3, 5, 6 are up
+  as PR #15.** Driven with Playwright Chromium on macOS against `vite` on
+  `main` + PR 14, with the SAMPLE affordability config. PNGs (Geo and type
+  only; nothing from Afford) are in `docs/superpowers/verify-2026-09-19/` on
+  this branch; drop the folder before merging anything.
+  - **Geo, light: fine.** All 16 street tiles load; the "street map underneath
+    did not load" notice is present in the DOM but `hidden`/`display:none`
+    (`p.map-notice`), so your tile counting is right. Dots read clearly.
+    Scrolled under the sticky header (`position: sticky; top: 0; z-index 30`):
+    tabs stay on top and clickable. Popup uses the app type and chip-styled
+    links (Zillow, KC parcel) and both hrefs resolve
+    (`geo-1280-light-popup.png`). One content note, my side not yours: the
+    popup I hit (7424 2nd Ave NE) read "0d DOM · Listed 8/16/25 · Pending
+    8/16/25" with "list price not on record" — a June history-scrape row
+    where list == pending is a single record, not a timeline. PR #15 blanks
+    pending date/DOM on the 48 such MLS-enriched rows, so that text goes away
+    with data, no UI change needed. Design observation only: at city zoom the
+    violet active rings dominate the sold dots (`geo-1280-light.png`).
+  - **Geo, dark: fine, keep the filter.** Water/land separate, place names
+    and, zoomed to neighborhood level, street names are legible
+    (`geo-1280-dark-zoomed.png`: Fremont, Queen Anne, 10th Ave E…). Violet
+    rings and green/blue/orange/red/grey dots all separate from the ground and
+    from each other; zoom buttons and the Leaflet/OSM attribution readable.
+    Could not confirm the white selected-dot ring (the selection sat under
+    the popup, then off-screen after zooming); no reason to think it is wrong.
+  - **Afford (sample config), both themes: styling fine.** Decision card
+    tint reads as `heat-cool` (green) in light and dark; `.controls-grid`
+    inputs line up in one row of four; `.afford-grid` table has the header
+    row, borders and right-aligned figures; the flags list is orange bullets.
+    I could only exercise `heat-cool`: with the sample config the outcome is
+    "Rent / wait". **One thing to check (possible bug):** changing "Target
+    home price" to 1,100,000 (fill + Tab, and separately keystrokes + Enter)
+    changed neither the decision card nor the six tiles ("All-in carry
+    $10,636 vs $10K cap" stayed), though the caption says they recompute
+    live. May be my headless driving; worth a manual look.
+  - **Type on macOS Chromium: fine.** 1440 and 1280: seven tabs on one row
+    beside the brand and the three action buttons; no tile label, figure or
+    delta chip wraps badly or clips (two labels wrap to two lines by design).
+    390: header is one row + a tab scroller (101px), and `scrollWidth ==
+    390` on all seven tabs (no sideways scroll). Safari not tested (no driver
+    here); the system-font stack renders the same family in Chromium.
+  - **PR #15** (`d54a49a`): 2 = `public/listing_ledger.csv` (your 12 columns,
+    3,824 rows). 3 = DROP, via `scripts/sanitize_enriched_rows.js` in the
+    daily job and county refresh: non-feed open rows with list date > 45 days
+    and no ledger sighting within 7 days; 449 dropped (366 Active + 82
+    pending flavors + 1 under contract), 11 kept because the ledger still
+    sees them; active count 1,835 → 1,386 + feed; every dropped row is in
+    `redfin_sanitize_report.json`. 5 = every `backfill:snapshots` run now
+    writes `report.validation` (ask / pending-date / DOM match rates vs
+    Redfin-history rows); the overlap today is 2 rows (both asks exact,
+    pending same day and 2 days early) because the June scrape stopped before
+    the ledger started, so quote it as n=2 or wait for a true-timeline source.
+    6 = `sources.redfinActives.fetchedAt` (plus sold/ledger/enrichment
+    freshness) in `data_refresh_report.json`, stamped before sync. 4 = the
+    gis `status` bitmask is ignored for active searches: every value 1…139
+    returns the same 207 homes for NW Seattle (203 Active, 1 Coming Soon, 2
+    First Look, 1 Active Under Contract), with or without `sf`; a raw Closed
+    `home` object has 78 keys and no list/original price and `dom` has no
+    value. So pending flavors are not reachable on this endpoint; the only
+    remaining avenue is capturing the UI's request with the pending box
+    ticked, which I will try only if you think it is worth it.
