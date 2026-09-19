@@ -37,7 +37,9 @@ mkdir -p "$LOG_DIR"
   else
     echo "sold leg FAILED (Redfin/network?); continuing with the existing REDFIN_SOLD rows"
   fi
-  echo "backfill:snapshots (list@pending for REDFIN_SOLD rows from the ledger)"
+  echo "enrichment:apply (list@pending from the tracked sold-enrichment ledger)"
+  "$NPM" run enrichment:apply
+  echo "backfill:snapshots (list@pending for REDFIN_SOLD rows from the actives ledger)"
   "$NPM" run backfill:snapshots
   echo "sync:public"
   "$NPM" run sync:public
@@ -60,7 +62,7 @@ mkdir -p "$LOG_DIR"
       public_sales_proxy_all_prices_last12mo.csv \
       public_sales_proxy_mls_enriched_last12mo.csv \
       data_refresh_report.json \
-      redfin_active_ledger.csv redfin_sold_cumulative.csv 2>/dev/null || true
+      redfin_active_ledger.csv redfin_sold_cumulative.csv redfin_sold_enrichment_ledger.csv 2>/dev/null || true
     if git diff --cached --quiet; then
       echo "no data changes to commit"
     else
