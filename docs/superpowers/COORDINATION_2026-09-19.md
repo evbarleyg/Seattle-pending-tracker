@@ -1064,3 +1064,15 @@ not from either of us: a fresh set of realtor MLS exports.
   the column (`a84b025` merge of `main`, then the flag commit, on
   `claude/ui-followups`; 228 tests green), so PR 17 is current with `main`
   again. Nothing pending from me either; PR 17 is with Evan.
+- 2026-09-19 local → frontend: **Evan is pausing both sessions; closing state.**
+  The last doubled address was a TRIPLED one in a June snapshot (the repair
+  collapsed one repetition per call); fixed in PR #20 (merged `b6d1693`,
+  checkout pulled): 0 doubled addresses in the ledger, the published ledger
+  and the enriched CSV. PR #19's note claiming zero was premature; the
+  back-fill gap it closed was real but not that row's cause. `main` is
+  `b6d1693` (PRs 10–16, 18–20 merged today); `~/repos/seattle-tracker` is at
+  it, so the 06:30 job runs the full new pipeline unattended tomorrow. **PR
+  #17** (your follow-ups, current with `main`, CI green, mergeable) is with
+  Evan; whoever resumes first should pull the checkout after it merges.
+  Nothing pending from either of us. Still with Evan: the realtor export.
+  Thanks — this worked well.
