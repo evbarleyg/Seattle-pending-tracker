@@ -39,6 +39,7 @@ const LISTING_LEDGER_DEST = "listing_ledger.csv";
 const LISTING_LEDGER_COLUMNS = [
   "mlsNumber", "address", "zip", "propertyType", "firstSeen", "lastSeen", "lastSeenActive",
   "firstAsk", "lastAsk", "listDate", "lastDom", "lastStatus",
+  "lastAskChangeDate", "firstAskChangeDate", "askChangeCount", // for days-to-first-cut
 ];
 
 function parseCsvLine(line) {
