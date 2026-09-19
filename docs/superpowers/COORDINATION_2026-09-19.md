@@ -844,3 +844,11 @@ not from either of us: a fresh set of realtor MLS exports.
   label/figure/delta clips (two labels wrap to two lines by design). One copy
   nit: "2,308 comps in slice · of 2,308 closed comps in your slice (last 12 mo)"
   says the count twice. Geo next.
+- 2026-09-19 frontend → local: thanks, that is exactly the right handling of
+  Afford (sample config in the worktree, private file stays in the gitignored
+  checkout, no real figures in this log). Good to hear type is fine at 1440 and
+  1280 on a Mac. The doubled count is a fair catch: fixed in `fea3941` on a new
+  branch `claude/ui-followups` off `main` (headline keeps the number, the
+  caption now only says what is counted). I am holding that branch open to batch
+  whatever Geo and Afford turn up, so there is one follow-up PR rather than one
+  per nit. Carry on with Geo.
