@@ -33,12 +33,13 @@ import {
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_STEP,
   domMetric,
+  hasHeatSignal,
   parseCsv,
   specialSaleFilterLabel,
   zillowUrl,
 } from "./domain/data.mjs";
 import {
-  formatDateTime,
+  formatDateNoYear,
   formatMoney,
   formatMoneyCompact,
   formatPct,
@@ -46,6 +47,7 @@ import {
   monthLabelCompact,
   esc,
 } from "./domain/format.mjs";
+import { computeSourceFreshness, formatAge } from "./domain/freshness.mjs";
 import {
   DEFAULT_PROFILE_MEMORY,
   normalizeProfileMemory,
@@ -109,7 +111,9 @@ const LUCIDE_ICONS = {
 
 const PUBLIC_BASE = import.meta.env.BASE_URL || "./";
 const BUYER_PROFILE_TOGGLE_STORAGE_KEY = "buyer_lens_profile_views_enabled";
-const THEME_STORAGE_KEY = "buyer_lens_theme";
+// v2: the original key was written on every page load, so a stored "light"
+// there never meant the buyer chose it. This key is written only on a click.
+const THEME_STORAGE_KEY = "buyer_lens_theme_v2";
 const WATCHED_STORAGE_KEY = "buyer_lens_watched_ids_v1";
 
 function loadWatchedIds() {
@@ -275,14 +279,16 @@ function propertyAddressLink(row, extraClass = "") {
   return `<a class="address-link ${esc(extraClass)}" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer" aria-label="Open Zillow for ${esc(label)}"><span class="address-link-text">${esc(label)}</span><span class="external-link-label">Zillow</span>${icon("external-link")}</a>`;
 }
 
-function applyTheme(theme) {
+function applyTheme(theme, persist = true) {
   const normalized = theme === "dark" ? "dark" : "light";
   document.body.classList.toggle("dark", normalized === "dark");
   document.body.classList.toggle("light", normalized !== "dark");
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, normalized);
-  } catch {
-    // Ignore storage errors in private browsing.
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    } catch {
+      // Ignore storage errors in private browsing.
+    }
   }
   const toggle = qs("#themeToggle");
   if (toggle) {
@@ -291,14 +297,26 @@ function applyTheme(theme) {
   }
 }
 
-function initTheme() {
-  let saved = "light";
+function savedThemeChoice() {
   try {
-    saved = localStorage.getItem(THEME_STORAGE_KEY) || "light";
+    return localStorage.getItem(THEME_STORAGE_KEY) || "";
   } catch {
-    saved = "light";
+    return "";
   }
-  applyTheme(saved);
+}
+
+// An explicit choice wins. With none saved, follow the OS without persisting
+// it, and keep following it live (sunset auto-dark) until the buyer picks one.
+function initTheme() {
+  const saved = savedThemeChoice();
+  if (saved) return applyTheme(saved);
+  const query = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  query?.addEventListener?.("change", (event) => {
+    if (savedThemeChoice()) return;
+    applyTheme(event.matches ? "dark" : "light", false);
+    if (state.activeView === "geo" && state.derived) renderGeoView(geoDeps());
+  });
+  return applyTheme(query?.matches ? "dark" : "light", false);
 }
 
 function initBuyerProfileToggle() {
@@ -321,48 +339,55 @@ function setBuyerProfileToggle(enabled) {
 }
 
 function renderShell() {
+  // One sticky header (brand, tabs, actions) and one lens bar (what is filtered,
+  // the filters button, per-source freshness). The filter form itself opens as a
+  // panel at the top of <main>, so it never pushes the tabs around.
   app.innerHTML = `
     <div class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="./" aria-label="Seattle Pending Tracker home">
-          <img src="${esc(publicUrl("assets/ebg-icon.svg"))}" alt="" width="34" height="34" />
-          <span>
-            <strong>Seattle Pending Tracker</strong>
-            <small>Buyer command center</small>
-          </span>
-        </a>
-        <div class="topbar-actions">
-          ${buttonIcon("Refresh", "refresh-ccw", "id=\"reloadDatasetBtn\"", "ghost")}
-          ${buttonIcon("Export", "download", "id=\"exportCsvBtn\"", "ghost")}
-          <button class="btn ghost" id="themeToggle" type="button">${icon("moon")}<span>Dark</span></button>
+      <header class="masthead">
+        <div class="topbar">
+          <a class="brand" href="./" aria-label="Seattle Pending Tracker home">
+            <img src="${esc(publicUrl("assets/ebg-icon.svg"))}" alt="" width="30" height="30" />
+            <span>
+              <strong>Seattle Pending Tracker</strong>
+              <small>Buyer lens</small>
+            </span>
+          </a>
+          <nav class="tabs" role="tablist" aria-label="Dashboard views">
+            ${tabButton("overview", "Overview", "home", true)}
+            ${tabButton("pulse", "Pulse", "activity")}
+            ${tabButton("bids", "Bids", "target")}
+            ${tabButton("afford", "Afford", "wallet")}
+            ${tabButton("geo", "Geo", "map")}
+            ${tabButton("records", "Records", "rows-3")}
+            ${tabButton("data", "Data", "database")}
+          </nav>
+          <div class="topbar-actions">
+            ${buttonIcon("Reload", "refresh-ccw", "id=\"reloadDatasetBtn\" title=\"Reload the dataset\"", "ghost")}
+            ${buttonIcon("Export", "download", "id=\"exportCsvBtn\" title=\"Export the filtered rows as CSV\"", "ghost")}
+            <button class="btn ghost" id="themeToggle" type="button" title="Switch theme">${icon("moon")}<span>Dark</span></button>
+          </div>
         </div>
       </header>
 
-      <main>
-        <section class="control-band" aria-label="Dashboard controls">
-          <div class="active-filter-strip">
-            <div>
-              <span class="mini-label">Active defaults</span>
-              <div class="chip-row" id="activeFilterChips"></div>
-            </div>
-            <div class="dataset-pill" id="datasetStatus" aria-live="polite">Loading dataset...</div>
+      <section class="lens-bar" aria-label="Active filters and data freshness">
+        <div class="lens-inner">
+          <div class="lens-chips">
+            <span class="mini-label">Lens</span>
+            <div class="chip-row" id="activeFilterChips"></div>
+            <div class="cross-filter-strip" id="crossFilterChips"></div>
           </div>
-          <details class="filters-details" id="globalFilters">
-            <summary>${icon("sliders-horizontal")}<span>Global filters</span></summary>
-            <div class="filters-grid" id="filterControls"></div>
-          </details>
-          <div class="cross-filter-strip" id="crossFilterChips"></div>
-        </section>
+          <div class="lens-tools">
+            <button class="btn alt" id="filtersToggle" type="button" aria-expanded="false" aria-controls="globalFilters">${icon("sliders-horizontal")}<span>Filters</span></button>
+            <button class="freshness-pill" id="datasetStatus" type="button" data-switch-view="data" aria-live="polite" title="How fresh each data source is. Opens the Data tab.">Loading dataset...</button>
+          </div>
+        </div>
+      </section>
 
-        <nav class="tabs" role="tablist" aria-label="Dashboard views">
-          ${tabButton("overview", "Overview", "home", true)}
-          ${tabButton("pulse", "Pulse", "activity")}
-          ${tabButton("bids", "Bids", "target")}
-          ${tabButton("afford", "Afford", "wallet")}
-          ${tabButton("geo", "Geo", "map")}
-          ${tabButton("records", "Records", "rows-3")}
-          ${tabButton("data", "Data", "database")}
-        </nav>
+      <main>
+        <section class="filters-panel" id="globalFilters" aria-label="Global filters" hidden>
+          <div class="filters-grid" id="filterControls"></div>
+        </section>
 
         <section class="view active" id="view-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0"></section>
         <section class="view" id="view-pulse" role="tabpanel" aria-labelledby="tab-pulse" tabindex="0" aria-hidden="true"></section>
@@ -375,9 +400,9 @@ function renderShell() {
         <details class="help-panel">
           <summary>${icon("info")}<span>How to use this dashboard</span></summary>
           <div class="help-grid">
-            <p>Use the command center first: confirm the active filter band, scan market pressure, then jump to Pulse, Bids, Geo, or Records.</p>
-            <p>Filters affect every view. Table sorting and CSV export operate on the full filtered set, while Records and Bids only render one page at a time.</p>
-            <p>Geo loads its local Leaflet bundle only after the Geo tab opens.</p>
+            <p>The lens bar under the header shows what is filtered and how fresh each data source is. Filters apply to every tab; a chip with an × is something you can remove.</p>
+            <p>Overview answers three questions in order: is now a good time, what does winning cost, and what changed since you last looked. The small "i" next to any number explains how it is computed and what it counts.</p>
+            <p>Table sorting and CSV export use the full filtered set, while Records and Bids show one page at a time. Clicking a chart point, a neighborhood or map markers adds a cross-filter to the lens bar.</p>
           </div>
         </details>
       </main>
@@ -405,24 +430,17 @@ function renderLoadingState() {
   const overview = qs("#view-overview");
   if (overview) {
     overview.innerHTML = `
-      <section class="command-center" id="commandCenter" aria-label="Buyer command center">
-        <div class="hero-copy">
-          <p class="eyebrow">MLS-enriched Seattle pending and sold lens</p>
-          <h1>Command center for the next offer.</h1>
-          <p class="lead">Defaulting to Single Family homes in the $1.1M-$1.4M band, with market pressure, saved-home fit, and direct jumps into Pulse, Bids, Geo, and Records.</p>
-        </div>
-        <div class="command-grid" id="commandGrid">
-          <article class="state-panel loading-panel">
-            <div class="panel-kicker">Dataset</div>
-            <h2>${esc(state.dataSource.status || "Loading dataset...")}</h2>
-            <p>${state.dataSource.error ? esc(state.dataSource.error) : "Parsing and normalizing in a module worker so the interface stays responsive."}</p>
-          </article>
-        </div>
+      <section class="command-center" id="commandCenter" aria-label="Loading the dataset">
+        <article class="state-panel loading-panel${state.dataSource.error ? " alert" : ""}">
+          <div class="panel-kicker">Dataset</div>
+          <h2>${esc(state.dataSource.status || "Loading dataset...")}</h2>
+          <p>${state.dataSource.error ? esc(state.dataSource.error) : "Reading about a year of Seattle sales and today's listings. This takes a couple of seconds."}</p>
+          ${state.dataSource.error ? "" : `<span class="skeleton wide"></span><span class="skeleton"></span><span class="skeleton short"></span>`}
+        </article>
       </section>
     `;
   }
-  const dataset = qs("#datasetStatus");
-  if (dataset) dataset.textContent = state.dataSource.status || "Loading dataset...";
+  renderDataSourcePill();
 }
 
 function recomputeDerived() {
@@ -636,23 +654,30 @@ function renderActiveFilterChips() {
     .join("");
 }
 
+// A removable lens chip. `strong` marks a cross-filter the buyer clicked into
+// (chart point, map selection) as opposed to a standing flag or setting.
+function removableChip(label, clearAttr, strong = false) {
+  return `<span class="chip${strong ? " strong" : ""}">${esc(label)}<button type="button" ${clearAttr} aria-label="Remove ${esc(label)}">&times;</button></span>`;
+}
+
 function renderCrossFilterChips() {
   const wrap = qs("#crossFilterChips");
   if (!wrap || !state.derived) return;
   const chips = [];
   Object.entries(state.interactions).forEach(([key, value]) => {
-    if (value) chips.push(`<span class="chip strong">${esc(crossFilterLabel(key, value))}<button type="button" data-clear-interaction="${esc(key)}">x</button></span>`);
+    if (value) chips.push(removableChip(crossFilterLabel(key, value), `data-clear-interaction="${esc(key)}"`, true));
   });
-  if (state.geo.filterPropertyKeys.length) chips.push(`<span class="chip strong">Map filter: ${state.geo.filterPropertyKeys.length} properties<button type="button" data-clear-map-filter="1">x</button></span>`);
-  if (state.geo.viewportFilter) chips.push(`<span class="chip strong">Map viewport<button type="button" data-clear-viewport-filter="1">x</button></span>`);
-  if (state.flags.projection) chips.push(`<span class="chip">Pending projection<button type="button" data-clear-flag="projection">x</button></span>`);
-  if (state.flags.includeOpenMls) chips.push(`<span class="chip">Open/Pending MLS<button type="button" data-clear-flag="includeOpenMls">x</button></span>`);
-  if (state.flags.excludeLikelyPresoldNewBuild) chips.push(`<span class="chip">Exclude likely pre-sold<button type="button" data-clear-flag="excludePresold">x</button></span>`);
-  if (state.filters.recordView !== "all") chips.push(`<span class="chip">Map/Records: ${esc(recordViewLabel(state.filters.recordView))}<button type="button" data-clear-record-view="1">x</button></span>`);
-  if (state.filters.specialSale !== "all") chips.push(`<span class="chip">Special Sale: ${esc(specialSaleFilterLabel(state.filters.specialSale))}<button type="button" data-clear-special-sale="1">x</button></span>`);
-  if (state.bid.strategy !== "balanced") chips.push(`<span class="chip">Bid Strategy: ${esc(BID_STRATEGIES[state.bid.strategy]?.label || state.bid.strategy)}<button type="button" data-clear-bid-strategy="1">x</button></span>`);
-  if (state.bid.highConfidenceOnly) chips.push(`<span class="chip">Bids: High Confidence Only<button type="button" data-clear-bid-highconf="1">x</button></span>`);
-  wrap.innerHTML = chips.length ? chips.join("") : `<span class="note">No cross-filters applied.</span>`;
+  if (state.geo.filterPropertyKeys.length) chips.push(removableChip(`Map filter: ${state.geo.filterPropertyKeys.length} properties`, `data-clear-map-filter="1"`, true));
+  if (state.geo.viewportFilter) chips.push(removableChip("Map viewport", `data-clear-viewport-filter="1"`, true));
+  if (state.flags.projection) chips.push(removableChip("Pending projection", `data-clear-flag="projection"`));
+  if (state.flags.includeOpenMls) chips.push(removableChip("Open/Pending MLS", `data-clear-flag="includeOpenMls"`));
+  if (state.flags.excludeLikelyPresoldNewBuild) chips.push(removableChip("Exclude likely pre-sold", `data-clear-flag="excludePresold"`));
+  if (state.filters.recordView !== "all") chips.push(removableChip(`Map/Records: ${recordViewLabel(state.filters.recordView)}`, `data-clear-record-view="1"`));
+  if (state.filters.specialSale !== "all") chips.push(removableChip(`Special Sale: ${specialSaleFilterLabel(state.filters.specialSale)}`, `data-clear-special-sale="1"`));
+  if (state.bid.strategy !== "balanced") chips.push(removableChip(`Bid Strategy: ${BID_STRATEGIES[state.bid.strategy]?.label || state.bid.strategy}`, `data-clear-bid-strategy="1"`));
+  if (state.bid.highConfidenceOnly) chips.push(removableChip("Bids: High Confidence Only", `data-clear-bid-highconf="1"`));
+  // Nothing applied means nothing to show: the lens bar stays one quiet row.
+  wrap.innerHTML = chips.join("");
 }
 
 function crossFilterLabel(key, value) {
@@ -669,12 +694,54 @@ function crossFilterLabel(key, value) {
   return `${labels[key] || key}: ${value}`;
 }
 
+// The dataset is stitched from sources on very different clocks, so one
+// "refreshed" timestamp misleads. Freshness depends only on the loaded rows and
+// the report, not on filters, so it is computed when either of those changes.
+function refreshSourceFreshness() {
+  // The refresh report describes the site's own dataset; an uploaded CSV never
+  // went through that pipeline, so its fetch times must not be applied to it.
+  const report = state.dataSource.kind === "upload" ? null : state.dataSource.report;
+  state.dataSource.freshness = state.normalizedRows.length
+    ? computeSourceFreshness(state.normalizedRows, { report })
+    : null;
+}
+
+// Header pill: newest date per source, each with its own on-schedule/behind dot.
 function renderDataSourcePill() {
   const el = qs("#datasetStatus");
   if (!el) return;
-  const report = state.dataSource.report;
-  const refreshed = report?.generatedAt || report?.timestamp || "";
-  el.textContent = `${state.dataSource.kind === "upload" ? "Uploaded" : "Loaded"} ${state.dataSource.datasetName} · ${formatWholeNumber(state.dataSource.rowCount)} rows${refreshed ? ` · refreshed ${formatDateTime(refreshed)}` : ""}`;
+  const freshness = state.dataSource.freshness;
+  if (!freshness) {
+    el.textContent = state.dataSource.status || "Loading dataset...";
+    el.removeAttribute("aria-label");
+    return;
+  }
+  // Sources drop out as the header narrows (the Data tab always has all four):
+  // county first, as the slowest-moving, then sale-vs-ask on a phone.
+  const items = freshness.items.map((item) => {
+    const when = item.date ? formatDateNoYear(item.date) : "no data";
+    const tier = item.id === "county" ? " optional" : item.id === "pricedSales" ? " optional-sm" : "";
+    return `<span class="fresh-item${tier}" title="${esc(`${item.label}: ${formatAge(item.ageDays)}`)}"><span class="fresh-dot ${esc(item.tone)}"></span>${esc(item.shortLabel)} <b>${esc(when)}</b></span>`;
+  });
+  const uploaded = state.dataSource.kind === "upload" ? `<span class="fresh-item"><b>${esc(state.dataSource.datasetName)}</b></span><span class="fresh-sep">·</span>` : "";
+  el.innerHTML = `${uploaded}${items.join("")}`;
+  el.setAttribute("aria-label", `Data freshness. ${freshness.items.map((item) => `${item.label}: ${formatAge(item.ageDays)}`).join(". ")}. Opens the Data tab.`);
+}
+
+function setFiltersOpen(open) {
+  const panel = qs("#globalFilters");
+  const toggle = qs("#filtersToggle");
+  if (!panel || !toggle) return;
+  panel.hidden = !open;
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  if (!open) return;
+  // The button sits in a sticky bar but the panel opens at the top of <main>,
+  // so from halfway down a long tab it would open off screen. Bring it into
+  // view (scroll-margin in the CSS clears the sticky header) and hand focus to
+  // the first control so keyboard users land in the form.
+  const reduceMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  panel.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
+  qs("select, input, button", panel)?.focus({ preventScroll: true });
 }
 
 function renderView(view) {
@@ -813,6 +880,8 @@ function defaultSampleField(metricKey) {
   if (metricKey === "medianSaleToList") return "ratioSampleSize";
   if (metricKey === "overAskShare") return "ratioSampleSize";
   if (metricKey === "medianBidUp") return "bidUpSampleSize";
+  if (metricKey === "hotShare") return "heatSampleSize";
+  if (metricKey === "medianDom") return "domSampleSize";
   return undefined;
 }
 
@@ -913,8 +982,16 @@ function buildSliceMonthlySeries(rows) {
       return ratioRows.length ? ratioRows.filter((row) => row.saleToList > 1).length / ratioRows.length : null;
     })(),
     medianPsf: medianValue(monthRows.map((row) => row.pricePerSqft).filter((value) => value > 0)),
-    hotShare: monthRows.length ? monthRows.filter((row) => row.isHotMarket).length / monthRows.length : null,
+    // Rows with no days-on-market signal (county-only, Redfin sold) are unknown,
+    // not slow: they stay out of the share, and heatSampleSize gates the month
+    // so a month with too few DOM readings is dropped instead of plotted as 0%.
+    hotShare: (() => {
+      const heatRows = monthRows.filter(hasHeatSignal);
+      return heatRows.length ? heatRows.filter((row) => row.isHotMarket).length / heatRows.length : null;
+    })(),
+    heatSampleSize: monthRows.filter(hasHeatSignal).length,
     medianDom: medianValue(monthRows.map((row) => domMetric(row)).filter((value) => value !== null && value !== undefined)),
+    domSampleSize: monthRows.filter((row) => domMetric(row) !== null).length,
     medianBidUp: (() => { const b = monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)); return b.length ? medianValue(b.map((row) => row.delta)) : null; })(),
     bidUpSampleSize: monthRows.filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta)).length,
     ratioSampleSize: monthRows.filter((row) => row.saleToList > 0).length,
@@ -1159,6 +1236,7 @@ function bindEvents() {
     // src/ui/explain.mjs; without this guard a trigger inside an insight tile
     // would also fire the tile's data-switch-view action.
     if (target.closest?.(".explain-trigger, .explain-pop")) return;
+    if (target.closest("#filtersToggle")) return setFiltersOpen(qs("#globalFilters")?.hidden !== false);
     const switchView = target.closest("[data-switch-view]");
     if (switchView) return setActiveView(switchView.dataset.switchView);
 
@@ -1166,7 +1244,11 @@ function bindEvents() {
     if (tab) return setActiveView(tab.dataset.view);
 
     if (target.closest("#themeToggle")) {
-      return applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
+      applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
+      // Map markers bake in a ring color that depends on the theme. Redraw just
+      // the map; nothing about the data changed, so skip recomputeDerived.
+      if (state.activeView === "geo" && state.derived) renderGeoView(geoDeps());
+      return undefined;
     }
     if (target.closest("#reloadDatasetBtn")) return loadDefaultDataset();
     if (target.closest("#exportCsvBtn")) return exportCurrentCsv();
@@ -1414,6 +1496,7 @@ function applyLoadedRows(message, kind = "default") {
     status: `Loaded ${message.datasetName || DEFAULT_DATASET}.`,
     error: "",
   };
+  refreshSourceFreshness();
   clearCrossFilters(false);
   state.recordsPage = 1;
   state.bidsPage = 1;
@@ -1439,6 +1522,8 @@ async function loadRefreshReport() {
   } catch {
     state.dataSource.report = null;
   }
+  // The report can carry the listings fetch time, which beats row dates.
+  refreshSourceFreshness();
   markDirty("data");
 }
 
@@ -1493,6 +1578,9 @@ dataWorker.addEventListener("message", (event) => {
     state.normalizedRows = [];
     state.dataSource.status = "Dataset load failed.";
     state.dataSource.error = message.message || "Unknown dataset error";
+    // Drop the previous dataset's freshness so the header and Data tab do not
+    // keep reporting "listings: today" for a file that failed to load.
+    refreshSourceFreshness();
     renderDashboard();
   }
 });

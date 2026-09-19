@@ -100,12 +100,21 @@ export function normalizeProfileMemory(rawProfile) {
   };
 }
 
+// Days on market for a row, or null when the source never reported one.
+// Normalized rows store a missing CDOM/DOM as numeric 0 next to a false
+// has*Value flag, so the flag (when present) decides; safeNumber keeps a null
+// domValue from coercing to 0 days.
 function domValueForRow(row) {
-  if (Number.isFinite(Number(row?.domValue))) return Number(row.domValue);
-  if (Number.isFinite(Number(row?.mlsCDOM)) && Number(row.mlsCDOM) >= 0) return Number(row.mlsCDOM);
-  if (Number.isFinite(Number(row?.mlsDOM)) && Number(row.mlsDOM) >= 0) return Number(row.mlsDOM);
-  if (Number.isFinite(Number(row?.daysToPending)) && Number(row.daysToPending) >= 0) return Number(row.daysToPending);
-  return null;
+  if (row?.domValue !== undefined) return safeNumber(row.domValue);
+  const reading = (value, hasFlag) => {
+    if (hasFlag === false) return null;
+    const parsed = safeNumber(value);
+    return parsed !== null && parsed >= 0 ? parsed : null;
+  };
+  return reading(row?.mlsCDOM, row?.hasMlsCdomValue)
+    ?? reading(row?.mlsDOM, row?.hasMlsDomValue)
+    ?? reading(row?.daysToPending)
+    ?? null;
 }
 
 export function profileScore(row, rawProfile) {
@@ -150,11 +159,17 @@ export function summarizeCompetition(rows) {
   const data = Array.isArray(rows) ? rows : [];
   const domValues = data.map(domValueForRow).filter((value) => value !== null);
   const ratioValues = data.map((row) => safeNumber(row?.saleToList)).filter((value) => value !== null && value > 0);
-  const bidValues = data.map((row) => safeNumber(row?.delta)).filter((value) => value !== null);
+  // delta=0 is a placeholder on rows without a real list price (explicit false
+  // flag); rows with no DOM signal are unknown, not slow.
+  const bidValues = data
+    .filter((row) => row?.hasMarketListPrice !== false)
+    .map((row) => safeNumber(row?.delta))
+    .filter((value) => value !== null);
   const closeValues = data.map((row) => safeNumber(row?.closePrice)).filter((value) => value !== null && value > 0);
+  const heatRows = data.filter((row) => !!row?.isHotMarket || domValueForRow(row) !== null);
   return {
     salesCount: data.length,
-    hotShare: data.length ? data.filter((row) => !!row?.isHotMarket).length / data.length : null,
+    hotShare: heatRows.length ? heatRows.filter((row) => !!row?.isHotMarket).length / heatRows.length : null,
     medianDom: nullableMedian(domValues),
     medianSaleToList: nullableMedian(ratioValues),
     medianBidUp: nullableMedian(bidValues),

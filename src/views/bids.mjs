@@ -17,6 +17,7 @@
 // like "S/List".
 import {
   esc,
+  formatDateShort,
   formatMoney,
   formatMoneyCompact,
   formatMoneyOrNa,
@@ -26,6 +27,8 @@ import {
 } from "../domain/format.mjs";
 import { domMetric } from "../domain/data.mjs";
 import {
+  BID_COMP_WINDOW_DAYS,
+  BID_MIN_COMPS,
   BID_STRATEGIES,
   bidTierLabel,
   computeBidCompTiers,
@@ -34,10 +37,31 @@ import {
   scoreBidForRow,
   sortRows,
 } from "../domain/selectors.mjs";
+import { formatAge } from "../domain/freshness.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
 let ctx = null;
+
+// When nothing in the queue could be scored, say why once, in terms of what a
+// suggestion needs, instead of printing "n/a" on every card. The usual cause is
+// stale sold data: comps must have closed inside the window with a real asking
+// price, and that only arrives with a sold pull plus its history backfill.
+export function noSuggestionsNoticeHtml(stats, pricedSalesSource) {
+  if (!stats || stats.activeCount === 0 || stats.scoredCount > 0) return "";
+  const newest = pricedSalesSource?.date
+    ? ` The newest sale with a known asking price in this data closed ${formatDateShort(pricedSalesSource.date)} (${formatAge(pricedSalesSource.ageDays)}).`
+    : "";
+  const remedy = pricedSalesSource?.tone === "behind"
+    ? " Suggestions come back once the sold data and its asking-price history are refreshed."
+    : " Widening the price band or clearing neighborhood filters can bring more comps into range.";
+  return `
+    <div class="empty-state" id="bidNoSuggestions" role="status">
+      <strong>No bid suggestions right now.</strong>
+      A suggestion needs at least ${BID_MIN_COMPS} comparable homes that sold in the last ${BID_COMP_WINDOW_DAYS} days with a known asking price, and none of the ${formatWholeNumber(stats.activeCount)} active listings here has that many.${esc(newest)}${remedy}
+      You can still browse the listings below and load any of them into the comp finder.
+    </div>`;
+}
 
 // ---------------------------------------------------------------------------
 // Shared small helpers. The shared miniMetric() passed in through deps
@@ -119,8 +143,9 @@ export function renderBidsView(deps) {
         ${miniMetric("Scored", formatWholeNumber(stats.scoredCount))}
         ${metricWithExplain("High confidence", formatWholeNumber(stats.highConfidenceCount), "bidConfidence")}
         ${miniMetric("Watched", formatWholeNumber(watchedCount))}
-        ${metricWithExplain("Median over ask", `${(stats.medianOverAskPct || 0).toFixed(1)}%`, "bidMedianOverAsk")}
+        ${metricWithExplain("Median over ask", stats.scoredCount ? `${(stats.medianOverAskPct || 0).toFixed(1)}%` : "n/a", "bidMedianOverAsk")}
       </div>
+      ${noSuggestionsNoticeHtml(stats, state.dataSource.freshness?.items?.find((item) => item.id === "pricedSales"))}
       <section class="section-block">
         <div class="section-head compact">
           <div>
@@ -177,20 +202,8 @@ function bidCardHtml(row) {
   const { state, propertyAddressLink, affordTierBadge } = ctx;
   const isWatched = state.watched.has(row.id);
   const scored = row.bidStatus === "SCored";
-  const suggested = scored ? formatMoneyCompact(row.bidSuggested) : "n/a";
-  const range = scored ? `${formatMoneyCompact(row.bidLow)} – ${formatMoneyCompact(row.bidHigh)}` : "Insufficient comps";
-  const ratio = scored && row.bidRatio > 0 ? `${row.bidRatio.toFixed(2)}x` : "—";
-  const confTone = (row.bidConfidenceLabel || "").toLowerCase();
   const dom = domMetric(row);
-  const overAsk = scored && row.pendingListPrice > 0
-    ? Math.round(((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100)
-    : null;
-  const overAskBadge = overAsk === null
-    ? ""
-    : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${esc(overAskPhrase(overAsk))}</span>`;
-  const compCaption = scored ? compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel) : "";
-  return `
-    <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
+  const head = `
       <header class="bid-card-head">
         <button type="button" class="watch-star ${isWatched ? "active" : ""}" data-toggle-watch="${esc(row.id)}" aria-label="${isWatched ? "Unwatch" : "Watch"} ${esc(row.address || "listing")}" title="${isWatched ? "Unwatch" : "Watch"}">★</button>
         <div class="bid-card-address">
@@ -198,7 +211,40 @@ function bidCardHtml(row) {
           <span class="bid-card-meta">${esc(row.neighborhoodLabel || "")}${row.typeLabel ? ` · ${esc(row.typeLabel)}` : ""}</span>
         </div>
         ${affordTierBadge(row)}
-      </header>
+      </header>`;
+  // No suggestion: lead with the facts the listing does have and say, once and
+  // small, why there is no number, rather than a large "n/a" and rows of dashes.
+  if (!scored) {
+    const compCount = row.bidCompCount || 0;
+    return `
+    <article class="bid-card unscored ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
+      ${head}
+      <div class="bid-card-grid-meta">
+        <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
+        <div><span>First listed at</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
+        <div><span>Days listed</span><strong>${dom ?? "n/a"}</strong></div>
+      </div>
+      <p class="bid-unscored-note">No suggestion: ${compCount} of ${BID_MIN_COMPS} recent comps ${renderExplainButton("suggestedBid")}</p>
+      <footer class="bid-card-footer">
+        <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
+      </footer>
+    </article>
+  `;
+  }
+  const suggested = formatMoneyCompact(row.bidSuggested);
+  const range = `${formatMoneyCompact(row.bidLow)} – ${formatMoneyCompact(row.bidHigh)}`;
+  const ratio = row.bidRatio > 0 ? `${row.bidRatio.toFixed(2)}x` : "—";
+  const confTone = (row.bidConfidenceLabel || "").toLowerCase();
+  const overAsk = row.pendingListPrice > 0
+    ? Math.round(((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100)
+    : null;
+  const overAskBadge = overAsk === null
+    ? ""
+    : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${esc(overAskPhrase(overAsk))}</span>`;
+  const compCaption = compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel);
+  return `
+    <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
+      ${head}
       <div class="bid-card-bid">
         <div class="bid-suggested-block">
           <span class="bid-suggested-label">Suggested bid ${renderExplainButton("suggestedBid")}</span>
@@ -210,7 +256,7 @@ function bidCardHtml(row) {
           ${renderExplainButton("bidConfidence")}
         </div>
       </div>
-      ${scored ? captionRow(compCaption, "bidCompBasis") : ""}
+      ${captionRow(compCaption, "bidCompBasis")}
       <div class="bid-card-grid-meta">
         <div><span>Range</span><strong>${range}</strong></div>
         <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>

@@ -624,6 +624,7 @@ export const METRICS = {
     cadence: CADENCE["mls-manual"],
     caveats: [
       "Treat it as a real asking price only on MLS or Redfin rows; the ratio and bid-up math already ignores the county fallback.",
+      "Rows marked \"last day listed\" took their asking price from the last morning the listing was still seen for sale. That is the price it went under contract at, after any cuts, so the sale-versus-ask math is sound.",
     ],
     buyerDirection: "neutral",
     universeId: "recordRows",
@@ -637,7 +638,10 @@ export const METRICS = {
       "Shows the cumulative count that survives relistings when available, otherwise the plain count, otherwise the days from listing to pending. A second small number shows the other count when they differ.",
     source: { id: "mls-manual", label: "Manual MLS exports (county rows carry no days on market)" },
     cadence: CADENCE["mls-manual"],
-    caveats: ["County-only rows show n/a: the assessor records no marketing timeline."],
+    caveats: [
+      "County-only rows show n/a: the assessor records no marketing timeline.",
+      "On rows marked \"last day listed\" the count is as of the last morning the listing was seen for sale, so the true figure can be up to a day longer. That only matters right at the 10-day fast-sale line.",
+    ],
     buyerDirection: "higherIsBetter",
     universeId: "recordRows",
   },

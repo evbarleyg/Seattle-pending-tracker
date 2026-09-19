@@ -18,7 +18,7 @@ import {
   formatRatio,
   formatWholeNumber,
 } from "../domain/format.mjs";
-import { countyRecordUrl, domMetric, zillowUrl } from "../domain/data.mjs";
+import { countyRecordUrl, domMetric, isActiveListing, zillowUrl } from "../domain/data.mjs";
 import { recordViewLabel } from "../domain/selectors.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
@@ -67,7 +67,10 @@ function ensureGeoShell(wrap) {
         </div>
       </section>
       <div class="geo-layout">
-        <div id="map" class="map-surface" aria-label="Seattle sales map"></div>
+        <div class="map-frame">
+          <div id="map" class="map-surface" aria-label="Seattle sales map"></div>
+          <p id="mapTileNotice" class="map-notice" role="status" hidden>The street map underneath did not load, so the dots sit on a blank ground. They are still in the right places. This is usually a network block or the map server being busy; reloading often fixes it.</p>
+        </div>
         <aside class="geo-side">
           <div id="geoStatus" class="note" aria-live="polite"></div>
           <div id="geoStatusCaption" class="caption-row"></div>
@@ -229,10 +232,24 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
   if (!state.geo.map) {
     state.geo.map = L.map(mapEl, { preferCanvas: true }).setView([47.64, -122.34], 11);
     state.geo.mapEl = mapEl;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
       maxZoom: 19,
-    }).addTo(state.geo.map);
+    });
+    // A failed basemap used to be silent: grey ground, no explanation. Count
+    // tile outcomes and say so once several fail with none succeeding; any
+    // success clears it, since a few missing edge tiles are not worth a notice.
+    state.geo.tileLoads = 0;
+    state.geo.tileErrors = 0;
+    tiles.on("tileload", () => {
+      state.geo.tileLoads += 1;
+      updateTileNotice();
+    });
+    tiles.on("tileerror", () => {
+      state.geo.tileErrors += 1;
+      updateTileNotice();
+    });
+    tiles.addTo(state.geo.map);
     state.geo.layer = L.layerGroup().addTo(state.geo.map);
     state.geo.map.on("moveend", () => {
       if (!state.geo.viewportFilter) return;
@@ -261,7 +278,7 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     const dotColor = active ? ACTIVE_LISTING_COLOR : ratioColor(row.saleToList);
     const marker = L.circleMarker([row.mapLat, row.mapLon], {
       radius: selected ? 7 : (active ? 6 : 5),
-      color: selected ? "#111827" : dotColor,
+      color: selected ? selectedRingColor() : dotColor,
       fillColor: dotColor,
       fillOpacity: active ? (selected ? 0.5 : 0.25) : (selected ? 0.95 : 0.7),
       weight: active ? 2.5 : (selected ? 3 : 1),
@@ -287,15 +304,21 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
   renderGeoSelectedRows();
 }
 
-// A genuinely active listing: an MLS "Active" status with no recorded close.
-// (An earlier form OR-ed in `!hasActualClose && pendingListPrice > 0`, which also
-// swept in ~5.5k county rows that merely lack a close price — those are not
-// listings. Status + no-close keeps it to real for-sale inventory, matching how
-// the bid lab scopes active rows.) Shared by the marker, the visibility filter,
-// the flip supersede, and the popup card.
-function isActiveRow(row) {
-  return row.mlsStatusNorm === "ACTIVE" && !row.hasActualClose;
+function updateTileNotice() {
+  const { state, qs } = ctx;
+  const notice = qs("#mapTileNotice");
+  if (!notice) return;
+  notice.hidden = !(state.geo.tileErrors >= 4 && state.geo.tileLoads === 0);
 }
+
+// The selection ring has to contrast with the basemap, which dark mode inverts.
+function selectedRingColor() {
+  return typeof document !== "undefined" && document.body.classList.contains("dark") ? "#f8fafc" : "#111827";
+}
+
+// Shared by the marker, the visibility filter, the flip supersede, and the popup
+// card. The definition lives in data.mjs (isActiveListing).
+const isActiveRow = isActiveListing;
 
 // Normalized street identity for flip detection (a home that sold and is now
 // relisted). ZIP is intentionally excluded — active-scrape rows can carry a wrong

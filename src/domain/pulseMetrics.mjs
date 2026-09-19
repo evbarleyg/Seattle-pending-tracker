@@ -98,9 +98,20 @@ function inDateRange(dateValue, startInclusive, endExclusive) {
   return time >= startInclusive.getTime() && time < endExclusive.getTime();
 }
 
+// Number(null) and Number("") are both 0, so an absent reading has to be caught
+// before coercion or it becomes a real zero (the old "0d median DOM" bug).
 function safeNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+// Slim pulse rows precompute domValue (see pulseRowSummary in selectors.mjs).
+// A row says whether its sale was fast only if it is flagged hot or carries a
+// DOM reading; otherwise it is unknown and stays out of the share. Mirrors
+// hasHeatSignal in data.mjs, kept local because data.mjs imports this module.
+function hasHeatSignal(row) {
+  return !!row?.isHotMarket || safeNumber(row?.domValue) !== null;
 }
 
 export function summarizeRows(rows) {
@@ -108,20 +119,29 @@ export function summarizeRows(rows) {
   const count = data.length;
   const domValues = data.map((row) => safeNumber(row.domValue)).filter((value) => value !== null && value >= 0);
   const saleToListValues = data.map((row) => safeNumber(row.saleToList)).filter((value) => value !== null && value > 0);
-  const bidUpValues = data.map((row) => safeNumber(row.delta)).filter((value) => value !== null);
+  // The normalizer writes delta=0 on rows with no real list price; only an
+  // explicit hasMarketListPrice=false marks that placeholder, so rows that
+  // predate the flag still count.
+  const bidUpValues = data
+    .filter((row) => row.hasMarketListPrice !== false)
+    .map((row) => safeNumber(row.delta))
+    .filter((value) => value !== null);
   const closeValues = data.map((row) => safeNumber(row.closePrice)).filter((value) => value !== null && value > 0);
   const psfValues = data.map((row) => safeNumber(row.pricePerSqft)).filter((value) => value !== null && value > 0);
+  const heatRows = data.filter(hasHeatSignal);
+  const heatCount = heatRows.length;
 
   return {
     salesCount: count,
-    hotShare: count ? data.filter((row) => !!row.isHotMarket).length / count : null,
-    ultraHotShare: count ? data.filter((row) => !!row.isUltraHot).length / count : null,
+    hotShare: heatCount ? heatRows.filter((row) => !!row.isHotMarket).length / heatCount : null,
+    ultraHotShare: heatCount ? heatRows.filter((row) => !!row.isUltraHot).length / heatCount : null,
     medianDom: nullableMedian(domValues),
     medianSaleToList: nullableMedian(saleToListValues),
     medianBidUp: nullableMedian(bidUpValues),
     medianClosePrice: nullableMedian(closeValues),
     medianPsf: nullableMedian(psfValues),
     sampleSize: count,
+    heatSampleSize: heatCount,
     domSampleSize: domValues.length,
     ratioSampleSize: saleToListValues.length,
     bidUpSampleSize: bidUpValues.length,
@@ -258,9 +278,11 @@ export function rollingAverage(values, windowSize = 3) {
 }
 
 export function competitiveDelta(metricKey, currentValue, previousValue) {
-  if (!Number.isFinite(Number(currentValue)) || !Number.isFinite(Number(previousValue))) return null;
-  const current = Number(currentValue);
-  const previous = Number(previousValue);
+  // safeNumber (not Number) so a missing side is "no comparison" rather than a
+  // comparison against zero, which used to fake large swings in the verdict.
+  const current = safeNumber(currentValue);
+  const previous = safeNumber(previousValue);
+  if (current === null || previous === null) return null;
   if (metricKey === "medianDom" || metricKey === "activeInventory") return previous - current;
   return current - previous;
 }

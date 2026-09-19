@@ -1,74 +1,163 @@
+/* ==========================================================================
+   Seattle Pending Tracker — stylesheet
+
+   Layers, in order: tokens, base, shell, primitives, data-viz, views,
+   responsive. Components take every color from the tokens below, so dark mode
+   is a token swap (body.dark) and never a per-component override.
+
+   Conventions
+   - Tone colors (--hot / --cool / --warm) mean "tougher / better / watch" for
+     the buyer. They go on the datum (a delta chip, a sparkline), never on a
+     whole card's border.
+   - Border, fill, radius and shadow each say "separate object". Cards get a
+     hairline border only; shadow is reserved for things that float.
+   - Figures use tabular numerals so columns of numbers line up.
+   ========================================================================== */
+
+/* ---------- 1. Tokens ---------------------------------------------------- */
+
 :root {
   color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --bg: #f6f7f9;
+
+  /* Neutrals lean slightly toward the teal accent instead of pure gray. */
+  --bg: #f3f4f1;
   --surface: #ffffff;
-  --surface-2: #eef2f6;
-  --text: #17202a;
-  --muted: #657281;
-  --line: #d8dee6;
-  --line-strong: #b8c1cc;
-  --brand: #0f766e;
-  --brand-2: #2563eb;
-  --hot: #b91c1c;
-  --warm: #b7791f;
-  --cool: #047857;
-  --shadow: 0 12px 32px rgba(18, 28, 45, 0.08);
-  --radius: 8px;
-  --radius-sm: 6px;
+  --surface-2: #eceee9;
+  --surface-3: #e2e5df;
+  --text: #15201d;
+  --muted: #5b6965;
+  --faint: #86928d;
+  --line: #dde1db;
+  --line-strong: #c3c9c2;
+
+  --brand: #0d6b5f;
+  --brand-ink: #ffffff;
+  --brand-2: #2457c5; /* chart series 1 and property links */
+
+  --hot: #b42318;
+  --warm: #9a5b06;
+  --cool: #0b7a53;
+
+  --shadow-pop: 0 10px 30px rgba(18, 32, 28, 0.14), 0 1px 3px rgba(18, 32, 28, 0.08);
+  --shadow-raised: 0 1px 2px rgba(18, 32, 28, 0.06);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+
+  --page: 1360px;
+  --gutter: clamp(16px, 3vw, 32px);
+  --gap: 16px;
+  --topbar-h: 56px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  font-family: var(--font-ui);
 }
 
 body.dark {
   color-scheme: dark;
-  --bg: #101418;
-  --surface: #171d23;
-  --surface-2: #202832;
-  --text: #edf2f7;
-  --muted: #a7b2bf;
-  --line: #313b47;
-  --line-strong: #445161;
-  --brand: #2dd4bf;
-  --brand-2: #60a5fa;
-  --shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+
+  --bg: #0e1413;
+  --surface: #151d1b;
+  --surface-2: #1c2624;
+  --surface-3: #25312e;
+  --text: #e8efec;
+  --muted: #9fb0aa;
+  --faint: #77877f;
+  --line: #27332f;
+  --line-strong: #3a4944;
+
+  --brand: #3fcbb4;
+  --brand-ink: #06231e;
+  --brand-2: #7ea8ff;
+
+  --hot: #ff8a7a;
+  --warm: #f0b45a;
+  --cool: #5fd3a2;
+
+  --shadow-pop: 0 14px 40px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-* {
+/* ---------- 2. Base ------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-/* Global focus-visible ring so keyboard operation is visible across every
-   interactive control, not just the few that defined their own. Uses --brand,
-   which contrasts in both themes, matching .insight-tile:focus-visible. */
-:where(
-  a,
-  button,
-  [role="button"],
-  input,
-  select,
-  textarea,
-  .tab,
-  .scope-pill,
-  .heat-row,
-  .link-button,
-  .icon-btn,
-  .watch-star
-):focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-block-start: calc(var(--topbar-h) + 64px);
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin-block-start: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: -0.011em;
+  text-wrap: balance;
+}
+
+h1 {
+  margin-block-end: 12px;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: 1.1;
+}
+
+h2 {
+  margin-block-end: 6px;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+h3 {
+  margin-block-end: 6px;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+}
+
+p {
+  margin-block-end: 10px;
+}
+
+p:last-child {
+  margin-block-end: 0;
+}
+
+a {
+  color: var(--brand-2);
 }
 
 button,
 input,
 select {
   font: inherit;
+  color: inherit;
 }
 
 button {
@@ -80,768 +169,692 @@ button:disabled {
   opacity: 0.45;
 }
 
-a {
-  color: var(--brand-2);
+svg {
+  flex: 0 0 auto;
 }
+
+/* One focus ring for every interactive thing, visible in both themes. */
+:where(a, button, [role="button"], input, select, textarea, summary, .tab, .scope-pill, .heat-row, .insight-tile):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- 3. Shell ----------------------------------------------------- */
 
 .app-shell {
   min-block-size: 100vh;
 }
 
-.topbar {
+/* Header: brand, tabs, actions on one sticky row. */
+.masthead {
   position: sticky;
   inset-block-start: 0;
-  z-index: 20;
+  z-index: 30;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-block-end: 1px solid var(--line);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+
+.topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px clamp(16px, 4vw, 40px);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  border-block-end: 1px solid var(--line);
-  backdrop-filter: blur(16px);
+  gap: 20px;
+  inline-size: min(var(--page), 100%);
+  min-block-size: var(--topbar-h);
+  margin-inline: auto;
+  padding: 0 var(--gutter);
 }
 
 .brand {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 10px;
   color: var(--text);
   text-decoration: none;
+}
+
+.brand img {
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: 7px;
+}
+
+.brand > span {
+  min-inline-size: 0;
 }
 
 .brand strong,
 .brand small {
   display: block;
+  overflow: hidden;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand strong {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .brand small {
   color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.topbar-actions,
-.quick-actions,
-.geo-actions,
-.manual-bid-actions,
-.filter-actions,
-.table-head,
-.section-head,
-.micro-card-head,
-.mrow-head-static {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.topbar-actions,
-.quick-actions {
-  flex-wrap: wrap;
-}
-
-main {
-  inline-size: min(1480px, calc(100% - 32px));
-  margin: 0 auto;
-  padding: 22px 0 44px;
-}
-
-.command-center {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1.55fr);
-  gap: 18px;
-  align-items: stretch;
-  min-block-size: min(620px, calc(100vh - 128px));
-}
-
-.command-center.compact {
-  display: block;
-  min-block-size: auto;
-}
-
-.hero-copy {
-  align-self: center;
-  min-inline-size: 0;
-  padding: clamp(18px, 4vw, 34px) 0;
-}
-
-.hero-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-block-end: 14px;
-}
-
-.hero-line {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--muted);
-  letter-spacing: 0;
-}
-
-.command-center.compact .command-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.since-visit {
-  margin-block: 6px;
-  padding: 14px 16px;
-  border: 1px dashed rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.since-visit h3 {
-  margin: 4px 0 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-body.dark .since-visit {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.bid-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.segmented.small .scope-pill {
-  padding: 4px 10px;
-  font-size: 0.85rem;
-}
-
-.bid-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 14px;
-  margin-block-start: 12px;
-}
-
-.bid-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.bid-card:hover {
-  border-color: rgba(0, 0, 0, 0.25);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-}
-
-.bid-card.watched {
-  border-color: var(--brand);
-  box-shadow: 0 0 0 1px var(--brand);
-}
-
-body.dark .bid-card {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-body.dark .bid-card:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.bid-card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.watch-star {
-  flex: 0 0 auto;
-  inline-size: 32px;
-  block-size: 32px;
-  border: none;
-  background: transparent;
-  font-size: 1.4rem;
-  line-height: 1;
-  color: rgba(0, 0, 0, 0.18);
-  cursor: pointer;
-  border-radius: 50%;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-
-.watch-star:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.watch-star.active {
-  color: #f4b400;
-}
-
-body.dark .watch-star {
-  color: rgba(255, 255, 255, 0.25);
-}
-
-body.dark .watch-star:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.5);
-}
-
-body.dark .watch-star.active {
-  color: #f4b400;
-}
-
-.bid-card-address {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-inline-size: 0;
-}
-
-.bid-card-address-link {
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.bid-card-meta {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.bid-card-bid {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.04);
-}
-
-body.dark .bid-card-bid {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.bid-suggested-block {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.bid-suggested-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
-.bid-suggested-value {
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.bid-over-ask {
-  font-size: 0.78rem;
-  font-weight: 600;
-  margin-block-start: 2px;
-}
-
-.bid-over-ask.up { color: #c2410c; }
-.bid-over-ask.down { color: #15803d; }
-.bid-over-ask.flat { color: var(--muted); }
-
-.bid-card-grid-meta {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px 14px;
-  font-size: 0.85rem;
-}
-
-.bid-card-grid-meta > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.bid-card-grid-meta span {
-  font-size: 0.7rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.bid-card-grid-meta strong {
-  font-weight: 600;
-}
-
-.bid-card-footer {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.geo-marker-tooltip {
-  font-family: inherit;
-  font-size: 0.85rem;
-  line-height: 1.35;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.97);
-  color: #111827;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  max-inline-size: 240px;
-  pointer-events: none;
-}
-
-.geo-marker-tooltip strong {
-  display: block;
-  margin-block-end: 2px;
-  font-size: 0.9rem;
-}
-
-.bid-up-tooltip {
-  display: inline-block;
-  margin-block-start: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.bid-up-tooltip.up {
-  background: rgba(194, 65, 12, 0.12);
-  color: #c2410c;
-}
-
-.bid-up-tooltip.down {
-  background: rgba(21, 128, 61, 0.12);
-  color: #15803d;
-}
-
-.bid-up-tooltip.flat {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--muted);
-}
-
-body.dark .bid-up-tooltip.up { background: rgba(251, 146, 60, 0.18); color: #fdba74; }
-body.dark .bid-up-tooltip.down { background: rgba(74, 222, 128, 0.18); color: #86efac; }
-body.dark .bid-up-tooltip.flat { background: rgba(255, 255, 255, 0.08); color: var(--muted); }
-
-.exclude-types-field {
-  margin-block-start: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  font-size: 0.85rem;
-}
-
-.exclude-types-field summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.exclude-types-field[open] summary {
-  margin-block-end: 6px;
-}
-
-.exclude-types-field .multi-options {
-  grid-template-columns: 1fr;
-  max-block-size: 180px;
-}
-
-.map-popup-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-block-start: 6px;
-}
-
-.map-popup-link {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  color: var(--brand);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: background 0.12s ease;
-}
-
-.map-popup-link:hover {
-  background: rgba(0, 0, 0, 0.1);
-  text-decoration: none;
-}
-
-body.dark .map-popup-link {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-body.dark .map-popup-link:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.geo-marker-tooltip::before {
-  border-top-color: rgba(0, 0, 0, 0.12);
-}
-
-body.dark .geo-marker-tooltip {
-  background: rgba(20, 22, 28, 0.97);
-  color: #f3f4f6;
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  color: var(--brand);
   font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
 }
 
-h1,
-h2,
-h3,
-p {
-  margin-block-start: 0;
-}
-
-h1 {
-  max-inline-size: 11ch;
-  margin-block-end: 14px;
-  font-size: 6rem;
-  line-height: 0.92;
-  letter-spacing: 0;
-  overflow-wrap: break-word;
-}
-
-h2 {
-  margin-block-end: 8px;
-  font-size: 2.2rem;
-  line-height: 1.05;
-  letter-spacing: 0;
-}
-
-h3 {
-  margin-block-end: 8px;
-  font-size: 1.05rem;
-  line-height: 1.25;
-  letter-spacing: 0;
-}
-
-.lead {
-  max-inline-size: 58ch;
-  color: var(--muted);
-  font-size: 1.03rem;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-
-.command-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-content: center;
+.tabs {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 2px;
   min-inline-size: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.state-panel,
-.panel,
-.chart-panel,
-.data-tile,
-.manual-bid-wrap,
-.section-block {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.state-panel {
-  min-block-size: 150px;
-  padding: 18px;
-}
-
-.state-panel h2 {
-  font-size: 1.85rem;
-}
-
-.state-panel p {
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.span-2 {
-  grid-column: span 2;
-}
-
-.span-3 {
-  grid-column: 1 / -1;
-}
-
-.panel-kicker,
-.mini-label {
-  display: block;
-  margin-block-end: 8px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.heat-hot {
-  border-color: color-mix(in srgb, var(--hot) 40%, var(--line));
-}
-
-.heat-warm {
-  border-color: color-mix(in srgb, var(--warm) 38%, var(--line));
-}
-
-.heat-cool {
-  border-color: color-mix(in srgb, var(--cool) 34%, var(--line));
-}
-
-/* ----- Affordability ----- */
-.afford-pill {
+.tab {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  margin-inline-start: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-.afford-pill.afford-in { background: color-mix(in srgb, var(--cool) 14%, var(--surface)); color: var(--cool); }
-.afford-pill.afford-stretch { background: color-mix(in srgb, var(--warm) 16%, var(--surface)); color: var(--warm); }
-.afford-pill.afford-over { background: color-mix(in srgb, var(--muted) 16%, var(--surface)); color: var(--muted); }
-body.dark .afford-pill.afford-in { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
-body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); color: #f4b43c; }
-
-.afford-flags {
-  margin: 6px 0 0;
-  padding-inline-start: 18px;
-  display: grid;
-  gap: 4px;
-}
-.afford-flag {
-  color: var(--warm, #b4780a);
-  font-size: 0.9rem;
-}
-
-.controls-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  align-items: end;
-}
-
-.afford-grid {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-.afford-grid th,
-.afford-grid td {
-  border: 1px solid var(--line);
-  padding: 6px 10px;
-  text-align: right;
-  white-space: nowrap;
-}
-.afford-grid thead th,
-.afford-grid tbody th { text-align: left; font-weight: 700; }
-.afford-grid tbody td { font-variant-numeric: tabular-nums; }
-
-.btn,
-.tab,
-.scope-pill,
-.mini-btn,
-.icon-btn,
-.link-button,
-.th-sort {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 7px;
-  min-block-size: 38px;
-  border: 1px solid var(--line);
+  min-block-size: 34px;
+  padding: 0 12px;
+  border: 0;
   border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.tab svg {
+  inline-size: 16px;
+  block-size: 16px;
+  opacity: 0.8;
+}
+
+.tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tab.active {
   background: var(--surface);
   color: var(--text);
-  text-decoration: none;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-raised);
 }
 
-.btn {
-  padding: 0 13px;
-  font-weight: 800;
+.tab.active svg {
+  color: var(--brand);
+  opacity: 1;
 }
 
-.btn svg,
-.tab svg,
-.icon-btn svg {
-  inline-size: 17px;
-  block-size: 17px;
+.topbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
 }
 
-.btn:not(.alt):not(.ghost) {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--surface);
+/* Lens bar: what is filtered, the filters button, and how fresh each source is.
+   Sticks under the header on wide screens so the filter context stays in view. */
+.lens-bar {
+  position: sticky;
+  inset-block-start: calc(var(--topbar-h) + 1px);
+  z-index: 25;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  border-block-end: 1px solid var(--line);
+  backdrop-filter: blur(14px) saturate(1.3);
 }
 
-.btn.alt,
-.btn.ghost {
-  background: var(--surface-2);
-}
-
-.btn:hover,
-.tab:hover,
-.scope-pill:hover,
-.mini-btn:hover,
-.icon-btn:hover {
-  border-color: var(--line-strong);
-}
-
-.control-band {
-  margin-block-start: 18px;
-}
-
-.active-filter-strip,
-.cross-filter-strip,
-.filters-details {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.active-filter-strip {
+.lens-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px;
+  gap: 12px;
+  inline-size: min(var(--page), 100%);
+  margin-inline: auto;
+  padding: 8px var(--gutter);
+}
+
+.lens-chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.lens-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .chip-row,
 .cross-filter-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: contents;
 }
 
-.chip {
+/* Per-source freshness. A button because it opens the Data tab. */
+.freshness-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-block-size: 28px;
-  padding: 5px 9px;
+  gap: 8px;
+  min-block-size: 30px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.freshness-pill:hover {
+  border-color: var(--line-strong);
   color: var(--text);
-  font-size: 0.84rem;
-  font-weight: 700;
 }
 
-.chip.strong {
-  border-color: color-mix(in srgb, var(--brand-2) 40%, var(--line));
+.freshness-pill .fresh-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
-.chip button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-weight: 900;
+.freshness-pill .fresh-item b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.freshness-pill .fresh-sep {
+  color: var(--line-strong);
+}
+
+.fresh-dot {
+  display: inline-block;
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 50%;
+  background: var(--cool);
+}
+
+.fresh-dot.behind {
+  background: var(--warm);
+}
+
+.fresh-dot.unknown {
+  background: var(--line-strong);
 }
 
 .dataset-pill {
   color: var(--muted);
-  font-size: 0.86rem;
-  text-align: end;
+  font-size: 0.8rem;
 }
 
-.filters-details {
-  margin-block-start: 10px;
-  overflow: hidden;
+main {
+  inline-size: min(var(--page), 100%);
+  margin-inline: auto;
+  padding: 18px var(--gutter) 56px;
 }
 
-.filters-details > summary,
-.help-panel > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 13px 14px;
-  color: var(--text);
-  font-weight: 900;
-  list-style: none;
-  cursor: pointer;
+/* Filters panel: opens under the lens bar. */
+.filters-panel {
+  /* Clears the sticky header and lens bar when scrolled into view. */
+  scroll-margin-block-start: calc(var(--topbar-h) + 64px);
+  margin-block-end: var(--gap);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
-.filters-details > summary::-webkit-details-marker,
-.help-panel > summary::-webkit-details-marker {
+.filters-panel[hidden] {
   display: none;
 }
 
 .filters-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--line);
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+/* minmax(0, 1fr) rather than the implicit auto track: a grid item's default
+   min-width is its min-content size, so one long nowrap child (the Data tab's
+   schema line was 3,700px) would otherwise widen the whole page. */
+.view-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+}
+
+.help-panel {
+  margin-block-start: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+}
+
+.help-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.help-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.help-panel > summary svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
   padding: 0 14px 14px;
 }
 
-.field {
-  display: grid;
-  gap: 6px;
+.help-grid p {
+  margin: 0;
+  line-height: 1.55;
 }
 
-.field label {
+/* ---------- 4. Primitives ------------------------------------------------ */
+
+/* Labels. The eyebrow names the question a block answers. */
+.eyebrow,
+.panel-kicker,
+.mini-label {
+  display: block;
+  margin: 0 0 6px;
   color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
 }
 
-.field input:not([type="checkbox"]):not([type="radio"]),
-.field select {
-  min-block-size: 38px;
-  inline-size: 100%;
+.mini-label {
+  margin: 0 4px 0 0;
+}
+
+.note,
+.hint,
+.lead,
+.range-field output {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.lead {
+  max-inline-size: 62ch;
+  font-size: 0.9375rem;
+}
+
+.note {
+  margin-block-end: 0;
+}
+
+/* Cards. Hairline border, no shadow. */
+.section-block,
+.panel,
+.state-panel,
+.chart-panel,
+.manual-bid-wrap,
+.readout {
+  min-inline-size: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.state-panel h2 {
+  font-size: 1.25rem;
+}
+
+.state-panel p,
+.panel p,
+.readout p {
+  color: var(--muted);
+}
+
+/* A red border is reserved for a refresh that failed its checks. */
+.state-panel.alert {
+  border-color: color-mix(in srgb, var(--hot) 55%, var(--line));
+}
+
+.state-panel.alert .panel-kicker::after {
+  content: " · check failed";
+  color: var(--hot);
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 20px;
+  min-inline-size: 0;
+}
+
+.section-head > div:first-child {
+  min-inline-size: 0;
+}
+
+.section-head h2,
+.section-head h3 {
+  margin-block-end: 0;
+}
+
+.section-head.compact {
+  margin-block-end: 10px;
+}
+
+/* Buttons */
+.btn,
+.mini-btn,
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
-  padding: 0 9px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-.field input[type="checkbox"],
-.field input[type="radio"] {
+.btn {
+  min-block-size: 34px;
+  padding: 0 12px;
+}
+
+.btn svg,
+.icon-btn svg {
   inline-size: 16px;
   block-size: 16px;
-  margin: 0;
-  flex: 0 0 auto;
-  cursor: pointer;
+}
+
+.btn:not(.alt):not(.ghost) {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--surface);
+}
+
+.btn:not(.alt):not(.ghost):hover {
+  opacity: 0.88;
+}
+
+.btn.alt:hover,
+.btn.ghost:hover,
+.mini-btn:hover,
+.icon-btn:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn[aria-expanded="true"] {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.mini-btn {
+  min-block-size: 28px;
+  padding: 0 9px;
+  font-size: 0.78rem;
+}
+
+.icon-btn {
+  inline-size: 32px;
+  min-block-size: 32px;
+  padding: 0;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-2);
+  font-weight: 600;
+  text-align: start;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Chips */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-block-size: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip.strong {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+  color: var(--brand);
+}
+
+.chip button {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 16px;
+  margin-inline-end: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.chip button:hover {
+  background: var(--surface-3);
+  opacity: 1;
+}
+
+/* Inside a card, chips sit on the tinted ground. */
+.panel .chip,
+.section-block .chip {
+  background: var(--surface-2);
+  border-color: transparent;
+}
+
+.panel .chip-row,
+.section-block .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Segmented controls and scope pills */
+.segmented,
+.scope-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.segmented {
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.scope-pill {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.segmented .scope-pill {
+  min-block-size: 28px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.scope-pill:hover {
+  color: var(--text);
+}
+
+.scope-pill.active {
+  border-color: color-mix(in srgb, var(--brand) 50%, var(--line));
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+  color: var(--brand);
+}
+
+.segmented .scope-pill.active {
+  border-color: transparent;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-raised);
+}
+
+.segmented.small .scope-pill {
+  min-block-size: 24px;
+  padding: 0 9px;
+  font-size: 0.78rem;
+}
+
+/* Form fields */
+.field {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-inline-size: 0;
+}
+
+.field label,
+.field > summary {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.field select {
+  inline-size: 100%;
+  min-block-size: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.field input::placeholder {
+  color: var(--faint);
+}
+
+.field input[type="range"] {
+  inline-size: 100%;
   accent-color: var(--brand);
 }
 
-.range-field output,
-.hint,
-.note {
+.field input[type="file"] {
+  inline-size: 100%;
+  font-size: 0.78rem;
   color: var(--muted);
-  font-size: 0.84rem;
 }
 
-.checks-field {
-  align-content: start;
+.field input[type="checkbox"],
+.field input[type="radio"],
+.check input {
+  inline-size: 15px;
+  block-size: 15px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--brand);
+  cursor: pointer;
 }
 
 .check {
@@ -849,22 +862,39 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
   align-items: center;
   gap: 7px;
   color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 
 .check.inline {
-  margin-block: 8px 14px;
+  margin: 0;
+}
+
+.checks-field {
+  gap: 7px;
+}
+
+.neighborhoods-field,
+.exclude-types-field {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .neighborhoods-field {
   grid-column: span 2;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 10px;
 }
 
-.neighborhoods-field summary {
+.neighborhoods-field > summary,
+.exclude-types-field > summary {
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 800;
+}
+
+.exclude-types-field > summary {
+  color: var(--muted);
 }
 
 .multi-actions {
@@ -876,338 +906,688 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 .multi-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  max-block-size: 260px;
+  gap: 4px 12px;
+  max-block-size: 240px;
   overflow: auto;
+}
+
+.exclude-types-field .multi-options {
+  grid-template-columns: 1fr;
+  max-block-size: 180px;
+  margin-block-start: 8px;
 }
 
 .multi-opt {
   display: flex;
   align-items: center;
   gap: 7px;
-  min-block-size: 30px;
-}
-
-.cross-filter-strip {
-  min-block-size: 44px;
-  margin-block-start: 10px;
-  padding: 10px 14px;
-}
-
-.tabs {
-  position: sticky;
-  inset-block-start: 64px;
-  z-index: 15;
-  display: flex;
-  gap: 8px;
-  margin-block: 18px 12px;
-  padding: 8px;
-  overflow-x: auto;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-}
-
-.tab {
-  flex: 0 0 auto;
-  padding: 0 12px;
-  font-weight: 850;
-}
-
-.tab.active {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--surface);
-}
-
-.view {
-  display: none;
-}
-
-.view.active {
-  display: block;
-}
-
-.view-band {
-  display: grid;
-  gap: 14px;
-  padding-block-start: 4px;
-}
-
-.section-head {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.section-head.compact {
-  margin-block-end: 10px;
-}
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 14px;
-}
-
-.decision-brief h2 {
-  max-inline-size: 760px;
-}
-
-.decision-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.decision-card,
-.decision-action {
-  display: grid;
-  align-content: start;
-  gap: 7px;
-  min-block-size: 132px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  min-block-size: 26px;
+  font-size: 0.8125rem;
   color: var(--text);
-  text-align: start;
+  font-weight: 400;
 }
 
-.decision-card {
-  grid-column: span 2;
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
 }
 
-.decision-card span,
-.decision-action span,
-.chart-insight,
-.geo-selected-status {
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.decision-card > span,
-.decision-action > strong {
-  font-weight: 850;
-}
-
-.decision-card strong {
-  font-size: 1.25rem;
-  line-height: 1.15;
-}
-
-.decision-card p {
-  margin: 0;
-  color: var(--muted);
-}
-
-.decision-action {
-  cursor: pointer;
-}
-
-.decision-action svg {
-  inline-size: 18px;
-  block-size: 18px;
-  color: var(--brand);
-}
-
-.decision-action:hover,
-.decision-action:focus-visible {
-  border-color: var(--brand);
-}
-
-.panel,
-.section-block,
-.manual-bid-wrap {
-  padding: 16px;
-}
-
-.panel p,
-.micro-card p,
-.help-grid p,
-.readout p {
-  color: var(--muted);
-  line-height: 1.5;
-}
-
+/* Stat blocks */
 .metric-list,
 .metric-row,
-.pulse-grid,
-.profile-grid,
-.chart-grid,
 .data-grid,
 .manual-bid-result {
   display: grid;
-  gap: 12px;
-}
-
-.metric-list {
-  grid-template-columns: 1fr;
-}
-
-.metric-row {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
 }
 
 .mini-metric,
 .data-tile {
   display: grid;
-  gap: 4px;
-  min-block-size: 72px;
-  padding: 12px;
-  border: 1px solid var(--line);
+  align-content: start;
+  gap: 3px;
+  min-inline-size: 0;
+  padding: 11px 13px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 
-.mini-metric span,
-.data-tile span,
+.mini-metric > span,
+.data-tile > span,
 .mrow-grid span {
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
-.mini-metric strong,
-.data-tile strong {
-  font-size: 1.05rem;
+.mini-metric > strong,
+.data-tile > strong {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
-.profile-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+/* Universe captions and explain popovers (src/ui/explain.mjs) */
+.universe-caption {
+  display: block;
+  color: var(--faint);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
-.micro-card,
-.metric-card {
-  padding: 13px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.micro-card-head {
-  justify-content: space-between;
-}
-
-.micro-card-head span {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.micro-list {
+.caption-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  align-items: center;
+  gap: 6px;
 }
 
-.micro-list span {
-  padding: 4px 7px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 750;
+.caption-row .universe-caption {
+  display: inline;
 }
 
-.pulse-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+.explain-wrap {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
 }
 
-.metric-card {
-  display: grid;
-  gap: 8px;
+/* A quiet "i" instead of the words "what is this?" repeated a hundred times a
+   page. The words stay inside as screen-reader text, so the accessible name is
+   unchanged. */
+.explain-trigger {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+  font: 600 0.625rem/1 var(--font-ui);
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
 }
 
-.metric-card span,
-.chart-title {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 850;
-  text-transform: uppercase;
+.explain-trigger::before {
+  content: "i";
+  font-style: normal;
 }
 
-.metric-card strong {
-  font-size: 1.35rem;
-}
-
-.metric-card.hotter {
-  border-color: color-mix(in srgb, var(--hot) 40%, var(--line));
-}
-
-.metric-card.cooler {
-  border-color: color-mix(in srgb, var(--cool) 38%, var(--line));
-}
-
-.scope-row,
-.segmented {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.scope-pill {
-  min-block-size: 34px;
-  padding: 0 10px;
-  font-weight: 800;
-}
-
-.scope-pill.active {
-  background: var(--surface-2);
+.explain-trigger:hover,
+.explain-trigger[aria-expanded="true"] {
   border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
   color: var(--brand);
 }
 
-.chart-grid {
+.explain-pop {
+  position: absolute;
+  z-index: 40;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-start: -8px;
+  inline-size: min(340px, 84vw);
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: start;
+  text-transform: none;
+  white-space: normal;
+  cursor: auto;
+}
+
+.explain-pop-right {
+  inset-inline-start: auto;
+  inset-inline-end: -8px;
+}
+
+.explain-pop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 6px;
+}
+
+.explain-pop-title {
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.explain-close {
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.explain-close:hover {
+  color: var(--text);
+}
+
+.explain-def {
+  margin: 0 0 10px;
+}
+
+.explain-part {
+  margin-block-end: 10px;
+}
+
+.explain-part:last-child {
+  margin-block-end: 0;
+}
+
+.explain-part-label {
+  display: block;
+  margin-block-end: 2px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.explain-part p {
+  margin: 0 0 4px;
+  color: var(--muted);
+}
+
+.explain-live {
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.explain-caveats {
+  margin: 0;
+  padding-inline-start: 16px;
+  color: var(--muted);
+}
+
+.explain-caveats li {
+  margin-block-end: 4px;
+}
+
+/* Pills */
+.hot-pill,
+.conf-pill,
+.lineage-pill,
+.afford-pill,
+.proj-pill {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hot-pill.hot {
+  background: color-mix(in srgb, var(--warm) 14%, var(--surface));
+  color: var(--warm);
+}
+
+.hot-pill.ultra {
+  background: color-mix(in srgb, var(--hot) 12%, var(--surface));
+  color: var(--hot);
+}
+
+.conf-pill.high {
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface));
+  color: var(--brand);
+}
+
+.conf-pill.medium {
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+  color: color-mix(in srgb, var(--brand) 65%, var(--muted));
+}
+
+.lineage-pill.mls {
+  background: color-mix(in srgb, var(--brand-2) 11%, var(--surface));
+  color: var(--brand-2);
+}
+
+.afford-pill {
+  margin-inline-start: 6px;
+  border-radius: 999px;
+}
+
+.afford-pill.afford-in {
+  background: color-mix(in srgb, var(--cool) 14%, var(--surface));
+  color: var(--cool);
+}
+
+.afford-pill.afford-stretch {
+  background: color-mix(in srgb, var(--warm) 15%, var(--surface));
+  color: var(--warm);
+}
+
+.proj-pill {
+  margin-inline-start: 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* Tables */
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  border-block-end: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.th-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.th-sort:hover {
+  color: var(--text);
+}
+
+.th-sort.active {
+  color: var(--brand);
+}
+
+.sort-ind {
+  opacity: 0.55;
+}
+
+.th-sort.active .sort-ind {
+  opacity: 1;
+}
+
+.cell-sub {
+  display: block;
+  color: var(--faint);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* Property links */
+.address-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-inline-size: 260px;
+  color: var(--brand-2);
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: top;
+}
+
+.address-link:hover .address-link-text,
+.address-link:focus-visible .address-link-text {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.address-link-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-link svg {
+  flex: 0 0 12px;
+  inline-size: 12px;
+  block-size: 12px;
+  opacity: 0.6;
+}
+
+.external-link-label {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-2) 10%, var(--surface));
+  color: var(--brand-2);
+  font-size: 0.625rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.mrow-address-link,
+.mini-record-link {
+  max-inline-size: 100%;
+}
+
+.comp-link {
+  max-inline-size: 220px;
+}
+
+.sub-link {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--faint);
+  font-size: 0.72rem;
+}
+
+/* Mobile row cards (tables collapse into these under 760px) */
+.mobile-card-list {
+  display: none;
+}
+
+.mrow {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.mrow-head-static {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.mrow-head-static .address-link {
+  flex: 1 1 auto;
+}
+
+.mrow-head-static > span {
+  flex: 0 0 auto;
+  font-weight: 650;
+}
+
+.mrow-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.mrow-grid div {
+  display: grid;
+  gap: 1px;
+}
+
+.mrow-grid strong {
+  font-weight: 600;
+}
+
+.mrow-bid-figure {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.empty-state {
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.empty-state strong {
+  display: block;
+  margin-block-end: 3px;
+  color: var(--text);
+}
+
+.mono {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.skeleton {
+  display: block;
+  inline-size: 70%;
+  block-size: 16px;
+  margin-block-end: 12px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.skeleton.wide {
+  inline-size: 92%;
+}
+
+.skeleton.short {
+  inline-size: 44%;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- 5. Data-viz -------------------------------------------------- */
+
+/* Sparklines. overflow: visible so a wide end label spills into the tile's
+   padding instead of being cut off on fonts wider than the one it was tuned on. */
+.sparkline {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.sparkline .spark-line {
+  fill: none;
+  stroke: var(--brand-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline .spark-dot {
+  fill: var(--brand-2);
+}
+
+.insight-tile.hotter .sparkline .spark-line {
+  stroke: var(--hot);
+}
+
+.insight-tile.hotter .sparkline .spark-dot {
+  fill: var(--hot);
+}
+
+.insight-tile.cooler .sparkline .spark-line {
+  stroke: var(--cool);
+}
+
+.insight-tile.cooler .sparkline .spark-dot {
+  fill: var(--cool);
+}
+
+.sparkline .spark-endpoint-label {
+  fill: var(--text);
+  font-size: 9px;
+  font-weight: 650;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.sparkline .spark-endpoint-label.big {
+  font-size: 11px;
+}
+
+.sparkline .spark-endpoint-label.muted {
+  fill: var(--faint);
+  font-size: 9px;
+  font-weight: 500;
+  stroke-width: 0;
+}
+
+.trend-mini .sparkline .spark-endpoint-label {
+  stroke: var(--surface-2);
+}
+
+/* Full charts */
+.chart-grid,
+.trajectory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .chart-panel {
-  min-block-size: 330px;
-  padding: 14px;
+  padding: 16px;
 }
 
 .chart-panel.wide {
   grid-column: 1 / -1;
 }
 
-.chart-summary {
+.chart-title {
   display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin: 0 0 10px;
+  align-items: center;
+  gap: 6px;
+  margin-block-end: 4px;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 650;
 }
 
 .chart-insight {
-  margin: 4px 0 10px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.chart-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
 }
 
 .chart-summary span {
   display: inline-flex;
-  gap: 5px;
-  min-block-size: 26px;
   align-items: center;
-  padding: 4px 7px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  gap: 5px;
+  min-block-size: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
 }
 
 .chart-summary strong {
   color: var(--text);
+  font-weight: 600;
 }
 
 .chart-guide {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 750;
+  gap: 4px 14px;
+  margin: 0 0 6px;
+  color: var(--faint);
+  font-size: 0.72rem;
 }
 
 .chart-guide span {
@@ -1218,7 +1598,7 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 
 .legend-swatch {
   display: inline-block;
-  inline-size: 20px;
+  inline-size: 18px;
   block-size: 0;
   border-block-start: 3px solid var(--brand-2);
   border-radius: 999px;
@@ -1240,14 +1620,14 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 .bar-chart {
   display: block;
   inline-size: 100%;
-  block-size: 240px;
+  block-size: 230px;
   overflow: visible;
 }
 
 .trend {
   fill: none;
   stroke: var(--brand-2);
-  stroke-width: 3;
+  stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -1255,7 +1635,7 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 .trend.smooth {
   stroke: var(--brand);
   stroke-width: 2;
-  opacity: 0.72;
+  opacity: 0.7;
 }
 
 .gridline {
@@ -1266,7 +1646,7 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 .axis-line {
   fill: none;
   stroke: var(--line-strong);
-  stroke-width: 1.25;
+  stroke-width: 1;
 }
 
 .tickline {
@@ -1280,7 +1660,7 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 .chart-value-label {
   fill: var(--muted);
   font-size: 0.62rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .chart-value-label {
@@ -1291,6 +1671,10 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
   stroke-linejoin: round;
 }
 
+.chart-point {
+  cursor: pointer;
+}
+
 .chart-point circle {
   fill: var(--surface);
   stroke: var(--brand-2);
@@ -1299,54 +1683,134 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
 
 .bar-chart rect {
   fill: var(--brand-2);
-  opacity: 0.82;
+  opacity: 0.85;
 }
 
-.trajectory-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.chart-point.low-sample circle {
+  stroke: var(--line-strong);
+  stroke-width: 1.4;
+  opacity: 0.6;
 }
 
-.readout {
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+.chart-bar.low-sample rect {
+  fill: var(--line-strong);
+  opacity: 0.5;
 }
 
+/* Trailing partial bucket (the still-filling current period): de-weighted so
+   its swing is not read as a real move. */
+.chart-point.partial circle {
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2;
+  opacity: 0.5;
+}
+
+.chart-bar.partial rect {
+  fill: var(--line-strong);
+  opacity: 0.4;
+}
+
+/* Over / at / under ask bar */
+.cost-bar {
+  display: flex;
+  gap: 2px;
+  block-size: 12px;
+  margin-block-start: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cost-seg {
+  display: block;
+  min-inline-size: 2px;
+}
+
+.cost-seg.over,
+.cost-swatch.over {
+  background: color-mix(in srgb, var(--hot) 78%, var(--surface));
+}
+
+.cost-seg.at,
+.cost-swatch.at {
+  background: color-mix(in srgb, var(--warm) 60%, var(--surface));
+}
+
+.cost-seg.under,
+.cost-swatch.under {
+  background: color-mix(in srgb, var(--cool) 74%, var(--surface));
+}
+
+.cost-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-block: 8px 14px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cost-bar-legend b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.cost-swatch {
+  display: inline-block;
+  inline-size: 9px;
+  block-size: 9px;
+  margin-inline-end: 6px;
+  border-radius: 2px;
+}
+
+/* Competition pockets */
 .heat-list {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .heat-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) 90px minmax(220px, 1fr);
+  grid-template-columns: minmax(160px, 1.1fr) 132px minmax(0, 1.4fr);
   gap: 12px;
   align-items: center;
-  min-block-size: 50px;
-  padding: 10px 12px;
+  min-block-size: 36px;
+  padding: 6px 12px;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
+  font-size: 0.8125rem;
   text-align: start;
+}
+
+.heat-row:hover {
+  border-color: var(--line-strong);
 }
 
 .heat-row i {
   position: absolute;
   inset: 0 auto 0 0;
   z-index: 0;
-  background: color-mix(in srgb, var(--warm) 20%, transparent);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
 }
 
 .heat-row span,
 .heat-row strong,
 .heat-row em {
+  position: relative;
   z-index: 1;
+}
+
+.heat-row > span:first-of-type {
+  font-weight: 600;
+}
+
+.heat-row strong {
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .heat-row em {
@@ -1354,222 +1818,899 @@ body.dark .afford-pill.afford-stretch { background: rgba(245, 180, 60, 0.18); co
   font-style: normal;
 }
 
-.manual-bid-form,
-.data-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+/* ---------- 6. Views ----------------------------------------------------- */
+
+/* --- Verdict banner (Overview and Pulse) --- */
+.market-verdict {
+  padding: 20px 22px;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--tone, var(--line-strong)) 9%, var(--surface)), var(--surface) 62%);
 }
 
-.manual-bid-result {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  margin-block-start: 12px;
+.market-verdict.hotter {
+  --tone: var(--hot);
 }
 
-.table-wrap {
-  overflow: auto;
+.market-verdict.cooler {
+  --tone: var(--cool);
+}
+
+.market-verdict .eyebrow {
+  color: var(--tone, var(--muted));
+}
+
+.hero-line {
+  margin: 0 0 6px;
+  font-size: clamp(1.375rem, 2.4vw, 1.75rem);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.market-verdict .note {
+  max-inline-size: 86ch;
+  font-size: 0.875rem;
+}
+
+.market-verdict .caption-row {
+  margin-block-start: 8px;
+}
+
+/* --- Overview --- */
+.command-center {
+  display: grid;
+  gap: 14px;
+}
+
+.command-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.hero-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.hero-strip .eyebrow {
+  margin: 0;
+}
+
+.hero-strip .hero-line {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.hero-copy {
+  max-inline-size: 60ch;
+}
+
+.insight-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* KPI tile: label row, figure, deltas, plain-language line, sparkline, signal.
+   Rows are laid out by a single column grid so every tile in the row shares
+   the same rhythm and the sparkline sits at the bottom. */
+.insight-tile {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto auto;
+  gap: 6px;
+  align-content: start;
+  min-inline-size: 0;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
 }
 
-table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: 0.86rem;
+.insight-tile:hover {
+  border-color: var(--line-strong);
 }
 
-th,
-td {
-  padding: 9px 10px;
-  border-block-end: 1px solid var(--line);
+.tile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+  /* Two label lines reserved, so a one-line and a two-line label still put
+     their figures on the same baseline across the row. */
+  min-block-size: calc(0.6875rem * 1.3 * 2);
+}
+
+.tile-open {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
   text-align: start;
-  vertical-align: top;
+  cursor: pointer;
+}
+
+.tile-head .explain-wrap {
+  flex: 0 0 auto;
+  margin-block-start: -1px;
+}
+
+.insight-tile .tile-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.insight-tile .tile-figure strong {
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/* Delta as a small tinted chip: the tone lives on the datum. */
+.tile-delta {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-th {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 1;
-  background: var(--surface-2);
+.tile-delta.hotter {
+  background: color-mix(in srgb, var(--hot) 11%, var(--surface));
+  color: var(--hot);
 }
 
-.th-sort {
-  min-block-size: 28px;
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
-  font-weight: 850;
+.tile-delta.cooler {
+  background: color-mix(in srgb, var(--cool) 12%, var(--surface));
+  color: var(--cool);
 }
 
-.th-sort.active {
-  color: var(--brand-2);
+.tile-delta.tile-delta-secondary {
+  justify-self: start;
+  padding: 0;
+  background: none;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
-.address-link {
-  display: inline-flex;
+.tile-delta.tile-delta-secondary.flat {
+  color: var(--faint);
+}
+
+.tile-sub {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.insight-tile .universe-caption {
+  font-size: 0.7rem;
+}
+
+.insight-tile .sparkline {
+  align-self: end;
+  margin-block-start: 4px;
+}
+
+.tile-signal {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.tile-signal::first-letter {
+  text-transform: uppercase;
+}
+
+.insight-tile.hotter .tile-signal {
+  color: var(--hot);
+}
+
+.insight-tile.cooler .tile-signal {
+  color: var(--cool);
+}
+
+.tone-legend {
+  margin: -4px 0 0;
+  font-size: 0.75rem;
+}
+
+.tone-chip {
+  font-size: 0.7rem;
+}
+
+.tone-chip.cooler {
+  color: var(--cool);
+}
+
+.tone-chip.hotter {
+  color: var(--hot);
+}
+
+.command-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.command-grid .link-button {
+  justify-self: start;
+  margin-block-start: 2px;
+  font-size: 0.8125rem;
+}
+
+.command-grid .state-panel {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 16px;
+}
+
+.command-grid .state-panel h2 {
+  margin: 0;
+  font-size: 1.1875rem;
+}
+
+.command-grid .state-panel p {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.command-grid .panel-kicker {
+  display: flex;
   align-items: center;
   gap: 6px;
-  max-inline-size: 260px;
-  color: var(--brand-2);
-  font-weight: 850;
-  text-decoration: none;
-  vertical-align: top;
+  margin: 0;
 }
 
-.address-link:hover .address-link-text,
-.address-link:focus-visible .address-link-text {
+.span-2 {
+  grid-column: span 2;
+}
+
+.span-3 {
+  grid-column: 1 / -1;
+}
+
+/* "What does winning cost?" */
+#costToWin h3 {
+  max-inline-size: 70ch;
+  font-size: 1.1875rem;
+}
+
+#costToWin .metric-list {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* "What changed since you last looked?" */
+.since-visit {
+  border-style: dashed;
+  background: transparent;
+}
+
+.since-visit .eyebrow {
+  margin-block-end: 4px;
+}
+
+.changes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  margin-block-start: 12px;
+}
+
+.changes-group h4 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.changes-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changes-list li {
+  padding-block: 6px;
+  border-block-end: 1px solid var(--line);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.changes-list li:last-child {
+  border-block-end: 0;
+}
+
+.changes-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.changes-link:hover,
+a.changes-link:focus-visible {
+  color: var(--brand-2);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.address-link-text {
+/* Next-offer brief */
+.decision-brief h2 {
+  font-size: 1.1875rem;
+}
+
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.decision-card,
+.decision-action {
+  display: grid;
+  align-content: start;
+  gap: 4px;
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.address-link svg {
-  flex: 0 0 14px;
-  inline-size: 14px;
-  block-size: 14px;
-  stroke-width: 2.5;
-}
-
-.external-link-label {
-  flex: 0 0 auto;
-  padding: 2px 5px;
-  border: 1px solid color-mix(in srgb, var(--brand-2) 28%, var(--line));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--brand-2) 8%, var(--surface));
-  color: var(--brand-2);
-  font-size: 0.64rem;
-  font-weight: 900;
-  letter-spacing: 0;
-  line-height: 1;
-}
-
-.mrow-address-link,
-.mini-record-link {
-  max-inline-size: 100%;
-}
-
-.comp-link {
-  max-inline-size: 220px;
-}
-
-.sub-link {
-  display: block;
-  margin-block-start: 4px;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.link-button {
-  min-block-size: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--brand-2);
-  font-weight: 800;
+  padding: 13px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
   text-align: start;
 }
 
-.mini-btn {
-  min-block-size: 28px;
-  padding: 0 8px;
-  font-size: 0.78rem;
-  font-weight: 800;
+.decision-card {
+  grid-column: 1 / -1;
 }
 
-.icon-btn {
-  inline-size: 34px;
-  min-block-size: 34px;
-  padding: 0;
-}
-
-.pagination {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.decision-card > span {
   color: var(--muted);
-  font-size: 0.86rem;
-  font-weight: 800;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
-.table-head {
-  justify-content: space-between;
+.decision-card strong {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.35;
 }
 
-.hot-pill,
-.conf-pill {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 24px;
-  padding: 3px 7px;
+.decision-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.decision-action {
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  cursor: pointer;
+}
+
+.decision-action svg {
+  grid-row: span 2;
+  inline-size: 18px;
+  block-size: 18px;
+  margin-block-start: 1px;
+  color: var(--brand);
+}
+
+.decision-action > strong {
+  font-weight: 650;
+}
+
+.decision-action > span {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.decision-action:hover {
+  border-color: var(--brand);
+}
+
+/* Buyer profile */
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  gap: 12px;
+}
+
+.insight-list {
+  margin-block-start: 12px;
+}
+
+.insight-list p {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+}
+
+.trend-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin-block-start: 10px;
+}
+
+.trend-mini {
+  min-inline-size: 0;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
+}
+
+.trend-mini .chart-title {
+  margin-block-end: 8px;
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 850;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
-.hot-pill.hot {
-  background: color-mix(in srgb, var(--warm) 16%, var(--surface));
-  color: var(--warm);
-}
-
-.hot-pill.ultra {
-  background: color-mix(in srgb, var(--hot) 14%, var(--surface));
-  color: var(--hot);
-}
-
-.conf-pill.high   { background: color-mix(in srgb, var(--brand) 14%, var(--surface)); color: var(--brand); }
-.conf-pill.medium { background: color-mix(in srgb, var(--brand) 8%, var(--surface));  color: color-mix(in srgb, var(--brand) 70%, var(--muted)); }
-.conf-pill.low    { background: var(--surface-2); color: var(--muted); }
-
-.mobile-card-list {
-  display: none;
-}
-
-.mrow {
+.profile-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 10px;
-  padding: 12px;
+  margin-block-start: 10px;
+}
+
+.micro-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.micro-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.micro-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.micro-card-head strong {
+  font-weight: 650;
+}
+
+.micro-card-head span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.micro-card .mini-metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+}
+
+.micro-card .mini-metric strong {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.micro-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.micro-list span {
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* --- Pulse --- */
+.pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-card {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-inline-size: 0;
+  padding: 13px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.mrow-head-static {
+.metric-card > span {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  min-inline-size: 0;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  line-height: 1.35;
+  text-transform: uppercase;
 }
 
-.mrow-head-static .address-link {
-  flex: 1 1 auto;
+.metric-card > strong {
+  font-size: 1.375rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
-.mrow-head-static > span {
-  flex: 0 0 auto;
-  font-weight: 850;
+.metric-card > small {
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
-.mrow-grid {
+.metric-card.hotter > small {
+  color: var(--hot);
+}
+
+.metric-card.cooler > small {
+  color: var(--cool);
+}
+
+.readout p {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+}
+
+.trends-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: 8px;
+}
+
+/* --- Bids --- */
+.bid-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.manual-bid-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-block-end: 14px;
+}
+
+/* The listing picker and the address are the long fields; give them room. */
+.manual-bid-form .field:nth-child(1),
+.manual-bid-form .field:nth-child(2) {
+  grid-column: span 2;
+}
+
+.manual-bid-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.mrow-grid div {
+.manual-bid-result {
+  margin-block-start: 14px;
+}
+
+.manual-bid-result:empty {
+  display: none;
+}
+
+.manual-bid-table-wrap {
+  margin-block-start: 14px;
+}
+
+.bid-card-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  margin-block-start: 12px;
+}
+
+.bid-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.12s ease;
+}
+
+.bid-card:hover {
+  border-color: var(--line-strong);
+}
+
+.bid-card.watched {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.bid-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.watch-star {
+  flex: 0 0 auto;
+  inline-size: 28px;
+  block-size: 28px;
+  margin: -3px 0 0 -5px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--line-strong);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.watch-star:hover {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.watch-star.active {
+  color: #e0a100;
+}
+
+.bid-card-address {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 2px;
+  min-inline-size: 0;
+}
+
+.bid-card-address-link {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.bid-card-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.bid-card-bid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.bid-suggested-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bid-suggested-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.bid-suggested-value {
+  font-size: 1.375rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* An unscored listing has no number to lead with, so it shows what it does
+   know and says once, quietly, why there is no suggestion. */
+.bid-card.unscored {
+  gap: 10px;
+}
+
+.bid-unscored-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--faint);
+  font-size: 0.75rem;
+}
+
+.bid-over-ask {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.bid-over-ask.up {
+  color: var(--hot);
+}
+
+.bid-over-ask.down {
+  color: var(--cool);
+}
+
+.bid-over-ask.flat {
+  color: var(--muted);
+}
+
+.bid-confidence-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.bid-card-grid-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  font-size: 0.8125rem;
+}
+
+.bid-card-grid-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 0;
+}
+
+.bid-card-grid-meta span {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bid-card-grid-meta strong {
+  font-weight: 600;
+}
+
+.bid-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: auto;
+}
+
+/* --- Afford --- */
+/* The rent-or-buy decision card carries a tone class from afford.mjs. Same
+   treatment as the verdict banners: a faint tint from the tone, nothing louder. */
+.state-panel.heat-hot {
+  --tone: var(--hot);
+}
+
+.state-panel.heat-warm {
+  --tone: var(--warm);
+}
+
+.state-panel.heat-cool {
+  --tone: var(--cool);
+}
+
+.state-panel[class*="heat-"] {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--tone) 9%, var(--surface)), var(--surface) 62%);
+}
+
+.state-panel[class*="heat-"] .panel-kicker {
+  color: var(--tone);
+}
+
+.afford-flags {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+}
+
+.afford-flag {
+  color: var(--warm);
+  font-size: 0.875rem;
+}
+
+.afford-grid {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.afford-grid th,
+.afford-grid td {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.afford-grid thead th,
+.afford-grid tbody th {
+  position: static;
+  text-align: start;
+  font-weight: 650;
+}
+
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* --- Geo --- */
+.geo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.geo-pressure-line {
+  max-inline-size: 72ch;
+  margin-block-start: 6px;
 }
 
 .geo-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 12px;
+}
+
+.map-frame {
+  position: relative;
+  min-inline-size: 0;
+  /* Leaflet's panes and controls carry z-index 200-1000. Without their own
+     stacking context they would paint over the sticky header (z-index 30) as
+     the map scrolls beneath it, hiding the tabs and eating their clicks. */
+  isolation: isolate;
 }
 
 .map-surface {
@@ -1580,10 +2721,125 @@ th {
   overflow: hidden;
 }
 
+/* Leaflet's stylesheet loads after this one and sets its own #ddd ground; the
+   doubled class outranks it so the map matches the theme while tiles load. */
+.map-surface.leaflet-container {
+  background: var(--surface-2);
+  font-family: var(--font-ui);
+}
+
+/* Shown only when the street-map tiles fail to load (see updateTileNotice). */
+.map-notice {
+  position: absolute;
+  inset-inline: 12px;
+  inset-block-end: 12px;
+  z-index: 500;
+  max-inline-size: 520px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--warm) 45%, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.map-notice[hidden] {
+  display: none;
+}
+
+/* Dark mode: the standard OSM tiles are bright, so invert and cool them rather
+   than pull in a second tile provider. Markers live in another pane and keep
+   their own colors. */
+body.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.86) saturate(0.55);
+}
+
+body.dark .leaflet-control-zoom a,
+body.dark .leaflet-control-attribution {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+body.dark .leaflet-control-attribution a {
+  color: var(--brand-2);
+}
+
 .geo-side {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+/* Two columns so six swatches read as a key, not a squeezed ribbon. */
+.geo-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.geo-legend span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 8px;
+  align-items: center;
+  min-inline-size: 0;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.geo-legend i {
+  grid-row: span 2;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--legend-color);
+}
+
+/* Active-listing swatch is a hollow ring, mirroring the map marker. */
+.geo-legend i.ring {
+  border: 2.5px solid var(--legend-color);
+  background: transparent;
+}
+
+.geo-legend strong {
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.geo-legend small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.geo-selected-status {
+  margin-block-end: 8px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.mini-record {
+  display: grid;
+  gap: 2px;
+  margin-block-end: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.mini-record span {
+  color: var(--muted);
+  font-size: 0.8125rem;
 }
 
 .geo-popup-row {
@@ -1591,306 +2847,377 @@ th {
   margin-block-start: 2px;
   color: var(--muted);
   font-size: 0.78rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
-.geo-legend {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+.geo-marker-tooltip,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--text);
 }
 
-.geo-legend span {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 7px;
-  min-block-size: 48px;
-  padding: 6px;
+.geo-marker-tooltip {
+  max-inline-size: 250px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.geo-marker-tooltip::before {
+  border-top-color: var(--line-strong);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+}
+
+.leaflet-popup-content {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.leaflet-container a.map-popup-link {
+  color: var(--brand-2);
+}
+
+.geo-marker-tooltip strong,
+.leaflet-popup-content strong {
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.bid-up-tooltip {
+  display: inline-block;
+  margin-block-start: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 800;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
-.geo-legend i {
-  grid-row: span 2;
-  align-self: center;
-  inline-size: 10px;
-  block-size: 28px;
-  border-radius: 999px;
-  background: var(--legend-color);
+.bid-up-tooltip.up {
+  background: color-mix(in srgb, var(--hot) 12%, var(--surface));
+  color: var(--hot);
 }
 
-/* Active-listing swatch is a hollow ring, mirroring the map marker. */
-.geo-legend i.ring {
-  background: transparent;
-  border: 2px solid var(--legend-color);
+.bid-up-tooltip.down {
+  background: color-mix(in srgb, var(--cool) 13%, var(--surface));
+  color: var(--cool);
 }
 
-.geo-legend strong {
-  color: var(--text);
-  line-height: 1.1;
-}
-
-.geo-legend small {
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.mini-record,
-.empty-state {
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.mini-record {
-  display: grid;
-  gap: 4px;
-  margin-block-end: 8px;
-}
-
-.geo-selected-status {
-  margin-block-end: 8px;
-  font-weight: 800;
-}
-
-.mini-record span,
-.empty-state {
-  color: var(--muted);
-}
-
-.map-popup-zillow {
-  display: inline-block;
+.map-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-block-start: 6px;
+}
+
+.map-popup-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
   color: var(--brand-2);
-  font-weight: 800;
+  font-size: 0.78rem;
+  font-weight: 600;
   text-decoration: none;
 }
 
-.map-popup-zillow:hover,
-.map-popup-zillow:focus-visible {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.map-popup-link:hover {
+  border-color: var(--line-strong);
 }
 
-.mono {
-  overflow: auto;
-  padding: 12px;
-  border: 1px solid var(--line);
+/* --- Records --- */
+#view-records .section-head {
+  align-items: flex-start;
+}
+
+#recordsStatus {
+  flex: 1 1 420px;
+  max-inline-size: 78ch;
+}
+
+/* --- Data --- */
+.stage-funnel {
+  display: grid;
+  gap: 4px;
+  margin-block-start: 12px;
+}
+
+.stage-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 9px 12px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
+}
+
+.stage-row strong {
+  font-size: 1rem;
+  font-weight: 650;
+  text-align: end;
+}
+
+.stage-row span {
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.stage-row .stage-row-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.data-recheck-note {
+  margin-block-start: 12px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Per-source freshness table */
+.source-table {
+  display: grid;
+  gap: 4px;
+  margin-block-start: 12px;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.1fr) 84px 124px minmax(0, 2.6fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.8125rem;
+}
+
+.source-row > strong {
+  font-weight: 650;
+}
+
+.source-row .source-date {
+  font-weight: 600;
+}
+
+.source-row .source-age {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
   white-space: nowrap;
 }
 
-.help-panel {
-  margin-block-start: 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+.source-row .source-note {
+  color: var(--muted);
+  line-height: 1.45;
 }
 
-.help-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 0 14px 14px;
+.source-row .source-note b {
+  color: var(--warm);
+  font-weight: 650;
 }
 
-.skeleton {
-  display: block;
-  inline-size: 70%;
-  block-size: 18px;
-  margin-block-end: 12px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--surface-2), var(--line), var(--surface-2));
-  background-size: 200% 100%;
-  animation: shimmer 1.4s linear infinite;
+/* A filename is one long token: set it small and mono so it breaks once, late. */
+#dataDatasetName {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
-.skeleton.wide {
-  inline-size: 92%;
-}
+/* ---------- 7. Responsive ----------------------------------------------- */
 
-.skeleton.short {
-  inline-size: 44%;
-}
+@media (max-width: 1240px) {
+  .insight-tile-grid,
+  .pulse-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
+  /* Icon-only header actions once the tabs need the room. */
+  .topbar-actions .btn span {
+    display: none;
+  }
+
+  .topbar-actions .btn {
+    inline-size: 34px;
+    padding: 0;
   }
 }
 
-@media (max-width: 1180px) {
-  .command-center,
+@media (max-width: 1080px) {
   .overview-grid,
   .geo-layout {
-    /* minmax(0, 1fr) — not plain 1fr — so the single column follows the
-       viewport instead of inheriting a min-content floor (Leaflet container /
-       nested-grid auto-min) that pushed the panel past the screen edge. */
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .command-center {
-    min-block-size: auto;
-  }
-
-  h1 {
-    max-inline-size: 14ch;
-    font-size: 4.6rem;
-  }
-
-  h2 {
-    font-size: 1.9rem;
-  }
-
-  .state-panel h2 {
-    font-size: 1.55rem;
-  }
-
-  .command-grid,
-  .decision-grid,
-  .filters-grid,
-  .profile-grid,
-  .pulse-grid,
-  .manual-bid-form,
-  .manual-bid-result,
-  .data-grid {
+  .decision-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .geo-side {
-    grid-template-columns: minmax(0, 1fr);
+  .manual-bid-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .freshness-pill .fresh-item.optional {
+    display: none;
+  }
+
+  /* Fade the trailing edge so a clipped tab reads as "scroll for more". */
+  .tabs {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+}
+
+/* Below this the header becomes two rows (brand + actions, then tabs) and the
+   lens bar stops sticking, so the sticky chrome stays near 100px on a phone. */
+@media (max-width: 860px) {
+  :root {
+    --topbar-h: 100px;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0 12px;
+    padding-block: 8px 0;
+  }
+
+  .brand {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  .brand small {
+    display: none;
+  }
+
+  .tabs {
+    flex: 1 0 100%;
+    order: 3;
+    margin-inline: calc(var(--gutter) * -1);
+    padding: 6px var(--gutter) 8px;
+  }
+
+  .lens-bar {
+    position: static;
+  }
+
+  /* Row one: Filters button, then the chips in a single scrolling line.
+     Row two: the freshness pill, full width. .lens-tools dissolves so its two
+     children can take those positions. */
+  .lens-inner {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .lens-tools {
+    display: contents;
+  }
+
+  #filtersToggle {
+    order: 0;
+  }
+
+  .lens-chips {
+    order: 1;
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .lens-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lens-chips .mini-label {
+    display: none;
+  }
+
+  .freshness-pill {
+    order: 2;
+    flex: 1 1 100%;
+    justify-content: center;
+    min-inline-size: 0;
+    overflow: hidden;
   }
 }
 
 @media (max-width: 760px) {
   main {
-    inline-size: min(100% - 20px, 680px);
-    padding-block-start: 12px;
-    /* Backstop: never let a stray wide descendant scroll the whole page
-       sideways. `clip` (not `hidden`) doesn't create a scroll container, so the
-       sticky tab bar keeps working. */
+    padding-block-start: 14px;
+    /* Backstop: a stray wide descendant must never scroll the page sideways.
+       clip (not hidden) creates no scroll container, so sticky keeps working. */
     overflow-x: clip;
   }
 
-  /* Root cause of most mobile horizontal-overflow: flex/grid items default to
-     min-width:auto (a min-content floor), so long content (segmented toggles,
-     metric grids, dense cards) pushes a view wider than the viewport. Release
-     the floor app-wide so items shrink to fit. Zero-specificity :where() means
-     this can never override an intentional min-width elsewhere. */
+  /* Flex and grid items default to min-width:auto (a min-content floor), which
+     is the root of most phone-width overflow. Release it app-wide; zero
+     specificity via :where() so it never beats an intentional min-width. */
   :where(.view *) {
     min-width: 0;
   }
 
-  .topbar {
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
+  h2 {
+    font-size: 1.3125rem;
   }
 
-  /* Let the brand shrink so the action buttons keep their single row instead of
-     wrapping the last one (Dark) onto a second line. */
-  .brand {
-    min-width: 0;
+  .section-block,
+  .panel,
+  .state-panel,
+  .chart-panel,
+  .manual-bid-wrap,
+  .readout {
+    padding: 14px;
   }
 
-  .brand strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .market-verdict {
+    padding: 16px;
   }
 
-  .topbar-actions {
-    flex-shrink: 0;
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-
-  .brand small,
-  .topbar-actions .btn span {
-    display: none;
+  .insight-tile-grid,
+  .pulse-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .command-grid,
-  .decision-grid,
-  .filters-grid,
-  .profile-grid,
-  .pulse-grid,
   .chart-grid,
   .trajectory-grid,
-  .metric-row,
-  .manual-bid-form,
-  .manual-bid-result,
-  .data-grid,
-  .help-grid,
+  .decision-grid,
+  .manual-bid-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .decision-card,
+  .manual-bid-form .field:nth-child(1),
+  .manual-bid-form .field:nth-child(2),
+  .neighborhoods-field,
+  .span-2 {
+    grid-column: auto;
+  }
+
   .multi-options {
     grid-template-columns: 1fr;
   }
 
-  .span-2,
-  .span-3,
-  .decision-card,
-  .neighborhoods-field {
-    grid-column: auto;
-  }
-
-  h1 {
-    max-inline-size: 9ch;
-    font-size: 3.2rem;
-  }
-
-  h2 {
-    font-size: 1.5rem;
-  }
-
-  .state-panel h2 {
-    font-size: 1.25rem;
-  }
-
-  .lead,
-  .state-panel p,
-  .panel p,
-  .section-block p {
-    max-inline-size: 31ch;
-    overflow-wrap: anywhere;
-  }
-
-  .active-filter-strip,
-  .section-head,
-  .table-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .dataset-pill {
-    text-align: start;
-  }
-
-  .tabs {
-    inset-block-start: 55px;
-    gap: 6px;
-    padding: 6px;
-    scroll-snap-type: x proximity;
-    /* Fade the trailing edge so the 7-tab scroller reads as scrollable rather
-       than abruptly cut off ("selector too broad"). */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
-  }
-
-  .tab {
-    padding: 0 11px;
-    scroll-snap-align: start;
-  }
-
-  .table-wrap {
+  .table-wrap:not(.manual-bid-table-wrap) {
     display: none;
   }
 
@@ -1900,626 +3227,109 @@ th {
   }
 
   .heat-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 2px;
   }
 
-  /* Geo: reflow the 5-up legend to fewer columns instead of cramming five
-     price-ratio labels across the narrow panel, and let the action toolbar wrap
-     so its buttons keep full size rather than shrinking. */
-  .geo-legend {
-    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
-  }
-
-  .geo-actions {
-    flex-wrap: wrap;
+  .heat-row em {
+    grid-column: 1 / -1;
   }
 
   .map-surface {
-    min-block-size: 460px;
+    min-block-size: 440px;
   }
 
-  /* Data: break long unbreakable tokens (dataset filenames) and let the mono
-     CSV-schema header wrap instead of running thousands of px wide — nowrap text
-     is the one overflow `min-width: 0` can't resolve. */
-  #view-data {
-    overflow-wrap: anywhere;
+  .stage-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 
-  #view-data .mono {
-    white-space: normal;
+  .stage-row strong {
+    text-align: start;
   }
-}
 
-/* ============================================================
-   Quick-hit insight tiles (command center)
-   ============================================================ */
-.insight-tile-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-}
-.insight-tile {
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  cursor: pointer;
-  min-block-size: 118px;
-}
-.insight-tile:hover { border-color: var(--line-strong); }
-.insight-tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.insight-tile.hotter { border-color: color-mix(in srgb, var(--hot) 40%, var(--line)); }
-.insight-tile.cooler { border-color: color-mix(in srgb, var(--cool) 38%, var(--line)); }
-.insight-tile .tile-figure {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-}
-.insight-tile .tile-figure strong { font-size: 1.35rem; line-height: 1.1; }
-.tile-delta {
-  font-size: 0.74rem;
-  font-weight: 800;
-  white-space: nowrap;
-  color: var(--muted);
-}
-.tile-delta.hotter { color: var(--hot); }
-.tile-delta.cooler { color: var(--cool); }
-.tile-signal {
-  font-size: 0.74rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--muted);
-}
-.tile-sub {
-  display: block;
-  margin-block-start: 2px;
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-  line-height: 1.25;
-}
+  .source-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+  }
 
-/* ---- Inline sparkline ---- */
-.sparkline { display: block; inline-size: 100%; block-size: auto; }
-.sparkline .spark-line {
-  stroke: var(--brand-2);
-  stroke-width: 1.6;
-  fill: none;
-  vector-effect: non-scaling-stroke;
-}
-.sparkline .spark-dot { fill: var(--brand-2); }
-.insight-tile.hotter .sparkline .spark-line { stroke: var(--hot); }
-.insight-tile.hotter .sparkline .spark-dot { fill: var(--hot); }
-.insight-tile.cooler .sparkline .spark-line { stroke: var(--cool); }
-.insight-tile.cooler .sparkline .spark-dot { fill: var(--cool); }
-.sparkline .spark-endpoint-label {
-  fill: var(--text);
-  font-size: 9px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  paint-order: stroke;
-  stroke: var(--surface);
-  stroke-width: 2.5px;
-  stroke-linejoin: round;
-}
-.sparkline .spark-endpoint-label.big { font-size: 11px; }
-.sparkline .spark-endpoint-label.muted { fill: var(--muted); font-size: 9px; stroke-width: 0; font-weight: 700; }
+  .source-row .source-note {
+    grid-column: 1 / -1;
+  }
 
-/* ---- Whole-slice trend grain toggle ---- */
-.trends-controls {
-  display: flex;
-  justify-content: flex-end;
-  margin-block-end: 8px;
-}
-
-/* ---- Overview market-trends small-multiples strip ---- */
-.trend-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
-.trend-mini {
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-.trend-mini .chart-title { margin-block-end: 6px; }
-
-/* ---- Freshness staleness cue ---- */
-.state-panel.stale {
-  border-color: color-mix(in srgb, var(--hot) 45%, var(--line));
-}
-.state-panel.stale .panel-kicker::after {
-  content: " · stale";
-  color: var(--hot);
-  font-weight: 800;
-}
-
-/* ---- Records density secondary text ---- */
-.cell-sub {
-  display: block;
-  margin-block-start: 2px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-/* ---- Projected-row marker pill ---- */
-.proj-pill {
-  display: inline-block;
-  margin-inline-start: 6px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px dashed var(--line-strong);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 0.66rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  vertical-align: middle;
-}
-
-/* ---- Low-sample chart point de-emphasis ---- */
-.chart-point.low-sample circle {
-  fill: var(--surface);
-  stroke: var(--line-strong);
-  stroke-width: 1.4;
-  opacity: 0.6;
-}
-.chart-bar.low-sample rect {
-  fill: var(--line-strong);
-  opacity: 0.5;
-}
-/* Trailing partial bucket (e.g. the still-filling current week) — de-weighted so
-   its swing isn't read as a real move; pairs with the chart's "partial" note. */
-.chart-point.partial circle {
-  fill: var(--surface);
-  stroke: var(--line-strong);
-  stroke-width: 1.2;
-  stroke-dasharray: 2 2;
-  opacity: 0.5;
-}
-.chart-bar.partial rect {
-  fill: var(--line-strong);
-  opacity: 0.4;
-}
-
-/* ---- Responsive: stack tiles / trends on narrow viewports ---- */
-@media (max-width: 1180px) {
-  .insight-tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 900px) {
-  .insight-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .trend-strip { grid-template-columns: 1fr; }
-}
-@media (max-width: 560px) {
-  .insight-tile-grid { grid-template-columns: 1fr; }
-}
-
-/* ---- Market-direction verdict banner ---- */
-.market-verdict { border-width: 1px; border-style: solid; }
-.market-verdict.hotter { border-color: color-mix(in srgb, var(--hot) 40%, var(--line)); }
-.market-verdict.hotter .hero-line { color: var(--hot); }
-.market-verdict.cooler { border-color: color-mix(in srgb, var(--cool) 38%, var(--line)); }
-.market-verdict.cooler .hero-line { color: var(--cool); }
-.market-verdict.flat { border-color: var(--line-strong); }
-.market-verdict.flat .hero-line { color: var(--muted); }
-.market-verdict { border-inline-start-width: 4px; padding-block: 20px; }
-.market-verdict .hero-line { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
-.market-verdict.hotter { border-inline-start-color: var(--hot); }
-.market-verdict.cooler { border-inline-start-color: var(--cool); }
-.market-verdict.flat { border-inline-start-color: var(--line-strong); }
-.command-stack { display: flex; flex-direction: column; gap: 14px; }
-
-/* ---- Secondary (3-mo vs prior-3-mo) tile delta: muted/smaller so 6 tiles stay clean ---- */
-.tile-delta.tile-delta-secondary { display: block; margin-block-start: 2px; font-size: 0.68rem; font-weight: 700; opacity: 0.85; }
-
-/* ---- Buyer-framed color legend ---- */
-.tone-legend { display: flex; align-items: center; gap: 4px; margin-block-start: 8px; }
-.tone-chip { font-size: 0.8rem; line-height: 1; }
-.tone-chip.cooler { color: var(--cool); }
-.tone-chip.hotter { color: var(--hot); }
-
-/* ============================================================
-   explain layer (src/ui/explain.mjs) — append-only additions.
-   Universe captions + "what is this?" popovers. Quiet by design:
-   small type, existing tokens, no new colors.
-   ============================================================ */
-
-.universe-caption {
-  display: block;
-  margin-block-start: 2px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: normal;
-  text-transform: none;
-}
-
-.explain-wrap {
-  position: relative;
-  display: inline-block;
-}
-
-.explain-trigger {
-  margin: 0;
-  padding: 0 2px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: normal;
-  text-transform: none;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-.explain-trigger:hover,
-.explain-trigger[aria-expanded="true"] {
-  color: var(--brand);
-}
-
-.explain-pop {
-  position: absolute;
-  z-index: 30;
-  inset-block-start: calc(100% + 6px);
-  inset-inline-start: 0;
-  inline-size: min(320px, 84vw);
-  padding: 12px 14px;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  color: var(--text);
-  font-size: 0.8rem;
-  font-weight: 400;
-  line-height: 1.5;
-  letter-spacing: normal;
-  text-align: start;
-  text-transform: none;
-  white-space: normal;
-  cursor: auto;
-}
-
-.explain-pop:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
-
-.explain-pop-right {
-  inset-inline-start: auto;
-  inset-inline-end: 0;
-}
-
-.explain-pop-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-block-end: 6px;
-}
-
-.explain-pop-title {
-  color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.explain-close {
-  margin: 0;
-  padding: 0 4px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.explain-close:hover {
-  color: var(--text);
-}
-
-.explain-def {
-  margin: 0 0 8px;
-  color: var(--text);
-}
-
-.explain-part {
-  margin-block-end: 8px;
-}
-
-.explain-part:last-child {
-  margin-block-end: 0;
-}
-
-.explain-part-label {
-  display: block;
-  margin-block-end: 2px;
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.explain-part p {
-  margin: 0 0 4px;
-  color: var(--muted);
-}
-
-.explain-part p:last-child {
-  margin-block-end: 0;
-}
-
-.explain-live {
-  margin: 0 0 8px;
-  padding: 6px 8px;
-  border-inline-start: 3px solid var(--brand);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
-  color: var(--text);
-  font-size: 0.76rem;
-}
-
-.explain-caveats {
-  margin: 0;
-  padding-inline-start: 16px;
-  color: var(--muted);
-}
-
-.explain-caveats li {
-  margin-block-end: 4px;
-}
-
-.explain-caveats li:last-child {
-  margin-block-end: 0;
-}
-
-@media (max-width: 560px) {
   .explain-pop {
     position: fixed;
     inset-inline: 12px;
     inset-block-start: auto;
     inset-block-end: 12px;
     inline-size: auto;
-    max-block-size: 60vh;
+    max-block-size: 62vh;
     overflow-y: auto;
   }
 }
 
-/* ============================================================
-   answer-first overview (src/views/overview.mjs) — append-only.
-   Cost-to-win segmented bar, changes feed, caption rows, and the
-   pipeline-failure freshness state. Tokens only; dark mode follows.
-   ============================================================ */
+/* Phones: one tile per row, laid out sideways (figures left, sparkline right)
+   so six tiles stay scannable instead of becoming six tall cards. */
+@media (max-width: 560px) {
+  .insight-tile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-/* Caption + explain-button pair under a headline stat. */
-.caption-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.caption-row .universe-caption {
-  display: inline;
-  margin-block-start: 0;
-}
+  .insight-tile {
+    grid-template-columns: minmax(0, 1fr) 118px;
+    grid-template-rows: none;
+    column-gap: 14px;
+    row-gap: 4px;
+  }
 
-/* Tile head: metric label left, "what is this?" right. */
-.tile-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-}
+  .insight-tile > * {
+    grid-column: 1 / -1;
+  }
 
-/* The tile label is a real button (the tile's keyboard-reachable action) but
-   should look exactly like the old .panel-kicker span. */
-.tile-open {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 800;
-  text-align: start;
-  cursor: pointer;
-}
-.tile-open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .insight-tile .tile-head {
+    grid-row: 1;
+    min-block-size: 0;
+  }
 
-/* Over / at / under ask segmented bar. */
-.cost-bar {
-  display: flex;
-  block-size: 16px;
-  margin-block-start: 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.cost-seg { display: block; min-inline-size: 2px; }
-.cost-seg.over,
-.cost-swatch.over { background: color-mix(in srgb, var(--hot) 75%, var(--surface)); }
-.cost-seg.at,
-.cost-swatch.at { background: color-mix(in srgb, var(--warm) 75%, var(--surface)); }
-.cost-seg.under,
-.cost-swatch.under { background: color-mix(in srgb, var(--cool) 75%, var(--surface)); }
-.cost-bar-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-block-start: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-.cost-swatch {
-  display: inline-block;
-  inline-size: 10px;
-  block-size: 10px;
-  margin-inline-end: 5px;
-  border-radius: 3px;
-  vertical-align: -1px;
+  .insight-tile .tile-figure {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .insight-tile .tile-delta-secondary {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .insight-tile .sparkline {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: center;
+    margin: 0;
+  }
+
+  .insight-tile .tile-sub {
+    grid-row: 4;
+  }
+
+  .insight-tile .universe-caption {
+    grid-row: 5;
+  }
+
+  .insight-tile .tile-signal {
+    grid-row: 6;
+  }
+
+  /* Four sources do not fit a phone line; keep the two that change weekly. */
+  .freshness-pill .fresh-item.optional,
+  .freshness-pill .fresh-item.optional-sm {
+    display: none;
+  }
 }
 
-/* "What changed since you last looked?" grouped delta feed. */
-.changes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 14px;
-  margin-block-start: 10px;
-}
-.changes-group h4 {
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-.changes-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.changes-list li {
-  padding-block: 5px;
-  border-block-end: 1px dashed var(--line);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-.changes-list li:last-child { border-block-end: 0; }
-.changes-link {
-  color: inherit;
-  font-weight: 700;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-}
-.changes-link:hover,
-.changes-link:focus-visible { color: var(--brand); }
+@media (max-width: 420px) {
 
-/* Freshness card only turns red when the refresh pipeline failed its
-   checks; a source resting on its normal cadence stays neutral. */
-.state-panel.alert {
-  border-color: color-mix(in srgb, var(--hot) 55%, var(--line));
-}
-.state-panel.alert .panel-kicker::after {
-  content: " · check failed";
-  color: var(--hot);
-  font-weight: 800;
-}
-
-/* ============================================================
-   records explain (src/views/records.mjs) — append-only.
-   Column-header explain triggers plus the row-lineage badge that
-   labels each comp as a county record or an MLS-enriched row.
-   ============================================================ */
-
-/* Header cell: sort button and its optional "what is this?" trigger
-   sit side by side without the button-in-a-button wrapper. */
-.th-cell {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-.th-cell .explain-trigger {
-  font-size: 0.66rem;
-}
-
-.lineage-pill {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 22px;
-  padding: 2px 7px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 850;
-  white-space: nowrap;
-}
-
-.lineage-pill.mls {
-  background: color-mix(in srgb, var(--brand-2) 12%, var(--surface));
-  color: var(--brand-2);
-}
-
-/* ============================================================
-   bids explain (src/views/bids.mjs) — append-only.
-   Small layout tweaks so the "what is this?" trigger sits next to
-   the confidence pill and the mobile suggested-bid figure without
-   breaking their existing flex alignment. Tokens only, no new
-   colors; trigger/popover styling itself lives in the explain-layer
-   block above.
-   ============================================================ */
-
-.bid-confidence-inline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.mrow-bid-figure {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* data explain */
-.stage-funnel {
-  display: grid;
-  gap: 8px;
-  margin-block-start: 10px;
-}
-
-.stage-row {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 12px;
-  align-items: baseline;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.stage-row strong {
-  font-variant-numeric: tabular-nums;
-  font-size: 1.02rem;
-}
-
-.stage-row span {
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.stage-row .stage-row-label {
-  color: var(--text);
-  font-weight: 800;
-}
-
-.data-recheck-note {
-  margin-block-start: 10px;
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
-@media (max-width: 760px) {
-  .stage-row {
-    grid-template-columns: 1fr;
+  .bid-card-grid-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

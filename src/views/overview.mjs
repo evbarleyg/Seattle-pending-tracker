@@ -19,6 +19,7 @@ import {
   formatRatio,
   formatWholeNumber,
   monthLabelCompact,
+  safeNumber,
 } from "../domain/format.mjs";
 import { domMetric } from "../domain/data.mjs";
 import { filtersToSummary, recordViewLabel } from "../domain/selectors.mjs";
@@ -27,6 +28,7 @@ import { metricDirection } from "../domain/pulseMetrics.mjs";
 import { getMetric, formatCadenceNote } from "../domain/glossary.mjs";
 import { computeCostToWin, buildCostToWinVerdict } from "../domain/costToWin.mjs";
 import { captureBaseline, diffSinceBaseline, isValidBaseline } from "../domain/changesSince.mjs";
+import { describeSalesLag } from "../domain/freshness.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
@@ -239,17 +241,55 @@ function liveCoverageNote(metric, state) {
 function tileSampleField(metricKey) {
   if (metricKey === "medianSaleToList" || metricKey === "overAskShare") return "ratioSampleSize";
   if (metricKey === "medianBidUp") return "bidUpSampleSize";
+  if (metricKey === "hotShare") return "heatSampleSize";
+  if (metricKey === "medianDom") return "domSampleSize";
   return undefined;
+}
+
+// A month-over-month read is only as good as the share of that month's sales it
+// rests on. Sale-versus-ask, days on market and fast-sale share are computed on
+// a subset (rows with a list price, or with a days-on-market signal). When that
+// subset is a small slice of the month it is not a random one: June and July
+// 2026 list-price rows were the short-escrow, late-listing survivors of the
+// snapshot backfill, which would have faked a trend. So a delta, and through it
+// the verdict, is only drawn when the subset covers at least this share of the
+// closed sales in BOTH months being compared. Metrics computed on every sale
+// (median close) have coverage 1 by definition and are unaffected.
+export const MIN_TREND_COVERAGE = 0.7;
+
+// Share of a month's closed sales that a subset metric rests on (0 to 1).
+// A metric with no sampleField is computed on every sale, so it is fully covered.
+export function monthCoverage(entry, sampleField) {
+  if (!sampleField || !entry) return 1;
+  const total = Number(entry.salesCount ?? entry.sampleSize ?? 0);
+  const subset = Number(entry[sampleField] ?? 0);
+  if (!(total > 0)) return 1;
+  return Math.min(1, subset / total);
+}
+
+// Months a trend comparison may use for one metric, oldest first: enough comps
+// in the metric's own subset and a finite value, with a thin trailing month (the
+// still-filling current one) dropped so two COMPLETE months are compared.
+// Coverage is judged separately, on the specific months compared, so a
+// low-coverage month can never be skipped over to reach an older one.
+export function trendMonths(series, metricKey, { sampleField, minComps } = {}) {
+  const size = (entry) => (sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount;
+  // safeNumber, not Number: Number(null) is 0, which would pass as a reading.
+  let months = (series || []).filter((entry) => (size(entry) ?? Infinity) >= minComps && safeNumber(entry[metricKey]) !== null);
+  if (months.length >= 2 && (size(months[months.length - 1]) ?? 0) < 0.5 * (size(months[months.length - 2]) ?? 0)) months = months.slice(0, -1);
+  return months;
 }
 
 function tileDelta(series, metricKey, sampleFieldOverride) {
   const { pulseMetricConfig, medianValue, minTileComps } = ctx;
   const sampleField = sampleFieldOverride || tileSampleField(metricKey);
-  const sampleOf = (e) => ((sampleField ? e[sampleField] : undefined) ?? e.sampleSize ?? e.salesCount ?? 0);
-  let gated = (series || []).filter((entry) => ((sampleField ? entry[sampleField] : undefined) ?? entry.sampleSize ?? entry.salesCount ?? Infinity) >= minTileComps && Number.isFinite(Number(entry[metricKey])));
-  // Drop a thin/partial trailing month (the stale current month) so month-over-month compares two COMPLETE months.
-  if (gated.length >= 2 && sampleOf(gated[gated.length - 1]) < 0.5 * sampleOf(gated[gated.length - 2])) gated = gated.slice(0, -1);
-  if (gated.length < 2) return { tone: "flat", arrow: "", deltaLabel: "insufficient history", signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
+  const gated = trendMonths(series, metricKey, { sampleField, minComps: minTileComps });
+  const noRead = (deltaLabel) => ({ tone: "flat", arrow: "", deltaLabel, signal: "", secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" });
+  if (gated.length < 2) return noRead("insufficient history");
+  const covered = (entry) => monthCoverage(entry, sampleField) >= MIN_TREND_COVERAGE;
+  // Both compared months must be covered. A flat tone keeps an uncovered metric
+  // out of the verdict's eased/tightened count, the same as any other no-read.
+  if (!covered(gated[gated.length - 1]) || !covered(gated[gated.length - 2])) return noRead("too few sales with this data");
   const cfg = pulseMetricConfig(metricKey);
   const toneFor = (dir) => (dir > 0 ? "hotter" : dir < 0 ? "cooler" : "flat");
   // Raw movement of the metric itself (no buyer-impact sign flip).
@@ -269,7 +309,7 @@ function tileDelta(series, metricKey, sampleFieldOverride) {
   const momDelta = rawDelta(gated[gated.length - 1][metricKey], gated[gated.length - 2][metricKey]);
   // SECONDARY: 3-month vs prior-3-month median for trend context.
   let secondary = { secondaryArrow: "", secondaryTone: "flat", secondaryLabel: "" };
-  if (gated.length >= 6) {
+  if (gated.length >= 6 && gated.slice(-6).every(covered)) {
     const windowMedian = (entries) => medianValue(entries.map((e) => Number(e[metricKey])));
     const tDir = metricDirection(metricKey, windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
     const tDelta = rawDelta(windowMedian(gated.slice(-3)), windowMedian(gated.slice(-6, -3)));
@@ -364,23 +404,23 @@ function freshnessCardHtml() {
   const latestSale = state.derived?.latestSaleDate || "";
   let statusLine;
   if (pipelineFailed) statusLine = "The last data refresh did not pass its checks, so treat these numbers with caution.";
-  else if (validationStatus === "pass") statusLine = "The last data refresh passed its checks.";
+  else if (validationStatus === "pass") statusLine = "The last refresh passed its checks.";
   else statusLine = "No refresh report loaded yet.";
-  const cadenceLine = formatCadenceNote("freshness", {
-    latestSaleDate: latestSale,
-    generatedAt: report?.generatedAt || report?.timestamp || "",
-  });
+  // The headline is the newest sale inside the buyer's filters, so the sentence
+  // about whether that is normal describes that same date, not the dataset's.
+  // The long cadence explanation lives behind the explain button and on Data.
+  const lagLine = latestSale ? describeSalesLag(latestSale).sentence : "";
   return `
     <article class="state-panel${pipelineFailed ? " alert" : ""}">
       <div class="panel-kicker">Freshness ${renderExplainButton("freshness")}</div>
       <h2>${esc(latestSale ? `Newest sale ${formatDateShort(latestSale)}` : "No closed sales in this slice yet")}</h2>
-      <p>${esc(statusLine)} ${esc(cadenceLine)}</p>
-      ${renderUniverseCaption({ count: state.dataSource.rowCount, universeLabel: "rows loaded before filters" })}
+      <p>${esc([statusLine, lagLine].filter(Boolean).join(" "))}</p>
+      <button type="button" class="link-button" data-switch-view="data">See every source on the Data tab</button>
     </article>`;
 }
 
 function commandCenterCardsHtml(costToWin) {
-  const { state, buttonIcon } = ctx;
+  const { state } = ctx;
   if (!state.derived) {
     return `
       <article class="state-panel loading-panel">
@@ -456,7 +496,7 @@ function commandCenterCardsHtml(costToWin) {
       series: sliceSeries,
       explainId: "fastSaleShare",
       sub: "Share of homes gone in 10 days or less, a competition gauge.",
-      caption: closedCaption,
+      caption: eligibleOfClosed(stats.heatSampleSize ?? domCount, "sales with days-on-market data"),
     }),
     insightTileHtml({
       label: "Active + pending (MLS only)",
@@ -488,12 +528,6 @@ function commandCenterCardsHtml(costToWin) {
         ${renderUniverseCaption({ universeLabel: "active MLS listings passing your filters" })}
       </article>
     </div>
-    <div class="quick-actions">
-      ${buttonIcon("Open Pulse", "activity", "data-switch-view=\"pulse\"")}
-      ${buttonIcon("Open Bids", "target", "data-switch-view=\"bids\"")}
-      ${buttonIcon("Open Geo", "map", "data-switch-view=\"geo\"")}
-      ${buttonIcon("Open Records", "rows-3", "data-switch-view=\"records\"")}
-    </div>
   `;
 }
 
@@ -503,7 +537,7 @@ function commandCenterSectionHtml(costToWin) {
   return `
     <section class="command-center compact" id="commandCenter" aria-label="Buyer command center">
       <div class="hero-strip">
-        <p class="eyebrow">Buyer command center</p>
+        <p class="eyebrow">The numbers behind that read</p>
         <h2 class="hero-line">${esc(filtersToSummary(state.filters).join(" + "))} · ${formatWholeNumber(closedCount)} comps in slice</h2>
         ${captionRow(renderUniverseCaption({ count: closedCount, universeLabel: "closed comps in your slice", windowLabel: windowLabel(state.filters) }), "closedSlice")}
       </div>
@@ -554,9 +588,9 @@ function costToWinSectionHtml(ctw) {
         ${underPct > 0 ? `<span class="cost-seg under" style="width:${underPct.toFixed(2)}%"></span>` : ""}
       </div>
       <div class="cost-bar-legend">
-        <span><i class="cost-swatch over"></i>Over ask ${esc(formatPct(ctw.overShare))} (${formatWholeNumber(ctw.overCount)})</span>
-        <span><i class="cost-swatch at"></i>At ask ${esc(formatPct(ctw.atShare))} (${formatWholeNumber(ctw.atCount)})</span>
-        <span><i class="cost-swatch under"></i>Under ask ${esc(formatPct(ctw.underShare))} (${formatWholeNumber(ctw.underCount)})</span>
+        <span><i class="cost-swatch over"></i>Over ask <b>${esc(formatPct(ctw.overShare))}</b> (${formatWholeNumber(ctw.overCount)})</span>
+        <span><i class="cost-swatch at"></i>At ask <b>${esc(formatPct(ctw.atShare))}</b> (${formatWholeNumber(ctw.atCount)})</span>
+        <span><i class="cost-swatch under"></i>Under ask <b>${esc(formatPct(ctw.underShare))}</b> (${formatWholeNumber(ctw.underCount)})</span>
       </div>
       ${statItems.length ? `<div class="metric-list">${statItems.join("")}</div>` : ""}
     `;
@@ -651,7 +685,7 @@ function changesSectionHtml(diff) {
 
 export function renderOverviewView(deps) {
   ctx = deps;
-  const { state, qs, icon, miniMetric, sparklineSvg, chartMetricLabel, medianValue, minTileComps } = ctx;
+  const { state, qs, icon, miniMetric, sparklineSvg, chartMetricLabel, minTileComps } = ctx;
   const wrap = qs("#view-overview");
   if (!wrap || !state.derived) return;
   const { slices } = state.derived;
@@ -671,18 +705,18 @@ export function renderOverviewView(deps) {
   const changeUniverse = [...(slices.closedSlice || []), ...(slices.openRows || [])];
   const changes = getSliceChanges(state, changeUniverse);
   const stats = slices.stats;
-  const pulse90 = state.derived.pulse.recentComparisons.find((entry) => entry.windowDays === 90);
-  const fastSaleText = pulse90?.current?.hotShare !== null && pulse90?.current?.hotShare !== undefined
-    ? formatPct(pulse90.current.hotShare)
-    : "n/a";
-  // Median bid-up only means something on rows with a real list price; the
-  // normalizer writes delta=0 for every county row without one, so an
-  // unfiltered median (stats.medianBidUp) drags toward a fake $0. This mirrors
-  // the hasMarketListPrice filter buildSliceMonthlySeries uses for the trends
-  // strip, so the stance line and the charts agree.
-  const bidUpRows = (slices.closedSlice || []).filter((row) => row.hasMarketListPrice && Number.isFinite(row.delta));
-  const stanceBidUp = bidUpRows.length ? medianValue(bidUpRows.map((row) => row.delta)) : null;
-  const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${formatMoneyOrNa(stanceBidUp)} median bid-up · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median days on market`;
+  // Every figure in the stance line reads one universe: the rows passing the
+  // global filters, before chart or map cross-filters (slices.closedRows, which
+  // slices.stats is computed on, and what the tiles above show). It used to mix
+  // a 90-day watchlist fast-sale share with 12-month slice medians.
+  const fastSaleText = stats.hotShare === null || stats.hotShare === undefined ? "n/a" : formatPct(stats.hotShare);
+  const filteredCostToWin = computeCostToWin(slices.closedRows || []);
+  // The share sold over ask, not the median bid-up: in a market split around
+  // list price the median lands in the at-ask band and prints "$0", which reads
+  // as broken next to a $100K typical premium (the same median-collapse the
+  // cost-to-win block exists to avoid).
+  const overAskText = filteredCostToWin.overShare === null ? "n/a" : formatPct(filteredCostToWin.overShare);
+  const stance = `${fastSaleText} fast-sale share · ${formatMoneyOrNa(stats.medianClose)} median close · ${overAskText} sold over ask · ${stats.medianDom === null ? "n/a" : `${Math.round(stats.medianDom)}d`} median days on market`;
   wrap.innerHTML = `
     <div class="view-band">
       ${goodTimeBannerHtml()}
@@ -700,15 +734,10 @@ export function renderOverviewView(deps) {
           </div>
         </div>
         <div class="decision-grid">
-          <article class="decision-card">
-            <span>Current lens</span>
-            <strong>${esc(filtersToSummary(state.filters).join(" + "))}</strong>
-            <p>${formatWholeNumber(slices.closedSlice.length)} closed comps are shaping the read.</p>
-          </article>
-          <article class="decision-card">
-            <span>Market stance</span>
+          <article class="decision-card span-stance">
+            <span>Market stance across the ${formatWholeNumber(stats.sampleSize)} closed sales in your filters</span>
             <strong>${esc(stance)}</strong>
-            <p>Fast-sale share shows how quickly homes get snapped up; median close and bid-up show what winners actually paid.</p>
+            <p>Fast-sale share and days on market show how quickly homes get snapped up; median close and the over-ask share show what winners actually paid.</p>
           </article>
           <button class="decision-action" type="button" data-switch-view="pulse">
             ${icon("activity")}
@@ -757,12 +786,12 @@ export function renderOverviewView(deps) {
         </article>
 
         <article class="panel">
-          <div class="panel-kicker">Slice status</div>
-          <div class="metric-list">
-            ${miniMetric("Closed rows", formatWholeNumber(slices.closedSlice.length))}
-            ${miniMetric("Projected rows", formatWholeNumber(slices.projectedRows.length))}
-            ${miniMetric("Open/pending rows", formatWholeNumber(slices.openRows.length))}
-            ${miniMetric("Record view", recordViewLabel(slices.filterState.recordView))}
+          <div class="panel-kicker">What is in this slice</div>
+          <div class="metric-list slice-counts">
+            ${miniMetric("Closed sales", formatWholeNumber(slices.closedSlice.length))}
+            ${miniMetric("Open or pending", formatWholeNumber(slices.openRows.length))}
+            ${miniMetric("Projected", formatWholeNumber(slices.projectedRows.length))}
+            ${miniMetric("Records view", recordViewLabel(slices.filterState.recordView))}
           </div>
         </article>
       </div>
