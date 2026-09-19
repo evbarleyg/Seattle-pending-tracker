@@ -2,9 +2,10 @@
 # Daily refresh run by launchd (com.evbarleyg.seattle-actives, 06:00 local).
 # Logs to tmp/refresh_actives_daily.log alongside the project root.
 #
-# Pipeline: fetch Redfin actives -> merge into enriched -> sync /public ->
-# detect active->pending/sold transitions -> build gate -> commit + push the
-# refreshed data to the deploy branch. The push is best-effort: it rebases on
+# Pipeline: fetch Redfin actives -> merge into enriched -> upsert the actives
+# ledger -> sold leg (best effort: fetch 30d -> accumulate -> merge) -> list@pending
+# from the ledger -> sync /public -> detect active->pending/sold transitions ->
+# build gate -> commit + push the refreshed data to the deploy branch. The push is best-effort: it rebases on
 # the remote first and skips cleanly on conflict or offline, leaving the commit
 # local for the next run. A failed build never deploys.
 
@@ -28,6 +29,16 @@ mkdir -p "$LOG_DIR"
   "$NPM" run fetch:actives
   echo "merge:actives"
   "$NPM" run merge:actives
+  echo "ledger:upsert (actives ledger: first/last seen, first/last ask per MLS#)"
+  "$NPM" run ledger:upsert
+  echo "sold leg (best effort): fetch 30d -> accumulate -> merge"
+  if "$NPM" run refresh:sold-daily; then
+    echo "sold leg ok"
+  else
+    echo "sold leg FAILED (Redfin/network?); continuing with the existing REDFIN_SOLD rows"
+  fi
+  echo "backfill:snapshots (list@pending for REDFIN_SOLD rows from the ledger)"
+  "$NPM" run backfill:snapshots
   echo "sync:public"
   "$NPM" run sync:public
   echo "detect:transitions"
@@ -48,7 +59,8 @@ mkdir -p "$LOG_DIR"
       public/*.csv public/*.json \
       public_sales_proxy_all_prices_last12mo.csv \
       public_sales_proxy_mls_enriched_last12mo.csv \
-      data_refresh_report.json 2>/dev/null || true
+      data_refresh_report.json \
+      redfin_active_ledger.csv redfin_sold_cumulative.csv 2>/dev/null || true
     if git diff --cached --quiet; then
       echo "no data changes to commit"
     else
