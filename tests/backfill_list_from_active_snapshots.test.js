@@ -5,6 +5,7 @@ const assert = require("node:assert");
 
 const {
   collectActiveSnapshots,
+  loadLedgerMap,
   applySnapshotToRow,
   backfillFromSnapshots,
   rejectReason,
@@ -12,6 +13,24 @@ const {
   LIST_PRICE_SOURCE_COLUMN,
   MAX_RATIO_DEVIATION,
 } = require("../scripts/backfill_list_from_active_snapshots.js");
+
+test("loadLedgerMap uses the last GENUINELY active day and ask, and firstAsk as the original list", () => {
+  const text = [
+    "mlsNumber,redfinPropertyId,redfinListingId,url,address,zip,propertyType,firstSeen,lastSeen,lastSeenActive,firstAsk,lastAsk,lastActiveAsk,listDate,lastDom,lastCdom,lastStatus",
+    "2400001,288413,223584238,https://r/x,10037 15th Ave NW,98177,Single Family,2026-07-17,2026-08-06,2026-08-01,1150000,1100000,1100000,2026-07-17,20,20,Active Under Contract",
+    "2400002,,,,1 No Ask St,98103,Single Family,2026-07-17,2026-07-20,2026-07-20,,,,2026-07-17,3,3,Active",
+    ",,,,No MLS St,98103,Single Family,2026-07-17,2026-07-20,2026-07-20,900000,900000,900000,,,,Active",
+  ].join("\n");
+  const map = loadLedgerMap(text);
+  assert.strictEqual(map.size, 1, "rows without an MLS# or an ask are skipped");
+  const rec = map.get("2400001");
+  assert.strictEqual(rec.date, "2026-08-01", "pending = last genuinely active day, not the under-contract tail");
+  assert.strictEqual(rec.list, 1100000);
+  assert.strictEqual(rec.originalList, 1150000);
+  assert.strictEqual(rec.listDate, "2026-07-17");
+  assert.strictEqual(rec.dom, "20");
+  assert.strictEqual(rec.zip, "98177");
+});
 
 const SNAP_HEADERS = "mlsJoinMethod,mlsListingNumber,mlsListingPrice,listPriceAtPending,mlsOriginalPrice,mlsListDate,listDate,mlsDOM,mlsCDOM,zip";
 

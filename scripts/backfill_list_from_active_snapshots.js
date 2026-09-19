@@ -35,6 +35,10 @@ const { execFileSync } = require("child_process");
 const PROJECT_DIR = path.resolve(__dirname, "..");
 const DEFAULT_ENRICHED = path.join(PROJECT_DIR, "public_sales_proxy_mls_enriched_last12mo.csv");
 const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_snapshot_backfill_report.json");
+// Preferred source: the tracked actives ledger (build_active_ledger.js). Git
+// mining stays as the fallback / bootstrap path (needs full history, so it does
+// not work in CI or a shallow clone).
+const DEFAULT_LEDGER = path.join(PROJECT_DIR, "redfin_active_ledger.csv");
 const DEFAULT_REF = "main";
 const DEFAULT_SNAPSHOT_SINCE = "2026-06-01";
 const REDFIN_SOLD = "REDFIN_SOLD";
@@ -135,6 +139,31 @@ function collectActiveSnapshots(snapshots) {
     }
   }
   return lastSeen;
+}
+
+// Same map shape as collectActiveSnapshots, but from the tracked ledger CSV
+// (build_active_ledger.js): the last GENUINELY active day and the ask on that
+// day, so an "Active Under Contract" tail does not push the pending date late.
+function loadLedgerMap(text) {
+  const { rows } = readCsvText(text);
+  const map = new Map();
+  for (const r of rows) {
+    const mls = String(r.mlsNumber || "").trim();
+    if (!mls) continue;
+    const date = String(r.lastSeenActive || r.lastSeen || "").trim();
+    const list = num(r.lastActiveAsk) || num(r.lastAsk);
+    if (!date || !(list > 0)) continue;
+    map.set(mls, {
+      date,
+      list,
+      originalList: num(r.firstAsk) || list,
+      listDate: String(r.listDate || "").trim(),
+      dom: String(r.lastDom ?? "").trim(),
+      cdom: String(r.lastCdom ?? "").trim(),
+      zip: String(r.zip || "").trim(),
+    });
+  }
+  return map;
 }
 
 // Why a snapshot was NOT applied to a row (null = apply it).
@@ -241,12 +270,14 @@ function readSnapshotsFromGit(ref, relFile, sinceDate) {
 }
 
 function parseArgs(argv) {
-  const opts = { enriched: DEFAULT_ENRICHED, report: DEFAULT_REPORT, ref: DEFAULT_REF, since: DEFAULT_SNAPSHOT_SINCE, dryRun: false };
+  const opts = { enriched: DEFAULT_ENRICHED, report: DEFAULT_REPORT, ledger: DEFAULT_LEDGER, fromGit: false, ref: DEFAULT_REF, since: DEFAULT_SNAPSHOT_SINCE, dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     const next = argv[i + 1];
     if (a === "--enriched") { opts.enriched = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
+    else if (a === "--ledger") { opts.ledger = next; i += 1; }
+    else if (a === "--from-git") { opts.fromGit = true; }
     else if (a === "--ref") { opts.ref = next; i += 1; }
     else if (a === "--since") { opts.since = next; i += 1; }
     else if (a === "--dry-run") { opts.dryRun = true; }
@@ -264,6 +295,8 @@ function printHelp() {
     "",
     "Options:",
     `  --enriched FILE   Enriched CSV to update in place (default: ${path.relative(PROJECT_DIR, DEFAULT_ENRICHED)})`,
+    `  --ledger FILE     Actives ledger to read (default: ${path.relative(PROJECT_DIR, DEFAULT_LEDGER)}; built by npm run ledger:upsert)`,
+    "  --from-git        Ignore the ledger and mine the daily snapshots from git history instead",
     `  --ref REF         Git ref whose history holds the daily snapshots (default: ${DEFAULT_REF})`,
     `  --since DATE      Ignore snapshots committed before this date (default: ${DEFAULT_SNAPSHOT_SINCE})`,
     `  --report FILE     Report JSON (default: ${path.relative(PROJECT_DIR, DEFAULT_REPORT)})`,
@@ -276,21 +309,29 @@ function main() {
   if (opts.help) { printHelp(); return; }
   const enrichedPath = path.resolve(opts.enriched);
   const relFile = path.relative(PROJECT_DIR, enrichedPath);
-  const snapshots = readSnapshotsFromGit(opts.ref, relFile, opts.since);
-  if (!snapshots.length) {
-    console.error(`No snapshots of ${relFile} found on ${opts.ref} since ${opts.since}.`);
-    process.exit(1);
+  const ledgerPath = path.resolve(opts.ledger);
+  let lastSeen;
+  let source;
+  if (!opts.fromGit && fs.existsSync(ledgerPath)) {
+    lastSeen = loadLedgerMap(fs.readFileSync(ledgerPath, "utf8"));
+    source = { kind: "ledger", file: path.relative(PROJECT_DIR, ledgerPath) };
+    console.log(`Ledger: ${source.file}; active MLS# with an ask: ${lastSeen.size}`);
+  } else {
+    const snapshots = readSnapshotsFromGit(opts.ref, relFile, opts.since);
+    if (!snapshots.length) {
+      console.error(`No ledger at ${path.relative(PROJECT_DIR, ledgerPath)} and no snapshots of ${relFile} on ${opts.ref} since ${opts.since}.`);
+      process.exit(1);
+    }
+    lastSeen = collectActiveSnapshots(snapshots);
+    source = { kind: "git", ref: opts.ref, snapshotCount: snapshots.length, snapshotRange: { min: snapshots[0].date, max: snapshots[snapshots.length - 1].date } };
+    console.log(`Snapshots: ${snapshots.length} (${snapshots[0].date} -> ${snapshots[snapshots.length - 1].date}); active MLS# seen: ${lastSeen.size}`);
   }
-  const lastSeen = collectActiveSnapshots(snapshots);
-  console.log(`Snapshots: ${snapshots.length} (${snapshots[0].date} -> ${snapshots[snapshots.length - 1].date}); active MLS# seen: ${lastSeen.size}`);
   const { headers, rows } = readCsvText(fs.readFileSync(enrichedPath, "utf8"));
   if (!headers.includes(LIST_PRICE_SOURCE_COLUMN)) headers.push(LIST_PRICE_SOURCE_COLUMN); // additive column
   const report = backfillFromSnapshots(rows, lastSeen);
   const summary = {
     generatedAt: new Date().toISOString(),
-    ref: opts.ref,
-    snapshotCount: snapshots.length,
-    snapshotRange: { min: snapshots[0].date, max: snapshots[snapshots.length - 1].date },
+    source,
     activeListingsSeen: lastSeen.size,
     listPriceSource: LIST_PRICE_SOURCE,
     maxRatioDeviation: MAX_RATIO_DEVIATION,
@@ -307,7 +348,8 @@ function main() {
 }
 
 module.exports = {
-  collectActiveSnapshots, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween,
+  collectActiveSnapshots, loadLedgerMap, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween,
+  listSnapshotCommits, readSnapshotsFromGit,
   LIST_PRICE_SOURCE, LIST_PRICE_SOURCE_COLUMN, MAX_RATIO_DEVIATION,
 };
 
