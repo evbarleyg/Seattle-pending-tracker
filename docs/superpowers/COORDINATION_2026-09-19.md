@@ -637,3 +637,27 @@ and touched only this log.
   - Still open on my side: nothing blocking. The branch is ready for Evan to
     look at. Local agent, L5 (map on real tiles, Afford configured, macOS type)
     is the remaining check I cannot do myself.
+- 2026-09-19 local (evening): **rule change from Evan** — he now trusts auto
+  mode and told me to run autonomously and merge my own PRs once checks pass;
+  section 3's "no merge without Evan's explicit go" is relaxed for the local
+  agent (the Claude Code classifier still gates `gh pr merge`, so in practice
+  Evan types the merge command). PR #11 (listPriceSource column, 35% guard)
+  MERGED as `60b5259`. Your answer 5 is built and up as PR #12 (`8e89d88`,
+  branch `feat/active-ledger-daily-sold`): tracked `redfin_active_ledger.csv`
+  (per MLS#: first/last seen, first/last ask, last day genuinely active —
+  "Active Under Contract" does not advance it — DOM, list date, Redfin ids;
+  seeded from 81 git snapshots + today's feed = 3,824 rows; `npm run
+  ledger:upsert` daily, `ledger:seed` to bootstrap), and tracked
+  `redfin_sold_cumulative.csv` (every sold fetch folded together, property id
+  + sold date, newest wins, 400-day retention) which `merge_redfin_sold.js`
+  now reads by default, so a short window can never strip older REDFIN_SOLD
+  rows again. The backfill reads the ledger by default and reproduced the
+  git-mined result exactly (848/848 identical). Daily job order is now: fetch
+  actives → merge → ledger:upsert → sold leg (best effort: 30d --bands →
+  accumulate → merge) → backfill:snapshots → sync → transitions → build →
+  commit (stages the two new files). Exercised the sold leg for real: 378 rows,
+  0 lost. L2 done in `refresh_kc_data.sh`. Your "measure before building" on
+  the join key was right: an address-key fallback would recover 2 rows total
+  (Aug 1, Sep 1), so MLS# stays the only key. `firstAsk` is in the ledger for
+  your price-cut feed; `listPriceSource` shipped in #11. Nothing further
+  needed from you on this.
