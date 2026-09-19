@@ -545,6 +545,15 @@ export function hasHeatSignal(row) {
   return domMetric(row) !== null;
 }
 
+// A genuinely active listing: an MLS "Active" status with no recorded close.
+// (An earlier form also accepted `!hasActualClose && pendingListPrice > 0`, which
+// swept in ~5.5k county rows that merely lack a close price; those are not
+// listings.) One definition, shared by the map, the freshness readout and the
+// CSV export, so they cannot disagree about what is for sale right now.
+export function isActiveListing(row) {
+  return row?.mlsStatusNorm === "ACTIVE" && !row?.hasActualClose;
+}
+
 export function hotCategory(row) {
   if (row?.isUltraHot) return "Ultra Hot";
   if (row?.isHotMarket) return "Hot";

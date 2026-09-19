@@ -170,6 +170,13 @@ export function formatDateShort(value) {
   return `${parsed.getMonth() + 1}/${parsed.getDate()}/${String(parsed.getFullYear()).slice(-2)}`;
 }
 
+// "Sep 19": for places where the year is obvious and space is tight.
+export function formatDateNoYear(value) {
+  const parsed = toDate(value);
+  if (!parsed) return "n/a";
+  return `${parsed.toLocaleString("en-US", { month: "short" })} ${parsed.getDate()}`;
+}
+
 export function formatDateTime(value) {
   const parsed = toDate(value);
   if (!parsed) return "n/a";

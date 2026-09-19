@@ -27,6 +27,7 @@ import {
   formatDateTime,
   formatWholeNumber,
 } from "../domain/format.mjs";
+import { formatAge } from "../domain/freshness.mjs";
 import { getMetric, formatCadenceNote } from "../domain/glossary.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
@@ -66,16 +67,35 @@ export function renderDataView(deps) {
             : `<p>No pipeline run has been recorded yet, so there is nothing to break down here.</p>`
         }
       </section>
-      <section class="section-block">
+      <section class="section-block" id="dataSourceFreshness">
         <h3>Where each source stands ${renderExplainButton("dataSourceCadence")}</h3>
         <p>${esc(getMetric("dataSourceCadence").formulaWords)}</p>
+        ${sourceTableHtml(state)}
       </section>
       <section class="section-block">
-        <h3>Public assets</h3>
+        <h3>Columns in the dataset</h3>
         <div class="mono">dataMode,addressSource,major,minor,parcelNbr,lat,lon,neighborhood,typeCode,zip,listDate,pendingDate,saleDate,originalListPrice,pendingListPrice,listPriceAtPending,closePrice,beds,baths,sqft,yearBuilt,mlsStatus,mlsListingPrice,mlsOriginalPrice,mlsDOM,mlsCDOM,mlsStyleCode,mlsParkingType,mlsParkingCoveredTotal,mlsTaxesAnnual,mlsBuildingCondition,mlsView,mlsBankOwned,mlsThirdPartyApprovalRequired,mlsNewConstructionState,mlsSquareFootageSource,hotMarketTag,saleToListRatio,saleToOriginalListRatio,bidUpAmount,bidUpPct,bidStrategy,bidSuggested,bidLow,bidHigh,bidRatio,bidConfidence,bidConfidenceLabel,bidCompCount,bidCompTier,bidStatus,isLikelyPresoldNewBuild,presoldRuleReason</div>
       </section>
     </div>
   `;
+}
+
+// ---------------------------------------------------------------------------
+// Per-source freshness: the newest date each kind of row actually carries (see
+// src/domain/freshness.mjs). One file-level "last refreshed" time hides that
+// the sources run on very different clocks, so each gets its own line.
+
+function sourceTableHtml(state) {
+  const freshness = state.dataSource.freshness;
+  if (!freshness) return "";
+  const rows = freshness.items.map((item) => `
+      <div class="source-row" role="listitem">
+        <strong>${esc(item.label)}</strong>
+        <span class="source-date">${esc(item.date ? formatDateShort(item.date) : "no rows")}</span>
+        <span class="source-age"><span class="fresh-dot ${esc(item.tone)}"></span>${esc(formatAge(item.ageDays))}</span>
+        <span class="source-note">${item.tone === "behind" ? `<b>Behind.</b> ` : ""}${esc(item.note)}</span>
+      </div>`).join("");
+  return `<div class="source-table" role="list" aria-label="Newest data by source">${rows}</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,9 +146,22 @@ function readReport(state) {
   };
 }
 
+// This tab describes the dataset, not the buyer's filters, so its newest-sale
+// date is the dataset's (the "Closed sales" row of the per-source table below).
+// Falling back to the filtered slice only before freshness has been computed.
+function datasetLatestSale(state) {
+  const sales = state.dataSource.freshness?.items?.find((item) => item.id === "sales");
+  return sales?.date || state.derived?.latestSaleDate || "";
+}
+
 function latestSaleValue(state) {
-  const latestSale = state.derived?.latestSaleDate || "";
-  return latestSale ? `${formatDateShort(latestSale)} (${daysAgo(latestSale)}d ago)` : "n/a";
+  const latestSale = datasetLatestSale(state);
+  if (!latestSale) return "n/a";
+  // Prefer the freshness readout's age (anchored to local midnight) so this
+  // tile, the per-source table and the Overview card all quote the same number.
+  const sales = state.dataSource.freshness?.items?.find((item) => item.id === "sales");
+  const age = sales?.date === latestSale && sales.ageDays !== null ? sales.ageDays : daysAgo(latestSale);
+  return `${formatDateShort(latestSale)} (${age}d ago)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +176,7 @@ function healthCardHtml(state, info) {
         ? "Last refresh passed its checks"
         : "Refresh not yet checked";
   const dates = {
-    latestSaleDate: state.derived?.latestSaleDate || "",
+    latestSaleDate: datasetLatestSale(state),
     generatedAt: info.validationTime || info.buildTime || "",
   };
   const cadenceLine = formatCadenceNote("freshness", dates);

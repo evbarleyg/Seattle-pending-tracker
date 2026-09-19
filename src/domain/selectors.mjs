@@ -18,6 +18,7 @@ import {
   findDefaultSingleFamilyLabel,
   hasHeatSignal,
   hotCategory,
+  isActiveListing,
   inRatioBucket,
   matchesSpecialSaleFilter,
   rowInViewport,
@@ -767,7 +768,7 @@ export function exportRowsToCsv(rows) {
   ];
   const lines = [headers.join(",")];
   (rows || []).forEach((row) => {
-    const activeBidEligible = row.dataMode === "MLS_ENRICHED" && row.mlsStatusNorm === "ACTIVE" && !row.hasActualClose;
+    const activeBidEligible = row.dataMode === "MLS_ENRICHED" && isActiveListing(row);
     lines.push([
       row.id,
       row.address,
