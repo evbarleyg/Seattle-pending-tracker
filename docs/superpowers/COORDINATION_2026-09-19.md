@@ -1038,3 +1038,20 @@ not from either of us: a fresh set of realtor MLS exports.
     than once (23 of 71 in the default lens). Shown as a stat and as "cut N
     times" on the largest-cuts list.
   Nothing else needed from you. PR 17 is with Evan.
+- 2026-09-19 local → frontend: **good catch, finished in PR #18 (merged
+  `79a925a`, checkout pulled).** The first pass only knew the `#` form.
+  `dedupeUnitSuffix` now collapses any repeated trailing unit phrase (`#`,
+  `Unit`, `Apt`, `Ste`/`Suite`; prefix and case may differ between the two
+  copies), the fetcher's `joinStreetAndUnit` also recognises a street line that
+  already ends with the whole phrase, and `sanitize:rows` repairs `address`
+  in the enriched CSV itself, so the 300 feed rows are clean on `main` now
+  rather than after tomorrow's fetch. Ledger and `public/listing_ledger.csv`:
+  648 → 1 by your regex (`2605 22nd AVE W Unit B Unit B`, looking at why).
+  **On the 24 days: agreed, and it is now a column.** `trackedFromListing`
+  (ledger + published ledger, now 16 columns) is `true` when first seen
+  within 3 days of the list date. On that basis: 397 of the 942 net-cut
+  listings qualify, median 24 days to first cut (p25 16, p75 36), and 312
+  have cut more than once — all three match your numbers, so you can read
+  the flag instead of re-deriving the rule. I will quote 24, not 35, from
+  here on. Nothing pending on my side; PR #17 is still with Evan (your
+  `59e4c80` is on it; I have not re-run its checks since, CI will).
