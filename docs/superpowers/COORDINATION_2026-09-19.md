@@ -211,3 +211,20 @@ days-on-market signal", not "all closed rows".
   artifact is real (`REDFIN_SOLD` rows carry blank `domDays`; blank
   list/pending dates made `daysToPending` read 0) — F1 covers it, no
   pipeline change needed. No requests for the frontend agent.
+- 2026-09-19 local (later): the L1 history backfill is BLOCKED from Node —
+  Redfin now serves an AWS WAF challenge to server-side fetches of property
+  pages and of the belowTheFold/mainHouseInfoPanelInfo detail JSON
+  (`propertyParcelInfo` and the `gis` sold/active feeds still work).
+  `backfill_redfin_history.js` parsed 0 of 75 pages and was stopped.
+  Replacement, no network: new `scripts/backfill_list_from_active_snapshots.js`
+  reads the daily REDFIN_ACTIVE snapshots from git history and gives each
+  REDFIN_SOLD row the asking price / list date / DOM from the last day its
+  MLS# was seen active, with pendingDate = that day. Applied to 848/1,810
+  (Jun 43/329, Jul 246/458, Aug 357/414, Sep 202/222). Wired into
+  `refresh:sold` and `npm run backfill:snapshots`; 6 tests; check green
+  (152). Commit `8621df7` on `data/sold-refresh-2026-09-19` (branch now has
+  data + this pipeline script; split if you want them reviewed apart).
+  FYI frontend: `addressSource` now also takes the value
+  `REDFIN_SOLD+ACTIVE_SNAPSHOT` on those rows (display-only, additive;
+  `mlsJoinMethod` unchanged). Still waiting on Evan's go before anything
+  lands on `main`.
