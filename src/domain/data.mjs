@@ -148,6 +148,9 @@ export function parseCsv(text) {
       id: pick("id"),
       address: pick("address"),
       addressSource: pick("addressSource"),
+      // Where the asking price came from when it was recovered rather than
+      // reported: ACTIVE_SNAPSHOT (last day the listing was seen for sale), else blank.
+      listPriceSource: pick("listPriceSource"),
       major: pick("major"),
       minor: pick("minor"),
       parcelNbr: pick("parcelNbr"),
@@ -531,6 +534,27 @@ export function domMetric(row) {
     return row.daysToPending;
   }
   return null;
+}
+
+// True when we can actually say whether a sale was fast: the row is flagged hot
+// (by tag or DOM), or it carries some days-on-market reading. County-only and
+// Redfin-sold rows have neither, so they are "unknown", not "slow", and must
+// stay out of a fast-sale share's denominator. Accepts full normalized rows and
+// the slim pulse summaries (which precompute domValue).
+export function hasHeatSignal(row) {
+  if (!row) return false;
+  if (row.isHotMarket) return true;
+  if (row.domValue !== undefined) return row.domValue !== null && Number.isFinite(Number(row.domValue));
+  return domMetric(row) !== null;
+}
+
+// A genuinely active listing: an MLS "Active" status with no recorded close.
+// (An earlier form also accepted `!hasActualClose && pendingListPrice > 0`, which
+// swept in ~5.5k county rows that merely lack a close price; those are not
+// listings.) One definition, shared by the map, the freshness readout and the
+// CSV export, so they cannot disagree about what is for sale right now.
+export function isActiveListing(row) {
+  return row?.mlsStatusNorm === "ACTIVE" && !row?.hasActualClose;
 }
 
 export function hotCategory(row) {

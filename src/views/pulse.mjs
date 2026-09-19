@@ -19,6 +19,7 @@ import {
   monthLabelCompact,
   toIso,
 } from "../domain/format.mjs";
+import { hasHeatSignal } from "../domain/data.mjs";
 import {
   PULSE_GROUPS,
   competitiveDelta,
@@ -128,7 +129,7 @@ export function renderPulseView(deps) {
   const volSeries = weekly ? weeklySeries : sliceSeries;
   const priceSeries = weekly ? weeklySeries : sliceSeries;
   const grainOpts = weekly ? { xAxisTitle: "Sale week" } : {};
-  const pockets = competitionPocketEntries(sliceRows);
+  const pockets = competitionPocketEntries(sliceRows, ctx);
   wrap.innerHTML = `
     <div class="view-band">
       ${watchlistVerdictHtml(recent90, snapshot)}
@@ -225,7 +226,7 @@ export function renderPulseView(deps) {
               ${group.neighborhoods.slice(0, 4).map((entry) => `
                 <div class="mini-metric">
                   <button class="link-button" data-set-interaction="neighborhood" data-set-value="${esc(entry.neighborhoodLabel)}">${esc(entry.neighborhoodLabel)}</button>
-                  <strong>${formatPct(entry.current.hotShare || 0)} fast-sale</strong>
+                  <strong>${entry.current.hotShare === null || entry.current.hotShare === undefined ? "no DOM data" : `${formatPct(entry.current.hotShare)} fast-sale`}</strong>
                 </div>
               `).join("")}
             </article>
@@ -436,6 +437,16 @@ function lineSvg(series, metricKey, options = {}) {
   `;
 }
 
+// A median bid-up of exactly $0 is a real reading, not a gap: when sales split
+// around the asking price the middle sale lands on it. Printed bare ("Median
+// bid-up is $0.") it looks broken, so say what it means for a buyer instead.
+export function bidUpSentence(medianBidUp) {
+  const amount = Math.round(Number(medianBidUp));
+  if (amount === 0) return "The middle winner paid exactly the asking price, so at least half of recent winners paid list or less.";
+  if (amount > 0) return `The middle winner paid ${formatMoney(amount)} over the asking price.`;
+  return `The middle winner paid ${formatMoney(Math.abs(amount))} under the asking price.`;
+}
+
 function pulseReadout(snapshot) {
   const recent90 = snapshot.recentComparisons.find((entry) => entry.windowDays === 90);
   if (!recent90 || !recent90.current.salesCount) return `<p>No recent watchlist sales in this slice.</p>`;
@@ -445,10 +456,7 @@ function pulseReadout(snapshot) {
     explainId: "pulseSalesCount",
   });
   if (recent90.current.medianBidUp !== null) {
-    bullets.push({
-      text: `Median bid-up is ${formatMoney(recent90.current.medianBidUp)}.`,
-      explainId: "pulseMedianBidUp",
-    });
+    bullets.push({ text: bidUpSentence(recent90.current.medianBidUp), explainId: "pulseMedianBidUp" });
   }
   if (recent90.current.medianDom !== null) {
     bullets.push({
@@ -562,27 +570,35 @@ function barSvg(series, metricKey, options = {}) {
   `;
 }
 
-function competitionPocketEntries(rows) {
-  const { groupRows, medianValue } = ctx;
+// Exported for tests. Fast-sale share counts only rows with a days-on-market
+// signal (hasHeatSignal): a pocket whose sales all lack one is unknown, not 0%
+// fast, and sorts after every pocket that does have a reading.
+export function competitionPocketEntries(rows, { groupRows, medianValue }) {
   return Object.entries(groupRows(rows, (row) => row.neighborhoodLabel || "Unknown"))
-    .map(([name, list]) => ({
-      name,
-      count: list.length,
-      hotShare: list.length ? list.filter((row) => row.isHotMarket).length / list.length : 0,
-      medianRatio: medianValue(list.map((row) => row.saleToList).filter((value) => value > 0)),
-      medianClose: medianValue(list.map((row) => row.closePrice)),
-    }))
-    .sort((a, b) => (b.hotShare - a.hotShare) || (b.count - a.count))
+    .map(([name, list]) => {
+      const heatRows = list.filter(hasHeatSignal);
+      return {
+        name,
+        count: list.length,
+        heatCount: heatRows.length,
+        hotShare: heatRows.length ? heatRows.filter((row) => row.isHotMarket).length / heatRows.length : null,
+        medianRatio: medianValue(list.map((row) => row.saleToList).filter((value) => value > 0)),
+        medianClose: medianValue(list.map((row) => row.closePrice)),
+      };
+    })
+    .sort((a, b) => ((b.hotShare ?? -1) - (a.hotShare ?? -1)) || (b.count - a.count))
     .slice(0, 30);
 }
 
 function heatListHtml(entries) {
-  return entries.map((entry) => `
+  return entries.map((entry) => {
+    const known = entry.hotShare !== null && entry.hotShare !== undefined;
+    return `
     <button class="heat-row" type="button" data-set-interaction="neighborhood" data-set-value="${esc(entry.name)}">
       <span>${esc(entry.name)}</span>
-      <strong>${formatPct(entry.hotShare)} fast-sale</strong>
+      <strong>${known ? `${formatPct(entry.hotShare)} fast-sale` : "no DOM data"}</strong>
       <em>${formatWholeNumber(entry.count)} sales · ${formatRatio(entry.medianRatio)} sale/list · ${formatMoneyOrNa(entry.medianClose)}</em>
-      <i style="inline-size:${Math.max(6, entry.hotShare * 100).toFixed(1)}%"></i>
-    </button>
-  `).join("") || `<div class="empty-state">No rows in this slice.</div>`;
+      ${known ? `<i style="inline-size:${Math.max(3, entry.hotShare * 100).toFixed(1)}%"></i>` : ""}
+    </button>`;
+  }).join("") || `<div class="empty-state">No rows in this slice.</div>`;
 }

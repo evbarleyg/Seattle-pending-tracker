@@ -45,10 +45,13 @@ export function renderUniverseCaption({ count, universeLabel, windowLabel } = {}
 export function renderExplainButton(metricId) {
   if (!metricId) return "";
   const popId = explainPopId(metricId);
+  // Drawn as a small "i" (see .explain-trigger in styles.css); the words stay
+  // inside as screen-reader text so the accessible name is still a question.
   return [
     `<span class="explain-wrap">`,
     `<button type="button" class="explain-trigger" data-explain-trigger="${esc(metricId)}"`,
-    ` aria-expanded="false" aria-controls="${esc(popId)}" aria-haspopup="dialog">what is this?</button>`,
+    ` aria-expanded="false" aria-controls="${esc(popId)}" aria-haspopup="dialog" title="What is this?">`,
+    `<span class="sr-only">what is this?</span></button>`,
     `</span>`,
   ].join("");
 }
