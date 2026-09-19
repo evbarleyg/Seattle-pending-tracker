@@ -41,6 +41,10 @@ mkdir -p "$LOG_DIR"
   "$NPM" run enrichment:apply
   echo "backfill:snapshots (list@pending for REDFIN_SOLD rows from the actives ledger)"
   "$NPM" run backfill:snapshots
+  echo "sanitize:rows (expire stale March open rows; blank fabricated list==pending timelines)"
+  "$NPM" run sanitize:rows
+  echo "report:sources (per-source fetch times into data_refresh_report.json)"
+  "$NPM" run report:sources
   echo "sync:public"
   "$NPM" run sync:public
   echo "detect:transitions"

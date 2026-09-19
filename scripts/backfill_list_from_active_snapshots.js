@@ -250,6 +250,55 @@ function backfillFromSnapshots(rows, lastSeen) {
   return report;
 }
 
+// Validation of the method on the overlap: rows whose list price, pending
+// date and DOM came from the Redfin history scrape (a true timeline) AND whose
+// MLS# is in the ledger (so the snapshot method has an answer too). Diffing
+// the two turns "last day seen listed" from a caveat into a measurement.
+function validateOverlap(rows, lastSeen, { since = "2026-06-08" } = {}) {
+  const out = {
+    since, compared: 0,
+    price: { exact: 0, within1pct: 0, differs: 0 },
+    pendingDate: { same: 0, ledgerEarlier1: 0, ledgerEarlier2to3: 0, ledgerEarlier4plus: 0, ledgerLater: 0, missing: 0 },
+    dom: { same: 0, within2: 0, differs: 0, missing: 0 },
+    samples: [],
+  };
+  for (const row of rows) {
+    const fromHistory = row.listPriceSource === "REDFIN_HISTORY" || String(row.mlsJoinMethod || "").startsWith("REDFIN_HISTORY");
+    if (!fromHistory) continue;
+    const list = num(row.mlsListingPrice) || num(row.mlsListPriceAtPending);
+    const pend = String(row.mlsPendingDate || row.pendingDate || "").trim();
+    if (!(list > 0) || !pend || pend < since) continue;
+    const rec = lastSeen.get(String(row.mlsListingNumber || "").trim());
+    if (!rec) continue;
+    out.compared += 1;
+    const ratio = rec.list / list;
+    if (Math.abs(ratio - 1) < 1e-9) out.price.exact += 1;
+    else if (Math.abs(ratio - 1) <= 0.01) out.price.within1pct += 1;
+    else out.price.differs += 1;
+    const gap = daysBetween(rec.date, pend); // + = history pending is AFTER the last listed day
+    if (gap === null) out.pendingDate.missing += 1;
+    else if (gap === 0) out.pendingDate.same += 1;
+    else if (gap === 1) out.pendingDate.ledgerEarlier1 += 1;
+    else if (gap >= 2 && gap <= 3) out.pendingDate.ledgerEarlier2to3 += 1;
+    else if (gap >= 4) out.pendingDate.ledgerEarlier4plus += 1;
+    else out.pendingDate.ledgerLater += 1;
+    const rowDom = String(row.mlsDOM ?? "").trim();
+    if (rowDom === "" || rec.dom === "") out.dom.missing += 1;
+    else { const d = Math.abs(num(rowDom) - num(rec.dom)); if (d === 0) out.dom.same += 1; else if (d <= 2) out.dom.within2 += 1; else out.dom.differs += 1; }
+    if (out.samples.length < 12 && (Math.abs(ratio - 1) > 0.01 || gap === null || gap >= 4 || gap < 0)) {
+      out.samples.push({ address: row.address, mls: row.mlsListingNumber, historyList: list, ledgerAsk: rec.list, historyPending: pend, ledgerLastActive: rec.date, historyDom: rowDom, ledgerDom: rec.dom });
+    }
+  }
+  const pct = (n) => (out.compared ? Math.round((1000 * n) / out.compared) / 10 : null);
+  out.rates = {
+    priceExactOrWithin1pct: pct(out.price.exact + out.price.within1pct),
+    pendingSameOrOneDayEarly: pct(out.pendingDate.same + out.pendingDate.ledgerEarlier1),
+    pendingWithin3Days: pct(out.pendingDate.same + out.pendingDate.ledgerEarlier1 + out.pendingDate.ledgerEarlier2to3),
+    domSameOrWithin2: pct(out.dom.same + out.dom.within2),
+  };
+  return out;
+}
+
 // --- git plumbing (not exercised by tests) ---------------------------------
 
 function listSnapshotCommits(ref, relFile, sinceDate) {
@@ -270,13 +319,14 @@ function readSnapshotsFromGit(ref, relFile, sinceDate) {
 }
 
 function parseArgs(argv) {
-  const opts = { enriched: DEFAULT_ENRICHED, report: DEFAULT_REPORT, ledger: DEFAULT_LEDGER, fromGit: false, ref: DEFAULT_REF, since: DEFAULT_SNAPSHOT_SINCE, dryRun: false };
+  const opts = { enriched: DEFAULT_ENRICHED, report: DEFAULT_REPORT, ledger: DEFAULT_LEDGER, fromGit: false, ref: DEFAULT_REF, since: DEFAULT_SNAPSHOT_SINCE, validateSince: "2026-06-08", dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     const next = argv[i + 1];
     if (a === "--enriched") { opts.enriched = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
     else if (a === "--ledger") { opts.ledger = next; i += 1; }
+    else if (a === "--validate-since") { opts.validateSince = next; i += 1; }
     else if (a === "--from-git") { opts.fromGit = true; }
     else if (a === "--ref") { opts.ref = next; i += 1; }
     else if (a === "--since") { opts.since = next; i += 1; }
@@ -329,6 +379,10 @@ function main() {
   const { headers, rows } = readCsvText(fs.readFileSync(enrichedPath, "utf8"));
   if (!headers.includes(LIST_PRICE_SOURCE_COLUMN)) headers.push(LIST_PRICE_SOURCE_COLUMN); // additive column
   const report = backfillFromSnapshots(rows, lastSeen);
+  // Always measure the method against rows that have a true history timeline.
+  report.validation = validateOverlap(rows, lastSeen, { since: opts.validateSince });
+  const v = report.validation;
+  console.log(`Validation vs Redfin-history rows pending since ${v.since}: ${v.compared} compared; ask matches ${v.rates.priceExactOrWithin1pct}% (exact ${v.price.exact}); pending date same/1 day early ${v.rates.pendingSameOrOneDayEarly}%, within 3 days ${v.rates.pendingWithin3Days}%; DOM within 2 days ${v.rates.domSameOrWithin2}%.`);
   const summary = {
     generatedAt: new Date().toISOString(),
     source,
@@ -348,7 +402,7 @@ function main() {
 }
 
 module.exports = {
-  collectActiveSnapshots, loadLedgerMap, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween,
+  collectActiveSnapshots, loadLedgerMap, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween, validateOverlap,
   listSnapshotCommits, readSnapshotsFromGit,
   LIST_PRICE_SOURCE, LIST_PRICE_SOURCE_COLUMN, MAX_RATIO_DEVIATION,
 };
