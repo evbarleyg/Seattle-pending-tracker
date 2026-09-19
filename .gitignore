@@ -44,6 +44,9 @@ redfin_sold_recent.csv
 redfin_sold_recent_report.json
 redfin_active_ledger_report.json
 redfin_sold_accumulate_report.json
+redfin_sold_enrichment_report.json
+redfin_sold_365d.csv
+redfin_sold_365d_report.json
 redfin_url_index.json
 redfin_history_cache.json
 redfin_backfill_report.json

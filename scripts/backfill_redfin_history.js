@@ -156,6 +156,7 @@ function applyHistoryToRow(row, summary) {
     row.bidUpAmount = String(Math.round(close - list));
     row.bidUpPct = String((close - list) / list);
     row.saleToListRatio = String(close / list);
+    row.listPriceSource = "REDFIN_HISTORY"; // lineage column (see DATA_SCHEMA.md)
   }
   if (summary.listDate && summary.pendingDate) {
     const days = Math.round((Date.parse(summary.pendingDate) - Date.parse(summary.listDate)) / 86400000);
@@ -299,6 +300,10 @@ async function main() {
   // Process each resolved candidate, with cache + throttle.
   const startTime = Date.now();
   let processed = 0, enriched = 0, hadHistory = 0, fetchErrors = 0, parseEmpty = 0;
+  // Circuit breaker: once Redfin's WAF has bounced this many fetches in a row,
+  // stop fetching and finish cache-only instead of burning 3s per row.
+  const WAF_TRIP = 5;
+  let wafStreak = 0, wafTripped = false;
   const errorSamples = [];
   const limit = Math.min(resolved.length, opts.limit);
   for (let i = 0; i < limit; i += 1) {
@@ -308,15 +313,24 @@ async function main() {
     let used = "cache";
     if (summary === undefined) {
       if (opts.reapply) { continue; } // --reapply is cache-only: never re-fetch
+      if (wafTripped) { continue; } // WAF is up: cache-only from here
       try {
         const html = await fetchPropertyHtml(c.url);
         const events = parsePropertyHistory(html);
         summary = summarizeMostRecentSale(events);
         cache.entries[c.url] = { fetchedAt: new Date().toISOString(), summary };
         used = "fetched";
+        wafStreak = 0;
       } catch (err) {
         fetchErrors += 1;
         cache.entries[c.url] = { fetchedAt: new Date().toISOString(), error: err.message };
+        if (err.code === "WAF") {
+          wafStreak += 1;
+          if (!wafTripped && wafStreak >= WAF_TRIP) {
+            wafTripped = true;
+            console.log(`Redfin WAF blocked ${WAF_TRIP} fetches in a row; continuing cache-only (rerun later, or use npm run backfill:snapshots).`);
+          }
+        }
         if (errorSamples.length < 5) errorSamples.push({ url: c.url, error: err.message });
         if (i < limit - 1) await sleep(opts.throttleMs);
         continue;

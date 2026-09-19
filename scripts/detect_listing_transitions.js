@@ -163,6 +163,8 @@ async function main() {
 
   const transitions = [];
   let urlMissing = 0, fetchErrors = 0, parseEmpty = 0, enrichedCount = 0;
+  const WAF_TRIP = 5;
+  let wafStreak = 0, wafTripped = false;
   for (let i = 0; i < disappeared.length; i += 1) {
     const id = disappeared[i];
     const entry = findUrlByListingId(urlIndex, id);
@@ -170,15 +172,24 @@ async function main() {
     let summary = cache.entries[entry.url]?.summary;
     let used = "cache";
     if (summary === undefined) {
+      if (wafTripped) { fetchErrors += 1; continue; } // WAF is up: cache-only from here
       try {
         const html = await fetchPropertyHtml(entry.url);
         const events = parsePropertyHistory(html);
         summary = summarizeMostRecentSale(events);
         cache.entries[entry.url] = { fetchedAt: new Date().toISOString(), summary };
         used = "fetched";
+        wafStreak = 0;
       } catch (err) {
         fetchErrors += 1;
         cache.entries[entry.url] = { fetchedAt: new Date().toISOString(), error: err.message };
+        if (err.code === "WAF") {
+          wafStreak += 1;
+          if (!wafTripped && wafStreak >= WAF_TRIP) {
+            wafTripped = true;
+            console.log(`Redfin WAF blocked ${WAF_TRIP} fetches in a row; recording transitions without page enrichment (the ledger backfill covers list@pending).`);
+          }
+        }
         if (i < disappeared.length - 1) await sleep(opts.throttleMs);
         continue;
       }

@@ -132,6 +132,11 @@ if [[ -f "redfin_sold_cumulative.csv" || -f "redfin_sold_listings.csv" ]]; then
 else
   echo "No Redfin sold file — run 'npm run refresh:sold' first."
 fi
+if [[ -f "redfin_sold_enrichment_ledger.csv" ]]; then
+  node scripts/sold_enrichment_ledger.js
+else
+  echo "redfin_sold_enrichment_ledger.csv missing — run 'npm run enrichment:seed'."
+fi
 if [[ -f "redfin_active_ledger.csv" ]]; then
   node scripts/backfill_list_from_active_snapshots.js
 else
