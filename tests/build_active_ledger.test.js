@@ -126,6 +126,44 @@ test("observationsFromEnrichedSnapshot takes only REDFIN_ACTIVE rows and recover
   assert.strictEqual(out[0].dom, "2");
 });
 
+test("ask changes on later days are counted and dated; same-day replays and first sightings are not", () => {
+  const map = new Map();
+  upsertObservations(map, [obs({ date: "2026-07-17", ask: 1150000 })]);
+  let e = map.get("2400001");
+  assert.strictEqual(e.askChangeCount, "0");
+  assert.strictEqual(e.lastAskChangeDate, "");
+  upsertObservations(map, [obs({ date: "2026-07-17", ask: 1150000 })]); // same day again
+  assert.strictEqual(e.askChangeCount, "0");
+  upsertObservations(map, [obs({ date: "2026-07-25", ask: 1100000 })]); // first cut
+  assert.strictEqual(e.askChangeCount, "1");
+  assert.strictEqual(e.firstAskChangeDate, "2026-07-25");
+  assert.strictEqual(e.lastAskChangeDate, "2026-07-25");
+  upsertObservations(map, [obs({ date: "2026-07-26", ask: 1100000 })]); // unchanged next day
+  assert.strictEqual(e.askChangeCount, "1");
+  upsertObservations(map, [obs({ date: "2026-08-02", ask: 1075000 })]); // second cut
+  assert.strictEqual(e.askChangeCount, "2");
+  assert.strictEqual(e.firstAskChangeDate, "2026-07-25", "first change date is kept");
+  assert.strictEqual(e.lastAskChangeDate, "2026-08-02");
+  assert.strictEqual(e.firstAsk, "1150000");
+  assert.strictEqual(e.lastAsk, "1075000");
+  for (const col of ["lastAskChangeDate", "firstAskChangeDate", "askChangeCount"]) assert.ok(LEDGER_COLUMNS.includes(col), col);
+});
+
+test("a doubled unit suffix is repaired on insert and when loading an older ledger", () => {
+  const { dedupeUnitSuffix } = require("../scripts/build_active_ledger.js");
+  assert.strictEqual(dedupeUnitSuffix("2727 Fairview Ave E #4 #4"), "2727 Fairview Ave E #4");
+  assert.strictEqual(dedupeUnitSuffix("9057 Greenwood Ave N #306 #306"), "9057 Greenwood Ave N #306");
+  assert.strictEqual(dedupeUnitSuffix("2727 Fairview Ave E #4"), "2727 Fairview Ave E #4");
+  assert.strictEqual(dedupeUnitSuffix("100 4th Ave #4"), "100 4th Ave #4", "a street number that matches the unit is not a doubled suffix");
+  assert.strictEqual(dedupeUnitSuffix("1 Main St"), "1 Main St");
+  const map = new Map();
+  upsertObservations(map, [obs({ address: "2727 Fairview Ave E #4 #4" })]);
+  assert.strictEqual(map.get("2400001").address, "2727 Fairview Ave E #4");
+  const loaded = ledgerRowsToMap([{ mlsNumber: "9", address: "708 N 102nd St #2 #2", firstSeen: "2026-06-01", lastSeen: "2026-06-10", firstAsk: "1", lastAsk: "1" }]);
+  assert.strictEqual(loaded.get("9").address, "708 N 102nd St #2");
+  assert.strictEqual(loaded.get("9").askChangeCount, "0", "older ledgers get the new columns defaulted");
+});
+
 test("ledger rows round-trip through the map and come back newest-last-seen first", () => {
   const rows = [
     { mlsNumber: "1", firstSeen: "2026-06-01", lastSeen: "2026-06-10", firstAsk: "1", lastAsk: "1" },

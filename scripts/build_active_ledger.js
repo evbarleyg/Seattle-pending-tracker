@@ -50,7 +50,21 @@ const LEDGER_COLUMNS = [
   "mlsNumber", "redfinPropertyId", "redfinListingId", "url", "address", "zip", "propertyType",
   "firstSeen", "lastSeen", "lastSeenActive", "firstAsk", "lastAsk", "lastActiveAsk",
   "listDate", "lastDom", "lastCdom", "lastStatus",
+  // Ask-change history (requested by the frontend for days-to-first-cut):
+  // the day lastAsk last moved, the day it FIRST moved, and how many times.
+  "lastAskChangeDate", "firstAskChangeDate", "askChangeCount",
 ];
+
+// The actives fetch used to append the unit to a street line that already
+// carried it ("2727 Fairview Ave E #4 #4"). Fixed at the source; this repairs
+// rows already in the ledger and any older feed file replayed into it.
+function dedupeUnitSuffix(address) {
+  const s = String(address || "").trim();
+  const m = s.match(/^(.*\S)\s+(\S+)\s+(\S+)$/);
+  if (!m) return s;
+  const norm = (t) => t.replace(/^(#|unit|apt|ste|suite)\s*/i, "").replace(/\s+/g, "").toUpperCase();
+  return m[2].startsWith("#") && norm(m[2]) === norm(m[3]) ? `${m[1]} ${m[2]}` : s;
+}
 const ACTIVE_STATUSES = new Set(["ACTIVE", "COMING SOON", "FIRST LOOK"]);
 
 function isActiveStatus(status) {
@@ -135,7 +149,15 @@ function ledgerRowsToMap(rows) {
   for (const r of rows) {
     const mls = String(r.mlsNumber || "").trim();
     if (!mls) continue;
-    map.set(mls, { ...r, mlsNumber: mls });
+    map.set(mls, {
+      ...r,
+      mlsNumber: mls,
+      address: dedupeUnitSuffix(r.address || ""),
+      // Older ledgers predate the ask-change columns.
+      lastAskChangeDate: r.lastAskChangeDate || "",
+      firstAskChangeDate: r.firstAskChangeDate || "",
+      askChangeCount: String(num(r.askChangeCount) || 0),
+    });
   }
   return map;
 }
@@ -156,7 +178,7 @@ function upsertObservations(map, observations) {
         redfinPropertyId: o.redfinPropertyId || "",
         redfinListingId: o.redfinListingId || "",
         url: o.url || "",
-        address: o.address || "",
+        address: dedupeUnitSuffix(o.address || ""),
         zip: o.zip || "",
         propertyType: o.propertyType || "",
         firstSeen: o.date,
@@ -169,6 +191,9 @@ function upsertObservations(map, observations) {
         lastDom: o.dom || "",
         lastCdom: o.cdom || "",
         lastStatus: o.status || "",
+        lastAskChangeDate: "",
+        firstAskChangeDate: "",
+        askChangeCount: "0",
       });
       counts.inserted += 1;
       continue;
@@ -178,6 +203,14 @@ function upsertObservations(map, observations) {
       existing.firstAsk = ask;
     }
     if (!existing.lastSeen || o.date >= existing.lastSeen) {
+      // A different ask on a later day is a price change (cut or raise);
+      // record when it first and last happened and how often. Same-day
+      // replays never count.
+      if (o.date > existing.lastSeen && String(existing.lastAsk) !== ask) {
+        existing.lastAskChangeDate = o.date;
+        if (!existing.firstAskChangeDate) existing.firstAskChangeDate = o.date;
+        existing.askChangeCount = String(num(existing.askChangeCount) + 1);
+      }
       existing.lastSeen = o.date;
       existing.lastAsk = ask;
       existing.lastDom = o.dom || "";
@@ -287,7 +320,7 @@ function main() {
 }
 
 module.exports = {
-  LEDGER_COLUMNS, ACTIVE_STATUSES, isActiveStatus, toPacificDate,
+  LEDGER_COLUMNS, ACTIVE_STATUSES, isActiveStatus, toPacificDate, dedupeUnitSuffix,
   observationsFromActives, observationsFromEnrichedSnapshot,
   ledgerRowsToMap, upsertObservations, ledgerMapToRows,
 };
