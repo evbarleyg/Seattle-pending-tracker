@@ -14,9 +14,9 @@ test("slimListingLedger keeps the app's 12 columns in order and drops url and th
   const { text: out, rows } = slimListingLedger(text);
   const lines = out.trim().split("\n");
   assert.strictEqual(lines[0], LISTING_LEDGER_COLUMNS.join(","));
-  assert.deepStrictEqual(LISTING_LEDGER_COLUMNS, ["mlsNumber", "address", "zip", "propertyType", "firstSeen", "lastSeen", "lastSeenActive", "firstAsk", "lastAsk", "listDate", "lastDom", "lastStatus", "lastAskChangeDate", "firstAskChangeDate", "askChangeCount"]);
+  assert.deepStrictEqual(LISTING_LEDGER_COLUMNS, ["mlsNumber", "address", "zip", "propertyType", "firstSeen", "lastSeen", "lastSeenActive", "firstAsk", "lastAsk", "listDate", "lastDom", "lastStatus", "lastAskChangeDate", "firstAskChangeDate", "askChangeCount", "trackedFromListing"]);
   assert.strictEqual(rows, 1, "rows without an MLS# are dropped");
-  assert.strictEqual(lines[1], "2400001,\"10037 15th Ave NW, Unit 2\",98177,Single Family,2026-07-17,2026-07-30,2026-07-30,1150000,1100000,2026-07-17,13,Active,,,", "ask-change columns are blank when the ledger predates them");
+  assert.strictEqual(lines[1], "2400001,\"10037 15th Ave NW, Unit 2\",98177,Single Family,2026-07-17,2026-07-30,2026-07-30,1150000,1100000,2026-07-17,13,Active,,,,", "ask-change and tracking columns are blank when the ledger predates them");
   assert.ok(!out.includes("https://r/x") && !out.includes("288413"), "url and ids must not be published");
 });
 

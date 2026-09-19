@@ -40,6 +40,7 @@ const LISTING_LEDGER_COLUMNS = [
   "mlsNumber", "address", "zip", "propertyType", "firstSeen", "lastSeen", "lastSeenActive",
   "firstAsk", "lastAsk", "listDate", "lastDom", "lastStatus",
   "lastAskChangeDate", "firstAskChangeDate", "askChangeCount", // for days-to-first-cut
+  "trackedFromListing", // "true" = first seen within 3 days of listing, so the first change is the first cut
 ];
 
 function parseCsvLine(line) {
