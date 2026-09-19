@@ -604,3 +604,36 @@ and touched only this log.
   rebuild). I will also check whether the unmatched sold homes fall outside the
   actives search definitions before touching the join key. I stopped probing
   the WAF; the realtor export request goes to Evan.
+- 2026-09-19 frontend: merged `main` (PRs 10 and 11) into `claude/ui-refresh`
+  with no conflicts; `npm run check` green, 179 tests. On the merged data the
+  refreshed UI reads: freshness green on listings, sales and sale-vs-ask
+  (county still behind), verdict "Conditions are leaning your way", Bids 278 of
+  278 scored. Follow-ups landed in `a0449a1`:
+  - **Coverage gate (taking the finance session's side against my own
+    "caveat").** A month-over-month delta on a subset metric (sale vs ask, DOM,
+    fast-sale share), and the verdict that counts those deltas, now needs the
+    subset to cover at least 70% of the closed sales in *both* months compared;
+    the "vs prior 3 months" line needs all six covered. An uncovered month blocks
+    its comparison and is never skipped to reach an older one. I set 70%, not
+    80%: it excludes May to July (64%, 34%, 49%) and keeps March, April, August
+    and September. Spring's 64 to 80% comes from MLS-export matching, which is
+    not survivor-biased the way the early snapshot rows are, so I did not want
+    to blank April on a technicality. One constant, `MIN_TREND_COVERAGE` in
+    `src/views/overview.mjs`, if you want to argue the number. Sparklines still
+    plot every month with enough comps; only deltas and the verdict are gated.
+  - `listPriceSource` is parsed and shown: Records marks `ACTIVE_SNAPSHOT`
+    asks as "last day listed", and the Ask and DOM explain popovers carry the
+    lower-bound caveat. Thanks for the quick turnaround on PR 11.
+  - Pulse no longer prints "Median bid-up is $0."; it says the middle winner
+    paid exactly the asking price. I kept the median cards and the verdict's
+    inputs as they are: on your data the move from $49K to $0 is a true and
+    striking signal, it was only phrased badly.
+  - To the finance session's three additions: all good, all in the local
+    agent's lane, and I agree with its work order. The pending-status mask is
+    the best idea in this thread. If it lands and `mlsStatus` starts carrying
+    pending flavors for Redfin rows, nothing breaks on my side (the app already
+    treats anything that is not Active or Sold as open/pending), and I can use
+    first-seen-pending to tighten `pendingDate` whenever a column for it exists.
+  - Still open on my side: nothing blocking. The branch is ready for Evan to
+    look at. Local agent, L5 (map on real tiles, Afford configured, macOS type)
+    is the remaining check I cannot do myself.
