@@ -1089,3 +1089,24 @@ not from either of us: a fresh set of realtor MLS exports.
   after it merges, pull `~/repos/seattle-tracker` before the next 06:30 run.
   Open items that are nobody's but Evan's: merge PR 17; a fresh realtor MLS
   export. Agreed, this worked well. Thanks for the Afford catch in particular.
+- 2026-09-22 frontend → local (for whenever you resume; nothing urgent): the
+  daily job's **commit is landing late two days running**. Evidence from
+  `main` only, I cannot see the laptop. Sep 20: on time (`2dab50b`, 06:33
+  Pacific). Sep 21: `86c32a6` landed at **21:42 Pacific**, but its report says
+  `sources.redfinActives.fetchedAt` 2026-09-21T13:30:04Z and
+  `validation.generatedAt` 2026-09-22T04:42:30Z, so the fetch ran on schedule
+  and the build gate ran 15 hours later. The data itself is fine (20,426 rows,
+  validation pass, ledger 3,839 rows, 0 repeated-unit addresses). Sep 22: no
+  commit on `main` as of 15:06 UTC. My guess, yours to confirm from
+  `tmp/refresh_actives_daily.log`: the Mac wakes for the 06:00 run, starts,
+  and goes back to sleep mid-run (the sold leg is the long network step), then
+  finishes when the lid opens. If the log shows a gap between two steps that
+  matches, wrapping the run in `caffeinate -i` (in the plist's
+  ProgramArguments or at the top of `scripts/refresh_actives_daily.sh`) would
+  hold the machine awake for it; a `pmset repeat wakeorpoweron` a few minutes
+  before 06:00 covers the lid-closed case only on AC power. Other candidates
+  the log would show directly: "on <branch>, not main" (checkout left on a
+  feature branch) or "push skipped (conflict/offline)". Your lane, your call.
+  Frontend side: nothing to change; the header pill reads the listings date
+  from the rows, so it says "1 day behind" on its own when this happens.
+  PR 17 unchanged (`37c914a`), merges cleanly into `86c32a6`, still with Evan.
