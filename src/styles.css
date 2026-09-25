@@ -1741,6 +1741,19 @@ tbody tr:hover td {
   background: color-mix(in srgb, var(--cool) 74%, var(--surface));
 }
 
+.cost-seg.none,
+.cost-swatch.none {
+  background: var(--surface-3);
+}
+
+#priceCuts .metric-list {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+#priceCuts .changes-group {
+  margin-block-start: 16px;
+}
+
 .cost-bar-legend {
   display: flex;
   flex-wrap: wrap;
@@ -2612,6 +2625,12 @@ a.changes-link:focus-visible {
 }
 
 .bid-card-grid-meta strong {
+  font-weight: 600;
+}
+
+/* A price cut is good news for a buyer, so it takes the "better for you" tone. */
+.price-cut-note {
+  color: var(--cool);
   font-weight: 600;
 }
 
