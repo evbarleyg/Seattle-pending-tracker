@@ -3,6 +3,7 @@
 // The view leads with three plain-language answer blocks:
 //   1. "Is now a good time?"            — market-direction verdict + KPI tiles
 //   2. "What does winning cost?"        — over/at/under-ask spread (costToWin)
+//      "Are sellers cutting prices?"    — cuts on homes for sale now (priceCuts)
 //   3. "What changed since you last looked?" — per-slice delta feed (changesSince)
 // followed by the decision brief, buyer profile, trends, and micromarkets.
 //
@@ -21,7 +22,7 @@ import {
   monthLabelCompact,
   safeNumber,
 } from "../domain/format.mjs";
-import { domMetric } from "../domain/data.mjs";
+import { domMetric, isActiveListing, zillowUrl } from "../domain/data.mjs";
 import { filtersToSummary, recordViewLabel } from "../domain/selectors.mjs";
 import { buildProfileCohort, buildMicromarketProfiles } from "../domain/buyerProfile.mjs";
 import { metricDirection } from "../domain/pulseMetrics.mjs";
@@ -29,6 +30,7 @@ import { getMetric, formatCadenceNote } from "../domain/glossary.mjs";
 import { computeCostToWin, buildCostToWinVerdict } from "../domain/costToWin.mjs";
 import { captureBaseline, diffSinceBaseline, isValidBaseline } from "../domain/changesSince.mjs";
 import { describeSalesLag } from "../domain/freshness.mjs";
+import { buildPriceCutVerdict, summarizePriceCuts } from "../domain/priceCuts.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
@@ -534,12 +536,14 @@ function commandCenterCardsHtml(costToWin) {
 function commandCenterSectionHtml(costToWin) {
   const { state } = ctx;
   const closedCount = (state.derived?.slices?.closedSlice || []).length;
+  // The headline carries the count; the caption only says what is being counted,
+  // so the same number is not printed twice on one line.
   return `
     <section class="command-center compact" id="commandCenter" aria-label="Buyer command center">
       <div class="hero-strip">
         <p class="eyebrow">The numbers behind that read</p>
         <h2 class="hero-line">${esc(filtersToSummary(state.filters).join(" + "))} · ${formatWholeNumber(closedCount)} comps in slice</h2>
-        ${captionRow(renderUniverseCaption({ count: closedCount, universeLabel: "closed comps in your slice", windowLabel: windowLabel(state.filters) }), "closedSlice")}
+        ${captionRow(renderUniverseCaption({ universeLabel: "closed sales passing your filters", windowLabel: windowLabel(state.filters) }), "closedSlice")}
       </div>
       <div class="command-stack" id="commandGrid">
         ${commandCenterCardsHtml(costToWin)}
@@ -607,6 +611,71 @@ function costToWinSectionHtml(ctw) {
       </div>
       ${captionRow(caption, "shareOverAsk")}
       ${proof}
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Answer block: "Are sellers cutting prices?" Homes for sale in the buyer's
+// filters whose latest asking price is below the first one the listing ledger
+// recorded. Works on a first visit, unlike the changes feed below, because the
+// ledger carries the history. Left out entirely when the ledger is not loaded
+// or tracks nothing in the slice.
+
+function priceCutsSectionHtml(activeListings) {
+  const { state } = ctx;
+  if (!state.ledger?.ready) return "";
+  const summary = summarizePriceCuts(activeListings, state.ledger.index);
+  const verdict = buildPriceCutVerdict(summary);
+  if (!verdict) return "";
+  const caption = renderUniverseCaption({
+    count: summary.trackedCount,
+    universeLabel: "homes for sale in your filters that the daily listing record tracks",
+  });
+  const stats = [];
+  if (summary.cutCount > 0) {
+    stats.push(statItem("Have cut their price", `${formatPct(summary.cutShare)} (${formatWholeNumber(summary.cutCount)} of ${formatWholeNumber(summary.trackedCount)})`));
+    stats.push(statItem("Typical cut", `${formatMoneyCompact(summary.medianCutAmount, 0)} (${formatPct(summary.medianCutPct)})`));
+    if (summary.medianDaysListedCut !== null) stats.push(statItem("Days listed, homes that cut", `${Math.round(summary.medianDaysListedCut)} days`));
+    if (summary.medianDaysListedUncut !== null) stats.push(statItem("Days listed, homes that have not", `${Math.round(summary.medianDaysListedUncut)} days`));
+    // Only homes watched since the day they listed can say how long the seller
+    // held out, so the label carries that sample size.
+    if (summary.medianDaysToFirstCut !== null) {
+      stats.push(statItem(`Typical wait before a first cut (${formatWholeNumber(summary.firstCutSampleCount)} tracked from listing)`, `${Math.round(summary.medianDaysToFirstCut)} days`));
+    }
+    if (summary.multiCutCount > 0) {
+      stats.push(statItem("Have cut more than once", `${formatWholeNumber(summary.multiCutCount)} of ${formatWholeNumber(summary.cutCount)}`));
+    }
+  }
+  const cutPct = (summary.cutShare || 0) * 100;
+  const bar = summary.cutCount > 0 ? `
+      <div class="cost-bar" role="img" aria-label="${esc(`${formatPct(summary.cutShare)} of tracked homes for sale have cut their price`)}">
+        <span class="cost-seg under" style="width:${cutPct.toFixed(2)}%"></span>
+        <span class="cost-seg none" style="width:${(100 - cutPct).toFixed(2)}%"></span>
+      </div>
+      <div class="cost-bar-legend">
+        <span><i class="cost-swatch under"></i>Price cut <b>${esc(formatPct(summary.cutShare))}</b> (${formatWholeNumber(summary.cutCount)})</span>
+        <span><i class="cost-swatch none"></i>Still at first ask or higher <b>${esc(formatPct(1 - summary.cutShare))}</b> (${formatWholeNumber(summary.trackedCount - summary.cutCount)})</span>
+      </div>` : "";
+  const biggest = summary.biggest.length ? `
+      <div class="changes-group">
+        <h4>Largest cuts on homes still for sale</h4>
+        <ul class="changes-list">
+          ${summary.biggest.map(({ row, cut }) => `<li><a class="changes-link" href="${esc(zillowUrl(row))}" target="_blank" rel="noopener noreferrer">${esc(row.address || "Address unavailable")}</a>${row.neighborhoodLabel ? ` · ${esc(row.neighborhoodLabel)}` : ""} · was ${esc(formatMoneyCompact(cut.firstAsk))}, now ${esc(formatMoneyCompact(cut.lastAsk))} (down ${esc(formatMoneyCompact(cut.cutAmount, 0))}, ${esc(formatPct(cut.cutPct))})${cut.daysListed !== null && cut.daysListed !== undefined ? ` · ${Math.round(cut.daysListed)} days listed` : ""}${(cut.changeCount ?? 0) >= 2 ? ` · cut ${cut.changeCount} times` : ""}</li>`).join("")}
+        </ul>
+      </div>` : "";
+  return `
+    <section class="section-block" id="priceCuts">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Are sellers cutting prices?</p>
+          <h3>${esc(verdict)}</h3>
+        </div>
+      </div>
+      ${captionRow(caption, "priceCuts")}
+      ${bar}
+      ${stats.length ? `<div class="metric-list">${stats.join("")}</div>` : ""}
+      ${biggest}
     </section>
   `;
 }
@@ -723,6 +792,8 @@ export function renderOverviewView(deps) {
       ${commandCenterSectionHtml(costToWin)}
 
       ${costToWinSectionHtml(costToWin)}
+
+      ${priceCutsSectionHtml((slices.openRows || []).filter(isActiveListing))}
 
       ${changesSectionHtml(changes.diff)}
 

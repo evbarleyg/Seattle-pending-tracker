@@ -247,3 +247,18 @@ test("vite shell and public assets are wired", () => {
   assert.match(source, /new Worker\(new URL\("\.\/workers\/dataWorker\.mjs"/);
   assert.match(source, /id=\"csvFile\"/);
 });
+
+test("every tab is in the one view list that markDirty re-marks", () => {
+  // Regression: "afford" was in the initial dirty set but missing from the list
+  // markDirty() re-marks, so the Afford tab never re-rendered after its first
+  // paint and its scenario inputs silently did nothing.
+  const main = fs.readFileSync(path.resolve(__dirname, "..", "src", "main.mjs"), "utf8");
+  const listMatch = main.match(/const ALL_VIEWS = \[([^\]]+)\]/);
+  assert.ok(listMatch, "main.mjs defines ALL_VIEWS");
+  const listed = listMatch[1].split(",").map((name) => name.trim().replace(/"/g, "")).filter(Boolean).sort();
+  const tabs = [...main.matchAll(/tabButton\("([a-z]+)"/g)].map((match) => match[1]).sort();
+  assert.ok(tabs.length >= 7, "found the tab buttons");
+  assert.deepEqual(listed, tabs, "ALL_VIEWS names exactly the tabs that exist");
+  assert.match(main, /dirtyViews: new Set\(ALL_VIEWS\)/, "the initial dirty set uses the shared list");
+  assert.match(main, /else ALL_VIEWS\.forEach\(\(name\) => state\.dirtyViews\.add\(name\)\)/, "markDirty() re-marks the shared list");
+});
