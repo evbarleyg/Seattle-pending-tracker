@@ -46,7 +46,7 @@
     "enrichedCsv": "public_sales_proxy_mls_enriched_last12mo.csv"
   },
   "validation": {
-    "generatedAt": "2026-10-06T13:39:56.987Z",
+    "generatedAt": "2026-10-07T14:49:11.578Z",
     "status": "pass",
     "errors": [],
     "warnings": [],
@@ -57,40 +57,40 @@
       "realtorSource": "local"
     },
     "counts": {
-      "outputRows": 20630,
+      "outputRows": 20640,
       "modes": {
         "PUBLIC_PROXY": 11208,
-        "MLS_ENRICHED": 9422
+        "MLS_ENRICHED": 9432
       },
-      "mlsRows": 9422,
-      "mlsSoldRows": 7993,
-      "mlsOpenRows": 1429,
-      "mlsActiveRows": 1428
+      "mlsRows": 9432,
+      "mlsSoldRows": 8007,
+      "mlsOpenRows": 1425,
+      "mlsActiveRows": 1424
     }
   },
   "sources": {
     "redfinActives": {
-      "fetchedAt": "2026-10-06T13:33:01.470Z",
-      "rows": 1429
+      "fetchedAt": "2026-10-07T13:41:21.052Z",
+      "rows": 1425
     },
     "redfinSold": {
-      "fetchedAt": "2026-10-06T13:37:33.849Z",
-      "rowsFetched": 360,
+      "fetchedAt": "2026-10-07T14:29:40.304Z",
+      "rowsFetched": 374,
       "windowDays": 30,
-      "newestSaleDate": "2026-10-05",
-      "cumulativeRows": 5274,
-      "cumulativeNewestSaleDate": "2026-10-05"
+      "newestSaleDate": "2026-10-06",
+      "cumulativeRows": 5288,
+      "cumulativeNewestSaleDate": "2026-10-06"
     },
     "activeLedger": {
-      "rows": 4274,
-      "lastSeen": "2026-10-06"
+      "rows": 4302,
+      "lastSeen": "2026-10-07"
     },
     "soldEnrichmentLedger": {
       "rows": 12192,
       "newestSaleDate": "2026-09-18",
-      "appliedAt": "2026-10-06T13:39:12.683Z",
+      "appliedAt": "2026-10-07T14:45:34.517Z",
       "appliedRows": null
     },
-    "stampedAt": "2026-10-06T13:39:14.393Z"
+    "stampedAt": "2026-10-07T14:45:36.269Z"
   }
 }
