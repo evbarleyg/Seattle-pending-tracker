@@ -8,6 +8,7 @@ import { pulseWatchlistGroup } from "./pulseMetrics.mjs";
 export const DEFAULT_DATASET = "public_sales_proxy_mls_enriched_last12mo.csv";
 export const REFRESH_REPORT_FILE = "data_refresh_report.json";
 export const BUYER_PROFILE_FILE = "buyer_profile_memory.json";
+export const LISTING_LEDGER_FILE = "listing_ledger.csv";
 export const DEFAULT_MIN_CLOSE = 1_100_000;
 export const DEFAULT_MAX_CLOSE = 1_600_000;
 export const PRICE_SLIDER_MIN = 0;
@@ -180,6 +181,8 @@ export function parseCsv(text) {
       mlsListingPrice: num(pickAny("mlsListingPrice", "mlsListPriceAtPending")),
       mlsOriginalPrice: num(pick("mlsOriginalPrice")),
       mlsClosePrice: num(pickAny("mlsClosePrice", "mlsSellingPrice")),
+      // Join key to the listing ledger (public/listing_ledger.csv, column mlsNumber).
+      mlsListingNumber: pick("mlsListingNumber"),
       mlsRegion: pick("mlsRegion"),
       mlsStyleCode: pick("mlsStyleCode"),
       mlsDOMRaw: pick("mlsDOM"),
