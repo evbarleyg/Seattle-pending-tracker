@@ -251,6 +251,13 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     });
     tiles.addTo(state.geo.map);
     state.geo.layer = L.layerGroup().addTo(state.geo.map);
+    // Redraw when the zoom crosses the ring threshold, so the rings change
+    // weight. Only on a crossing: zooming within a band needs no redraw.
+    state.geo.map.on("zoomend", () => {
+      const near = state.geo.map.getZoom() >= ACTIVE_RING_FULL_ZOOM;
+      if (near === state.geo.ringsNear) return;
+      mountOrRefreshMap();
+    });
     state.geo.map.on("moveend", () => {
       if (!state.geo.viewportFilter) return;
       const b = state.geo.map.getBounds();
@@ -265,6 +272,8 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
   // paint them LAST so they sit on top; fill the rest up to the cap underneath.
   // Without this, the draw cap silently dropped every active row whenever they
   // sorted past position 1,200 in the view.
+  const zoom = state.geo.map.getZoom();
+  state.geo.ringsNear = zoom >= ACTIVE_RING_FULL_ZOOM;
   const DRAW_CAP = 1200;
   const activeRows = rows.filter(isActiveRow);
   const otherRows = rows.filter((row) => !isActiveRow(row));
@@ -276,12 +285,14 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     // from a list-less sale (filled grey).
     const active = isActiveRow(row);
     const dotColor = active ? ACTIVE_LISTING_COLOR : ratioColor(row.saleToList);
+    const ring = active ? activeRingStyle(zoom, selected) : null;
     const marker = L.circleMarker([row.mapLat, row.mapLon], {
-      radius: selected ? 7 : (active ? 6 : 5),
+      radius: ring ? ring.radius : (selected ? 7 : 5),
       color: selected ? selectedRingColor() : dotColor,
+      opacity: ring ? ring.opacity : 1,
       fillColor: dotColor,
-      fillOpacity: active ? (selected ? 0.5 : 0.25) : (selected ? 0.95 : 0.7),
-      weight: active ? 2.5 : (selected ? 3 : 1),
+      fillOpacity: ring ? ring.fillOpacity : (selected ? 0.95 : 0.7),
+      weight: ring ? ring.weight : (selected ? 3 : 1),
       dashArray: row.isProjectionRow ? "3 3" : null,
     });
     marker.bindTooltip(
@@ -302,6 +313,22 @@ function mountOrRefreshMap(rows = geoMappableRows()) {
     state.geo.hasFitBounds = true;
   }
   renderGeoSelectedRows();
+}
+
+// Active-listing rings, by zoom. Zoomed out to the whole city, 270-odd thick
+// rings stack up and bury the sale-pressure colors the tab is named for; zoomed
+// into a neighborhood there is room for them to read as "for sale here". So the
+// ring is lighter below this zoom and full weight at or above it.
+const ACTIVE_RING_FULL_ZOOM = 13;
+
+function activeRingStyle(zoom, selected) {
+  const near = zoom >= ACTIVE_RING_FULL_ZOOM;
+  return {
+    radius: selected ? 7 : (near ? 6 : 4.5),
+    weight: selected ? 3 : (near ? 2.5 : 1.5),
+    opacity: selected || near ? 1 : 0.7,
+    fillOpacity: selected ? 0.5 : (near ? 0.25 : 0.12),
+  };
 }
 
 function updateTileNotice() {
