@@ -68,6 +68,7 @@ import {
   ledgerTrackedTypes,
   parseListingLedger,
 } from "./domain/listingLedger.mjs";
+import { buildOutlookTables, outlookFor, outlookLean, periodSituation, summarizeOutlook } from "./domain/listingOutlook.mjs";
 import {
   BID_STRATEGIES,
   DESKTOP_PAGE_SIZE,
@@ -91,7 +92,7 @@ import {
 import { initExplainLayer } from "./ui/explain.mjs";
 import { getExplainEntry, renderOverviewView } from "./views/overview.mjs";
 import { renderPulseView } from "./views/pulse.mjs";
-import { renderBidsView } from "./views/bids.mjs";
+import { refreshManualBidOutputs, renderBidsView } from "./views/bids.mjs";
 import { renderAffordView } from "./views/afford.mjs";
 import { renderRecordsView } from "./views/records.mjs";
 import { renderGeoView } from "./views/geo.mjs";
@@ -216,6 +217,7 @@ const state = {
     asOf: "",
     sampleDays: null,
     trackedTypes: new Set(),
+    periodByMls: new Map(),
     ready: false,
   },
   soldMlsNumbers: new Set(),
@@ -238,6 +240,7 @@ const state = {
     zip: "",
     dom: "",
     cdom: "",
+    yearBuilt: "",
   },
   pulseSliceGrain: "month",
   recordSort: { key: "saleDate", dir: "desc" },
@@ -483,8 +486,10 @@ function recomputeDerived() {
     interactions: state.interactions,
     geo: state.geo,
   });
-  const compPool = buildBidCompPool(filters, state.normalizedRows);
+  const compPool = bidCompPoolFor(filters);
   const bidResult = computeActiveBidSuggestions(filters, state.normalizedRows, state.bid.strategy, { compPool });
+  const outlook = computeOutlook(filters);
+  attachOutlook(bidResult.rows, outlook);
   // Every listing genuinely for sale in the current slice, whatever the Bids
   // tab's own toggles or the open/projected record flags are set to.
   const liveListingRows = applyBidViewInteractions(bidResult.rows, state.interactions, state.geo);
@@ -514,6 +519,7 @@ function recomputeDerived() {
   state.derived = {
     slices,
     supply,
+    outlook: outlook?.summary || null,
     liveListingRows,
     compPool,
     bidResult,
@@ -568,6 +574,61 @@ function computeSupply(filters) {
   };
 }
 
+// The comp pool ignores the price band, so dragging a price slider (or sorting, paging,
+// starring) reuses it, and with it the per-comp arrays bidComps.mjs prepares once per
+// pool.
+let compPoolCache = null;
+
+function bidCompPoolFor(filters) {
+  const { minClose, maxClose, affordability, type, excludeTypes, ...rest } = filters;
+  const key = `${new Date().toDateString()}|${JSON.stringify(rest)}`;
+  if (!compPoolCache || compPoolCache.key !== key || compPoolCache.rows !== state.normalizedRows) {
+    compPoolCache = { key, rows: state.normalizedRows, pool: buildBidCompPool(filters, state.normalizedRows) };
+  }
+  return compPoolCache.pool;
+}
+
+// What tends to happen next to listings like these (listingOutlook.mjs), or null when
+// the ledger is missing, predates ask history, or describes a different dataset. The
+// tables depend only on the ledger, the sold set and the price band, so they are kept
+// until one of those changes rather than refiled on every filter click.
+let outlookCache = null;
+
+function computeOutlook(filters) {
+  const ledger = state.listingLedger;
+  if (!ledger.ready || state.dataSource.kind === "upload") return null;
+  const key = `${ledger.asOf}|${filters.minClose}|${filters.maxClose}`;
+  if (!outlookCache || outlookCache.key !== key || outlookCache.periods !== ledger.periods || outlookCache.sold !== state.soldMlsNumbers) {
+    const options = { asOf: ledger.asOf, soldMlsNumbers: state.soldMlsNumbers, sampleDays: ledger.sampleDays, minAsk: filters.minClose, maxAsk: filters.maxClose };
+    outlookCache = { key, periods: ledger.periods, sold: state.soldMlsNumbers, options, tables: buildOutlookTables(ledger.periods, options), pooled: new Map() };
+  }
+  // The Overview block describes the types in the lens: one table, or several pooled.
+  const type = state.interactions.type || filters.type;
+  const types = (type === "All" ? [...ledger.trackedTypes] : [type]).filter((name) => !filters.excludeTypes.includes(name)).sort();
+  let table = types.length === 1 ? outlookCache.tables.get(types[0]) || null : null;
+  if (types.length > 1) {
+    const pooledKey = types.join("|");
+    if (!outlookCache.pooled.has(pooledKey)) {
+      const together = ledger.periods.filter((period) => types.includes(period.typeLabel)).map((period) => ({ ...period, typeLabel: pooledKey }));
+      outlookCache.pooled.set(pooledKey, buildOutlookTables(together, outlookCache.options).get(pooledKey) || null);
+    }
+    table = outlookCache.pooled.get(pooledKey);
+  }
+  return { tables: outlookCache.tables, summary: table ? { ...summarizeOutlook(table), types } : null };
+}
+
+function attachOutlook(rows, outlook) {
+  if (!outlook?.tables.size) return;
+  const { periodByMls, asOf } = state.listingLedger;
+  for (const row of rows) {
+    const period = periodByMls.get(row.mlsListingNumber);
+    const situation = period ? periodSituation(period, asOf) : null;
+    const odds = situation ? outlookFor(outlook.tables.get(row.typeLabel), situation) : null;
+    if (!odds) continue;
+    row.outlook = { cutChance: odds.cutChance, saleChance: odds.saleChance, lean: outlookLean(odds) };
+  }
+}
+
 function hasFilterBeyondLedger(filters) {
   const { type, neighborhood, ...otherClicks } = state.interactions;
   return filters.minLot > 0 || filters.maxLot > 0
@@ -604,7 +665,15 @@ function markDirty(view = null) {
 // tabbing from one field to the next dropped focus to <body> and the next
 // keystrokes went nowhere. Put focus (plus anything typed but not yet committed,
 // and the caret) back on the element that took the old one's id.
+let changeCommitted = false;
+// Replacing a focused field that holds half-typed text makes the browser fire "change"
+// on it as it goes. That is the render's doing, not the user's: acting on it applied a
+// filter of "50" while "5000" was still being typed. The text itself is carried over.
+let replacingDom = false;
+
 function keepingFocus(render) {
+  const afterCommit = changeCommitted;
+  changeCommitted = false;
   const before = document.activeElement;
   const id = before && before !== document.body && app.contains(before) ? before.id : "";
   if (!id) return render();
@@ -620,13 +689,34 @@ function keepingFocus(render) {
   } catch {
     // number and date inputs have no caret API.
   }
-  render();
+  replacingDom = true;
+  try {
+    render();
+  } finally {
+    replacingDom = false;
+  }
   const after = document.getElementById(id);
   if (!after || after === before || after.disabled) return undefined;
-  if (typed !== null && after.value !== typed) after.value = typed;
+  if (typed !== null && after.value !== typed) {
+    // Text set from script does not count as an edit, so leaving the field would fire no
+    // "change" and what was typed would never be applied. Commit it on the way out.
+    // (If more is typed first, the browser fires its own, and one commit is enough.)
+    const rendered = after.value;
+    after.value = typed;
+    let committed = false;
+    after.addEventListener("change", () => { committed = true; }, { once: true });
+    after.addEventListener("blur", () => {
+      if (!committed && !replacingDom && after.value !== rendered) after.dispatchEvent(new Event("change", { bubbles: true }));
+    }, { once: true });
+  }
   after.focus({ preventScroll: true });
   try {
     if (caret) after.setSelectionRange(caret[0], caret[1]);
+    // No caret to read back (number and date inputs). When this render follows a
+    // committed change, the field in focus was just tabbed or clicked into: select it,
+    // as Tab does, so that typing replaces the old value rather than appending to it.
+    // A render set off by a file finishing loading can land mid-word, so it must not.
+    else if (isText && afterCommit) after.select();
   } catch {
     // Same inputs as above.
   }
@@ -1243,6 +1333,7 @@ function updateManualBidFromInputs() {
     zip: qs("#manualBidZip")?.value || "",
     dom: qs("#manualBidDom")?.value || "",
     cdom: qs("#manualBidCdom")?.value || "",
+    yearBuilt: qs("#manualBidYearBuilt")?.value || "",
   };
 }
 
@@ -1255,6 +1346,7 @@ function applyManualScenarioFromActiveRow(row) {
     zip: row.zip || "",
     dom: row.hasMlsDomValue ? String(Math.round(row.mlsDOM)) : "",
     cdom: row.hasMlsCdomValue ? String(Math.round(row.mlsCDOM)) : "",
+    yearBuilt: row.yearBuilt > 0 ? String(Math.round(row.yearBuilt)) : "",
   };
   state.bid.manualEnabled = true;
   state.bid.compSearchEnabled = true;
@@ -1264,7 +1356,8 @@ function applyManualScenarioFromActiveRow(row) {
 function bindEvents() {
   app.addEventListener("change", (event) => {
     const target = event.target;
-    if (!target) return;
+    if (!target || replacingDom) return;
+    changeCommitted = true;
     if (target.id === "fType") state.filters.type = target.value;
     if (target.id === "fMlsStatus") {
       state.filters.mlsStatus = target.value;
@@ -1323,11 +1416,20 @@ function bindEvents() {
       state.filters.neighborhoods = qsa("#fNeighborhoodOptions input[type='checkbox']:checked").map((input) => input.value);
     }
     if (target.id === "manualBidSource") {
+      // The picked listing fills the fields, so they are redrawn from state. (Reading
+      // them back first, as every other manualBid* field does, wiped the pick.)
       const row = state.bid.activeLookup.get(target.value);
       if (row) applyManualScenarioFromActiveRow(row);
       else state.bid.manualSourceKey = "";
+      return markDirty("bids");
     }
-    if (target.id?.startsWith("manualBid")) updateManualBidFromInputs();
+    if (target.id?.startsWith("manualBid")) {
+      updateManualBidFromInputs();
+      if (!refreshManualBidOutputs(bidsDeps())) return markDirty("bids");
+      changeCommitted = false; // no render follows, so nothing will consume it
+      refreshIcons(); // the comp rows carry link icons
+      return undefined;
+    }
     if (target.id === "csvFile") handleCsvUpload(target.files?.[0]);
 
     state.recordsPage = 1;
@@ -1410,6 +1512,7 @@ function bindEvents() {
         zip: "",
         dom: "",
         cdom: "",
+        yearBuilt: "",
       };
       return markDirty("bids");
     }
@@ -1672,12 +1775,15 @@ async function loadListingLedger() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const rows = parseListingLedger(await response.text());
     if (!rows.length) throw new Error("empty ledger");
-    state.listingLedger = { periods: buildMarketingPeriods(rows), asOf: ledgerAsOf(rows), sampleDays: ledgerSampleDays(rows), trackedTypes: ledgerTrackedTypes(rows), ready: true };
+    const periods = buildMarketingPeriods(rows);
+    const periodByMls = new Map(periods.flatMap((period) => period.mlsNumbers.map((mls) => [mls, period])));
+    state.listingLedger = { periods, periodByMls, asOf: ledgerAsOf(rows), sampleDays: ledgerSampleDays(rows), trackedTypes: ledgerTrackedTypes(rows), ready: true };
     syncLedgerNeighborhoods();
   } catch {
-    state.listingLedger = { periods: [], asOf: "", sampleDays: null, trackedTypes: new Set(), ready: false };
+    state.listingLedger = { periods: [], periodByMls: new Map(), asOf: "", sampleDays: null, trackedTypes: new Set(), ready: false };
   }
   markDirty("overview");
+  markDirty("bids"); // each card's "what tends to happen next" line comes from the ledger
 }
 
 // Private affordability config. Served only from a gitignored local file, so on

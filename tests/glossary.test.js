@@ -166,17 +166,25 @@ test("tab entries stay grounded in the real thresholds and universes", async () 
   assert.match(M.watchlistPockets.plain, /Ballard/);
   assert.match(M.watchlistPockets.plain, /Magnolia/);
 
-  // Bids: BID_MIN_COMPS=6, 90-day comp window, strategy percentiles,
-  // clamp 0.85x-1.25x, confidence bands at 75/55 (selectors.mjs).
+  // Bids: BID_MIN_COMPS=6, 12-month comp window, 60-day half-life, local boost up to 20x,
+  // strategy percentiles, clamp 0.85x-1.25x, confidence bands at 75/55
+  // (selectors.mjs, bidComps.mjs).
   assert.match(M.suggestedBid.formulaWords, /50th/);
   assert.match(M.suggestedBid.formulaWords, /60th/);
   assert.match(M.suggestedBid.formulaWords, /70th/);
   assert.match(M.suggestedBid.caveats.join(" "), /0\.85x/);
-  assert.match(M.suggestedBid.formulaWords, /same stage/);
+  assert.match(M.suggestedBid.formulaWords, /how long it took to go pending/);
   assert.match(M.suggestedBid.caveats.join(" "), /1\.25x/);
   assert.match(M.bidCompBasis.formulaWords, /6 /);
-  assert.match(M.bidCompBasis.formulaWords, /90 days/);
-  assert.match(M.bidCompBasis.formulaWords, /180 days/);
+  assert.match(M.bidCompBasis.formulaWords, /12 months/);
+  assert.match(M.bidCompBasis.formulaWords, /60 days/);
+  assert.match(M.bidCompBasis.formulaWords, /up to 20 times/);
+  assert.match(M.bidCompBasis.formulaWords, /15 years/);
+  assert.match(M.bidOutcomeRange.formulaWords, /10th and 90th/);
+  assert.match(M.bidLadder.formulaWords, /50th, 60th, 70th, 80th and 90th/);
+  assert.match(M.bidConfidence.formulaWords, /5 points/);
+  assert.match(M.bidConfidence.formulaWords, /20th and 80th/);
+  assert.match(M.bidConfidence.formulaWords, /45 days/);
   assert.match(M.bidConfidence.formulaWords, /25/);
   assert.match(M.bidConfidence.formulaWords, /75/);
   assert.match(M.bidConfidence.formulaWords, /55/);

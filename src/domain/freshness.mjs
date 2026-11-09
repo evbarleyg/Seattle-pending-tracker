@@ -36,7 +36,7 @@ export const FRESHNESS_SOURCES = [
     label: "Sales with an asking price",
     shortLabel: "Sale vs ask",
     okDays: 45,
-    note: "Newest sale that also carries a real asking price. Sale-versus-ask stats use only these, and a bid suggestion needs one from the last 90 days.",
+    note: "Newest sale that also carries a real asking price. Sale-versus-ask stats use only these, and bid suggestions are built from them: the older the newest one, the lower their confidence.",
   },
   {
     id: "county",

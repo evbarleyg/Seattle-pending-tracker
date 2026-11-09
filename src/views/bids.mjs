@@ -28,17 +28,17 @@ import {
 } from "../domain/format.mjs";
 import { domMetric } from "../domain/data.mjs";
 import {
-  BID_COMP_WINDOW_DAYS,
   BID_MIN_COMPS,
   BID_STRATEGIES,
   bidTierLabel,
   getBidSortValue,
   paginateRows,
   scoreBidForRow,
-  selectBidComps,
   sortRows,
 } from "../domain/selectors.mjs";
-import { LISTING_STAGES, stageMeta } from "../domain/listingStage.mjs";
+import { selectBidComps, topBidComps } from "../domain/bidComps.mjs";
+import { LISTING_STAGES, ratioVsAskPhrase, stageMeta } from "../domain/listingStage.mjs";
+import { OUTLOOK_HORIZON_DAYS } from "../domain/listingOutlook.mjs";
 import { formatAge } from "../domain/freshness.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
@@ -56,11 +56,11 @@ export function noSuggestionsNoticeHtml(stats, pricedSalesSource) {
     : "";
   const remedy = pricedSalesSource?.tone === "behind"
     ? " Suggestions come back once the sold data and its asking-price history are refreshed."
-    : " Widening the price band or clearing neighborhood filters can bring more comps into range.";
+    : " Clearing neighborhood or lot-size filters can bring more comps into range.";
   return `
     <div class="empty-state" id="bidNoSuggestions" role="status">
       <strong>No bid suggestions right now.</strong>
-      A suggestion needs at least ${BID_MIN_COMPS} comparable homes that sold in the last ${BID_COMP_WINDOW_DAYS} days with a known asking price, and none of the ${formatWholeNumber(stats.activeCount)} active listings here has that many.${esc(newest)}${remedy}
+      A suggestion needs the equivalent of ${BID_MIN_COMPS} closely comparable homes that sold in the last 12 months with a known asking price, and none of the ${formatWholeNumber(stats.activeCount)} active listings here has that many.${esc(newest)}${remedy}
       You can still browse the listings below and load any of them into the comp finder.
     </div>`;
 }
@@ -81,28 +81,35 @@ function captionRow(captionHtml, explainId = "") {
   return `<div class="caption-row">${captionHtml}${button}</div>`;
 }
 
-// Plain-language scope word for which comp pool backed a suggested bid,
-// mirroring bidTierLabel's tiers (computeBidCompTiers in selectors.mjs).
+// Plain-language scope word for where the weight behind a suggested bid sits,
+// mirroring bidTierLabel (selectBidComps in bidComps.mjs).
 export function compScopeLabel(tier) {
-  if (tier === "T1_NEIGHBORHOOD_TYPE") return "nearby";
-  if (tier === "T2_ZIP_TYPE") return "same-zip";
-  if (tier === "T3_CITY_TYPE") return "citywide";
-  return "";
+  return tier === "T1_NEIGHBORHOOD_TYPE" || tier === "T3_CITY_TYPE" ? bidTierLabel(tier).toLowerCase() : "";
 }
 
-// "of 28 nearby single family comps" style caption for a scored bid, reusing
+// Which stretch of the market the comps were drawn from, in the buyer's terms.
+// Week one is pooled; after that comps count by how close their days to pending
+// were to this listing's days listed.
+export function compTimingWords(stageId, dom = null, domMatch = "near") {
+  const stage = stageMeta(stageId);
+  if (!stage || domMatch === "none") return "";
+  if (stage.id === "fresh") return `that went pending in ${stage.range}`;
+  // Too few sales took about this long, so every sale past week one was used.
+  if (domMatch === "side") return "that went pending after their first week";
+  return Number.isFinite(dom) ? `that went pending around day ${Math.round(dom)}` : `that went pending in ${stage.range}`;
+}
+
+// "of 28 mostly nearby single family comps" style caption for a scored bid, reusing
 // the same shared universe-caption component the Overview uses so both tabs
 // state their comp basis the same way.
-export function compBasisCaption(compCount, tier, typeLabel, stageId = "", windowDays = BID_COMP_WINDOW_DAYS) {
+export function compBasisCaption(compCount, tier, typeLabel, stageId = "", dom = null, { domMatch = "near", newerBuild = false } = {}) {
   if (!compCount) return "";
   const scope = compScopeLabel(tier);
   const typeWord = String(typeLabel || "home").toLowerCase();
-  const stage = stageMeta(stageId);
-  const stageWords = stage ? `that went pending in ${stage.range}` : "";
-  const universeLabel = [scope, `${typeWord} comps`, stageWords].filter(Boolean).join(" ");
-  // Only worth saying when the search had to reach past the usual window.
-  const windowLabel = windowDays > BID_COMP_WINDOW_DAYS ? `last ${windowDays} days` : "";
-  return renderUniverseCaption({ count: compCount, universeLabel, windowLabel });
+  // Worth saying: it is why a newer home's bid sits nearer its ask than its neighbours'.
+  const era = newerBuild ? "newer-build" : "";
+  const universeLabel = [scope, era, `${typeWord} comps`, compTimingWords(stageId, dom, domMatch)].filter(Boolean).join(" ");
+  return renderUniverseCaption({ count: compCount, universeLabel });
 }
 
 // Why a scored bid could not use same-stage comps, in the buyer's terms.
@@ -161,6 +168,17 @@ function historyNoteHtml(facts) {
   if (!bits.length) return "";
   const text = bits.join(" · ");
   return `<p class="bid-history-note">${esc(`${text[0].toUpperCase()}${text.slice(1)}`)}</p>`;
+}
+
+// "Next 14 days: 33% cut the price · 8% go under contract", led by a chip saying which
+// way those odds lean. Empty when the ledger has no read.
+export function outlookNoteHtml(outlook) {
+  if (!outlook || outlook.cutChance === null) return "";
+  const pct = (share) => `${Math.round(share * 100)}%`;
+  const bits = [`${pct(outlook.cutChance)} cut the price`];
+  if (outlook.saleChance !== null) bits.push(`${pct(outlook.saleChance)} go under contract`);
+  const chip = outlook.lean ? `<span class="outlook-chip ${esc(outlook.lean.tone)}">${esc(outlook.lean.label)}</span>` : "";
+  return `<p class="bid-outlook">${chip}<span>Next ${OUTLOOK_HORIZON_DAYS} days, listings like this: ${esc(bits.join(" · "))} ${renderExplainButton("listingOutlook")}</span></p>`;
 }
 
 // How the queue splits by stage, so the page opens with where the leverage is.
@@ -265,7 +283,7 @@ export function renderBidsView(deps) {
                 ${bidTh("ratio", "Bid vs Ask", "suggestedSaleList")}
                 ${bidTh("confidence", "Confidence", "bidConfidence")}
                 ${bidTh("compCount", "Comp Count", "bidCompBasis")}
-                ${bidTh("compTier", "Comp Tier")}
+                ${bidTh("compTier", "Comp basis")}
               </tr>
             </thead>
             <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="13">No active listings match the current filters.</td></tr>`}</tbody>
@@ -306,7 +324,8 @@ function bidCardHtml(row) {
         <div><span>Days listed</span><strong>${esc(daysListedText(facts))}</strong></div>
       </div>
       ${historyNoteHtml(facts)}
-      <p class="bid-unscored-note">No suggestion: ${compCount} of ${BID_MIN_COMPS} recent comps ${renderExplainButton("suggestedBid")}</p>
+      ${outlookNoteHtml(row.outlook)}
+      <p class="bid-unscored-note">No suggestion: the comps add up to ${compCount} of the ${BID_MIN_COMPS} needed ${renderExplainButton("bidCompBasis")}</p>
       <footer class="bid-card-footer">
         <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
       </footer>
@@ -315,7 +334,7 @@ function bidCardHtml(row) {
   }
   const suggested = formatMoneyCompact(row.bidSuggested);
   const range = `${formatMoneyCompact(row.bidLow)} – ${formatMoneyCompact(row.bidHigh)}`;
-  const ratio = row.bidRatio > 0 ? `${row.bidRatio.toFixed(2)}x` : "—";
+  const outcome = `${formatMoneyCompact(row.bidOutcomeLow)} – ${formatMoneyCompact(row.bidOutcomeHigh)}`;
   const confTone = (row.bidConfidenceLabel || "").toLowerCase();
   const overAsk = row.pendingListPrice > 0
     ? Math.round(((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100)
@@ -323,7 +342,7 @@ function bidCardHtml(row) {
   const overAskBadge = overAsk === null
     ? ""
     : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${esc(overAskPhrase(overAsk))}</span>`;
-  const compCaption = compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel, row.bidStageMatched ? row.bidStage : "", row.bidCompWindowDays);
+  const compCaption = compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel, row.bidStage, facts.totalDays, { domMatch: row.bidDomMatch, newerBuild: row.bidNewerBuild });
   return `
     <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
       ${head}
@@ -340,14 +359,15 @@ function bidCardHtml(row) {
       </div>
       ${captionRow(compCaption, "bidCompBasis")}
       <div class="bid-card-grid-meta">
-        <div><span>Range</span><strong>${range}</strong></div>
+        <div><span>Bid range</span><strong>${range}</strong></div>
+        <div><span>Likely sale ${renderExplainButton("bidOutcomeRange")}</span><strong>${outcome}</strong></div>
         <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
         <div><span>First listed at</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
         <div><span>Days listed</span><strong>${esc(daysListedText(facts))}</strong></div>
-        <div><span>Bid vs ask price</span><strong>${ratio}</strong></div>
-        <div><span>Comps</span><strong>${row.bidCompCount || 0} (${esc(bidTierLabel(row.bidCompTier))})</strong></div>
+        <div><span>Comps</span><strong>${row.bidCompCount || 0}</strong></div>
       </div>
       ${historyNoteHtml(facts)}
+      ${outlookNoteHtml(row.outlook)}
       <footer class="bid-card-footer">
         <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
       </footer>
@@ -355,15 +375,43 @@ function bidCardHtml(row) {
   `;
 }
 
+// The three parts of the panel that depend on what has been typed.
+function manualBidOutputs() {
+  const { state } = ctx;
+  const result = state.bid.manualEnabled ? computeManualBid() : null;
+  // An estimate already carries its comps; the lookup is for "Find Comps" with no ask.
+  const compLookup = !result?.compRows && (state.bid.compSearchEnabled || state.bid.manualEnabled) ? computeManualComps() : null;
+  return {
+    status: result?.status || compLookup?.status || "Load a listing or enter an address to find comps.",
+    resultHtml: result?.html || "",
+    compRowsHtml: result?.compRows || compLookup?.rowsHtml || `<tr><td colspan="8">${esc(compLookup?.status || "Find comps to populate this list.")}</td></tr>`,
+  };
+}
+
+// After a field changes, only the outputs are redrawn. Re-rendering the inputs too
+// replaced the one the buyer had just tabbed into: its text was no longer selected,
+// so typing appended to the old value ("1948" became "19481948") instead of
+// replacing it. Nothing outside the panel depends on these fields.
+export function refreshManualBidOutputs(deps) {
+  ctx = deps;
+  const { qs } = ctx;
+  const [status, result, compRows] = [qs("#manualBidStatus"), qs("#manualBidResult"), qs("#manualBidCompRows")];
+  if (!status || !result || !compRows) return false;
+  const outputs = manualBidOutputs();
+  status.textContent = outputs.status;
+  result.innerHTML = outputs.resultHtml;
+  compRows.innerHTML = outputs.compRowsHtml;
+  return true;
+}
+
 export function renderManualBidPanel() {
   const { state, buttonIcon, optionHtml } = ctx;
-  const result = state.bid.manualEnabled ? computeManualBid() : null;
-  const compLookup = (state.bid.compSearchEnabled || state.bid.manualEnabled) ? computeManualComps() : null;
+  const outputs = manualBidOutputs();
   return `
     <section class="manual-bid-wrap">
       <div class="section-head compact">
         <div><p class="eyebrow">Comp Finder</p><h3>Prospective listing comps ${renderExplainButton("bidCompBasis")}</h3></div>
-        <span class="note" id="manualBidStatus">${result?.status || compLookup?.status || "Load a listing or enter an address to find comps."}</span>
+        <span class="note" id="manualBidStatus">${esc(outputs.status)}</span>
       </div>
       <div class="manual-bid-form">
         <div class="field"><label for="manualBidSource">Load Active Listing</label><select id="manualBidSource"><option value="">Manual entry</option>${state.derived.bidRows.map((row) => `<option value="${esc(row.mapPropertyKey)}" ${state.bid.manualSourceKey === row.mapPropertyKey ? "selected" : ""}>${esc(row.address || "Address unavailable")}</option>`).join("")}</select></div>
@@ -374,19 +422,18 @@ export function renderManualBidPanel() {
         <div class="field"><label for="manualBidZip">ZIP</label><input id="manualBidZip" type="text" maxlength="5" value="${esc(state.manualBid.zip)}" placeholder="98117" /></div>
         <div class="field"><label for="manualBidDom">DOM</label><input id="manualBidDom" type="number" min="0" step="1" value="${esc(state.manualBid.dom)}" placeholder="7" /></div>
         <div class="field"><label for="manualBidCdom">CDOM</label><input id="manualBidCdom" type="number" min="0" step="1" value="${esc(state.manualBid.cdom)}" placeholder="9" /></div>
+        <div class="field"><label for="manualBidYearBuilt">Year built</label><input id="manualBidYearBuilt" type="number" min="1850" max="2100" step="1" value="${esc(state.manualBid.yearBuilt)}" placeholder="1948" /></div>
       </div>
       <div class="manual-bid-actions">
         ${buttonIcon("Find Comps", "search", "id=\"manualCompRun\"", "alt")}
         ${buttonIcon("Estimate Bid", "target", "id=\"manualBidRun\"")}
         ${buttonIcon("Clear", "refresh-ccw", "id=\"manualBidClear\"", "alt")}
       </div>
-      <div class="manual-bid-result" id="manualBidResult">
-        ${result?.html || ""}
-      </div>
+      <div class="manual-bid-result" id="manualBidResult">${outputs.resultHtml}</div>
       <div class="table-wrap manual-bid-table-wrap">
         <table class="manual-bid-table">
-          <thead><tr><th>Comp</th><th>Neighborhood</th><th>Close price</th><th>Sale vs ask</th><th>DOM</th><th>Over/under ask</th></tr></thead>
-          <tbody id="manualBidCompRows">${compLookup?.rowsHtml || result?.compRows || `<tr><td colspan="6">${esc(compLookup?.status || "Find comps to populate this list.")}</td></tr>`}</tbody>
+          <thead><tr><th>Comp</th><th>Neighborhood</th><th>Closed</th><th>Close price</th><th>Sale vs ask</th><th>DOM</th><th>Over/under ask</th><th><span class="th-cell">Counts for ${renderExplainButton("bidCompBasis")}</span></th></tr></thead>
+          <tbody id="manualBidCompRows">${outputs.compRowsHtml}</tbody>
         </table>
       </div>
     </section>
@@ -413,7 +460,20 @@ function manualScenarioRow() {
     hasMlsCdomValue: state.manualBid.cdom !== "",
     mlsDOM: num(state.manualBid.dom),
     mlsCDOM: num(state.manualBid.cdom),
+    yearBuilt: num(state.manualBid.yearBuilt),
   };
+}
+
+// A comp's share of all the weight behind the bid.
+export function weightShareText(share) {
+  if (!Number.isFinite(share) || share <= 0) return "n/a";
+  return share < 0.001 ? "<0.1%" : `${(share * 100).toFixed(1)}%`;
+}
+
+// "the 12 sales that count most (41% of the weight)"
+function topCompsPhrase(rows) {
+  const share = rows.reduce((sum, comp) => sum + (comp.bidCompWeightShare || 0), 0);
+  return `the ${rows.length} sales that count most (${Math.round(share * 100)}% of the weight)`;
 }
 
 function compRowsHtml(rows) {
@@ -422,10 +482,12 @@ function compRowsHtml(rows) {
     <tr>
       <td>${propertyAddressLink(comp, "comp-link")}</td>
       <td>${esc(comp.neighborhoodLabel)}</td>
+      <td>${esc(formatDateShort(comp.saleDate))}</td>
       <td>${formatMoneyCompact(comp.closePrice)}</td>
       <td>${formatRatio(comp.saleToList)}</td>
       <td>${domMetric(comp) ?? "n/a"}</td>
       <td>${formatMoneyCompact(comp.delta)}</td>
+      <td>${weightShareText(comp.bidCompWeightShare)}</td>
     </tr>
   `).join("");
 }
@@ -436,13 +498,14 @@ function computeManualComps() {
   if (!row.address && !row.zip && (!row.neighborhoodLabel || row.neighborhoodLabel === "Seattle")) {
     return { status: "Enter an address plus ZIP or neighborhood, or load an active listing.", rowsHtml: "" };
   }
-  const tier = selectBidComps(row, state.derived.compPool);
-  const rows = tier.rows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || ""))).slice(0, 12);
+  const picked = selectBidComps(row, state.derived.compPool);
+  const rows = topBidComps(picked);
   if (!rows.length) {
-    return { status: "No comparable recent sales found for this type and location.", rowsHtml: "" };
+    return { status: "No comparable sales found for this home type in the last 12 months.", rowsHtml: "" };
   }
+  const timing = picked.stageMatched ? ` ${compTimingWords(picked.stage, domMetric(row), picked.domMatch)}` : "";
   return {
-    status: `Showing ${rows.length} of ${tier.rows.length} comps from ${bidTierLabel(tier.tier)}${tier.stageMatched ? `, all pending in ${stageMeta(tier.stage).range}` : ""}.`,
+    status: `Showing ${topCompsPhrase(rows)}${timing}.`,
     rowsHtml: compRowsHtml(rows),
   };
 }
@@ -454,23 +517,41 @@ function computeManualBid() {
   const scored = scoreBidForRow(row, state.derived.compPool, state.bid.strategy, true);
   if (scored.bidStatus !== "SCored") {
     return {
-      status: `Insufficient comps (${scored.bidCompCount}) for ${bidTierLabel(scored.bidCompTier)}.`,
+      status: `Too few comparable sales: they add up to ${scored.bidCompCount} of the ${BID_MIN_COMPS} needed.`,
       html: `<div class="empty-state">Need more comparable recent sales for this scenario.</div>`,
-      compRows: "",
+      compRows: compRowsHtml(scored.bidCompRows || []),
     };
   }
   return {
-    status: `Estimated using ${scored.bidCompCount} comps (${bidTierLabel(scored.bidCompTier)}${scored.bidStageMatched ? `, pending in ${stageMeta(scored.bidStage).range}${scored.bidCompWindowDays > BID_COMP_WINDOW_DAYS ? `, last ${scored.bidCompWindowDays} days` : ""}` : `, ${unstagedReason(scored)}`}).`,
+    status: `Estimated from the equivalent of ${scored.bidCompCount} comps (${bidTierLabel(scored.bidCompTier).toLowerCase()}, ${scored.bidStageMatched ? compTimingWords(scored.bidStage, domMetric(row), scored.bidDomMatch).replace(/^that went /, "") : unstagedReason(scored)}).`,
     html: `
       ${metricWithExplain("Suggested bid", formatMoney(scored.bidSuggested), "suggestedBid")}
-      ${metricWithExplain("Range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`, "bidRange")}
+      ${metricWithExplain("Bid range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`, "bidRange")}
+      ${metricWithExplain("Likely sale", `${formatMoney(scored.bidOutcomeLow)} - ${formatMoney(scored.bidOutcomeHigh)}`, "bidOutcomeRange")}
       ${metricWithExplain("Bid vs ask price", `${scored.bidRatio.toFixed(2)}x`, "suggestedSaleList")}
       ${metricWithExplain("Confidence", `${scored.bidConfidenceLabel} (${scored.bidConfidence})`, "bidConfidence")}
       ${metricWithExplain("Comp basis", `${scored.bidCompCount} comps · ${bidTierLabel(scored.bidCompTier)}`, "bidCompBasis")}
       ${metricWithExplain("Listing stage", scored.bidStageLabel || "Unknown", "bidStage")}
+      ${bidLadderHtml(scored)}
     `,
     compRows: compRowsHtml(scored.bidCompRows || []),
   };
+}
+
+// What each step up in price buys: the bid that would have met or beaten the
+// winning price on that share of comparable sales.
+export function bidLadderHtml(scored) {
+  const steps = scored?.bidLadder || [];
+  const ask = Number(scored?.pendingListPrice) || 0;
+  if (!steps.length || !(ask > 0)) return "";
+  const cells = steps.map((step) => {
+    return `<li><span class="ladder-chance">${Math.round(step.chance * 100)}%</span><strong>${esc(formatMoney(step.bid))}</strong><span class="ladder-vs-ask">${esc(ratioVsAskPhrase(step.bid / ask))}</span></li>`;
+  }).join("");
+  return `
+    <div class="bid-ladder" id="manualBidLadder">
+      <span class="mini-label">Chance of winning at each price ${renderExplainButton("bidLadder")}</span>
+      <ol>${cells}</ol>
+    </div>`;
 }
 
 function bidTh(key, label, explainId = "") {

@@ -133,65 +133,92 @@ test("a listing is priced against sales from its own stage", async () => {
   assert.equal(sitting.bidStageMatched, true);
 });
 
-test("an unknown days-on-market reading uses every recent comp, says so, and costs confidence", async () => {
+test("an unknown days-on-market reading uses comps from every stage, says so, and costs confidence", async () => {
   const { scoreBidForRow, BID_UNSTAGED_CONFIDENCE_PENALTY } = await importModule("src/domain/selectors.mjs");
-  const pool = [...WEEK_ONE, ...SITTING];
-  const unknown = scoreBidForRow(listing(null), pool, "balanced", false, { nowValue: NOW });
+  const unknown = scoreBidForRow(listing(null), [...WEEK_ONE, ...SITTING], "balanced", false, { nowValue: NOW });
   assert.equal(unknown.bidStatus, "SCored");
   assert.equal(unknown.bidStage, "");
   assert.equal(unknown.bidStageMatched, false);
   assert.equal(unknown.bidCompCount, 20);
-  const staged = scoreBidForRow(listing(3), [...WEEK_ONE, ...WEEK_ONE.map((c, i) => ({ ...c, mapPropertyKey: `x-${i}` }))], "balanced", false, { nowValue: NOW });
+  // Same comps either way, so the only difference is the penalty.
+  const twenty = [...WEEK_ONE, ...WEEK_ONE.map((c, i) => ({ ...c, mapPropertyKey: `x-${i}` }))];
+  const staged = scoreBidForRow(listing(3), twenty, "balanced", false, { nowValue: NOW });
+  const unstaged = scoreBidForRow(listing(null), twenty, "balanced", false, { nowValue: NOW });
   assert.equal(staged.bidCompCount, 20);
-  assert.equal(staged.bidConfidence - unknown.bidConfidence, BID_UNSTAGED_CONFIDENCE_PENALTY);
+  assert.equal(staged.bidConfidence - unstaged.bidConfidence, BID_UNSTAGED_CONFIDENCE_PENALTY);
 });
 
-test("same-stage comps widen from neighborhood to ZIP to city, then to 180 days, before giving up on the stage", async () => {
-  const { selectBidComps, BID_COMP_WINDOW_DAYS, BID_COMP_WINDOW_EXTENDED_DAYS } = await importModule("src/domain/selectors.mjs");
-  const elsewhere = (c) => ({ ...c, neighborhoodLabel: "Magnolia", zip: "98199" });
-  const target = listing(60);
-  const stale = (count, overrides = {}) => Array.from({ length: count }, (_, i) => comp(200 + i, 70, 0.95, overrides));
-
-  assert.equal(selectBidComps(target, [...WEEK_ONE, ...stale(10)], { nowValue: NOW }).tier, "T1_NEIGHBORHOOD_TYPE");
-  assert.equal(selectBidComps(target, [...WEEK_ONE, ...stale(10, { neighborhoodLabel: "Crown Hill" })], { nowValue: NOW }).tier, "T2_ZIP_TYPE");
-  const thinLocal = selectBidComps(target, [...WEEK_ONE, ...stale(7), ...stale(5).map((c, i) => elsewhere({ ...c, mapPropertyKey: `far-${i}` }))], { nowValue: NOW });
-  assert.equal(thinLocal.tier, "T3_CITY_TYPE", "seven same-stage sales nearby are too few to outrank the citywide dozen");
-  assert.equal(thinLocal.rows.length, 12);
-
-  const city = selectBidComps(target, [...WEEK_ONE, ...stale(6).map(elsewhere)], { nowValue: NOW });
-  assert.equal(city.tier, "T3_CITY_TYPE");
-  assert.equal(city.windowDays, BID_COMP_WINDOW_DAYS);
-  assert.equal(city.stageMatched, true);
-
-  const old = selectBidComps(target, [...WEEK_ONE, ...stale(6, { saleDate: "2026-06-20" })], { nowValue: NOW });
-  assert.equal(old.windowDays, BID_COMP_WINDOW_EXTENDED_DAYS);
-  assert.equal(old.rows.length, 6);
-  assert.equal(old.stageMatched, true);
-
-  const none = selectBidComps(target, [...WEEK_ONE, ...stale(3)], { nowValue: NOW });
-  assert.equal(none.stageMatched, false, "three stale sales anywhere is not a basis");
-  assert.equal(none.rows.length, 13, "falls back to all recent comps in the neighborhood");
-});
-
-test("comps older than 90 days never leak into a 90-day basis", async () => {
-  const { selectBidComps } = await importModule("src/domain/selectors.mjs");
-  const oldWeekOne = Array.from({ length: 5 }, (_, i) => comp(300 + i, 4, 1.2, { saleDate: "2026-06-01" }));
-  const picked = selectBidComps(listing(2), [...WEEK_ONE, ...oldWeekOne], { nowValue: NOW });
-  assert.equal(picked.rows.length, 10);
-  assert.ok(picked.rows.every((row) => row.saleDate === "2026-10-15"));
-});
-
-test("the comp pool bands on asking price and reaches back 180 days", async () => {
+test("the comp pool ignores the price band and home type, reaches back 12 months and keeps the other filters", async () => {
   const { buildBidCompPool, DEFAULT_FILTERS } = await importModule("src/domain/selectors.mjs");
   const filters = { ...DEFAULT_FILTERS, minClose: 1_100_000, maxClose: 1_600_000 };
   const rows = [
     comp(1, 5, 1.0),
-    comp(2, 5, 1.15, { pendingListPrice: 1_000_000, listPriceAtPending: 1_000_000, closePrice: 1_150_000 }), // bid up INTO the band: asked below it
-    comp(3, 40, 0.95, { pendingListPrice: 1_120_000, listPriceAtPending: 1_120_000, closePrice: 1_064_000 }), // sold down OUT of the band: asked inside it
-    comp(4, 5, 1.0, { saleDate: "2026-06-01" }), // 160 days
-    comp(5, 5, 1.0, { saleDate: "2026-04-01" }), // 221 days
+    comp(2, 5, 1.15, { pendingListPrice: 1_000_000, listPriceAtPending: 1_000_000, closePrice: 1_150_000 }), // asked below the band
+    comp(3, 5, 1.0, { pendingListPrice: 1_900_000, listPriceAtPending: 1_900_000, closePrice: 1_900_000 }), // asked above it
+    comp(4, 5, 1.0, { saleDate: "2025-12-01" }), // 342 days
+    comp(5, 5, 1.0, { saleDate: "2025-10-01" }), // 403 days
+    comp(6, 5, 1.0, { typeLabel: "Condo" }),
+    comp(7, 5, 1.0, { isLikelyPresoldNewBuild: true }),
   ];
-  assert.deepEqual(buildBidCompPool(filters, rows, NOW).map((row) => row.mapPropertyKey), ["comp-1", "comp-3", "comp-4"]);
+  assert.deepEqual(buildBidCompPool(filters, rows, NOW).map((row) => row.mapPropertyKey), ["comp-1", "comp-2", "comp-3", "comp-4", "comp-6"], "the condo stays: the comp finder can price any type");
+  assert.deepEqual(buildBidCompPool({ ...filters, neighborhoods: ["Magnolia"] }, rows, NOW), []);
+  assert.equal(buildBidCompPool({ ...filters, affordability: "in_budget" }, rows, NOW).length, 5, "a budget ceiling is a price band by another name");
+});
+
+test("confidence falls as the comps disagree, thin out, age, or cannot be matched", async () => {
+  const { bidConfidenceScore, bidConfidenceLabel } = await importModule("src/domain/selectors.mjs");
+  const solid = { spread: 0.04, effectiveCount: 40, newestAge: 10, stageMatched: true };
+  assert.equal(bidConfidenceScore(solid), 80);
+  assert.equal(bidConfidenceLabel(bidConfidenceScore(solid)), "High");
+  assert.equal(bidConfidenceScore({ ...solid, spread: 0.07 }), 65, "5 points per point of spread");
+  assert.equal(bidConfidenceLabel(bidConfidenceScore({ ...solid, spread: 0.11 })), "Low", "a typical week-one spread");
+  assert.equal(bidConfidenceScore({ ...solid, effectiveCount: 10 }), 65, "1.5 points per comp short of 20");
+  assert.equal(bidConfidenceScore({ ...solid, newestAge: 75 }), 70, "a point per 3 days past 45");
+  assert.equal(bidConfidenceScore({ ...solid, newestAge: 300 }), 55, "capped at 25");
+  assert.equal(bidConfidenceScore({ ...solid, newestAge: null }), 55);
+  assert.equal(bidConfidenceScore({ ...solid, stageMatched: false }), 55);
+  const worst = bidConfidenceScore({ spread: 0.3, effectiveCount: 6, newestAge: 200, stageMatched: false });
+  assert.equal(worst, 1, "a scored bid never reaches 0, which is the score of no suggestion at all");
+  assert.equal(bidConfidenceLabel(worst), "Low");
+  assert.equal(bidConfidenceLabel(0), "N/A");
+});
+
+test("tightly clustered comps score higher than a bidding-war spread, however many or local", async () => {
+  const { scoreBidForRow } = await importModule("src/domain/selectors.mjs");
+  const wide = [0.97, 1.0, 1.0, 1.02, 1.04, 1.06, 1.08, 1.1, 1.13, 1.18].flatMap((ratio, i) => [comp(i, 5, ratio), comp(50 + i, 4, ratio), comp(80 + i, 6, ratio)]);
+  const tight = [0.96, 0.965, 0.97, 0.97, 0.975, 0.98, 0.98, 0.985, 0.99, 1.0].map((ratio, i) => comp(200 + i, 30, ratio, { neighborhoodLabel: "Magnolia", zip: "98199" }));
+  const weekOne = scoreBidForRow(listing(3), [...wide, ...tight], "balanced", false, { nowValue: NOW });
+  const sitting = scoreBidForRow(listing(30), [...wide, ...tight], "balanced", false, { nowValue: NOW });
+  assert.equal(weekOne.bidCompCount, 30);
+  assert.equal(weekOne.bidCompTier, "T1_NEIGHBORHOOD_TYPE");
+  assert.equal(sitting.bidCompTier, "T3_CITY_TYPE");
+  assert.ok(sitting.bidConfidence > weekOne.bidConfidence, `${sitting.bidConfidence} vs ${weekOne.bidConfidence}`);
+  assert.equal(weekOne.bidConfidenceLabel, "Low");
+});
+
+test("the outcome range brackets the bid range, and the ladder climbs with the odds", async () => {
+  const { scoreBidForRow, BID_LADDER_CHANCES } = await importModule("src/domain/selectors.mjs");
+  const spread = [0.95, 0.98, 1.0, 1.0, 1.01, 1.02, 1.03, 1.05, 1.07, 1.1, 1.14, 1.2].map((ratio, i) => comp(i, 5, ratio));
+  const bid = scoreBidForRow(listing(3), spread, "balanced", false, { nowValue: NOW });
+  assert.ok(bid.bidOutcomeLow <= bid.bidLow && bid.bidHigh <= bid.bidOutcomeHigh);
+  assert.ok(bid.bidOutcomeLow < bid.pendingListPrice && bid.bidOutcomeHigh > bid.pendingListPrice);
+  assert.deepEqual(bid.bidLadder.map((step) => step.chance), BID_LADDER_CHANCES);
+  for (let i = 1; i < bid.bidLadder.length; i += 1) assert.ok(bid.bidLadder[i].bid >= bid.bidLadder[i - 1].bid);
+  assert.equal(bid.bidLadder.find((step) => step.chance === 0.6).bid, bid.bidSuggested, "Balanced is the 60% step");
+  const wild = [1.0, 1.05, 1.1, 1.15, 1.2, 1.22, 1.24, 1.3, 1.35, 1.4].map((ratio, i) => comp(i, 5, ratio));
+  const capped = scoreBidForRow(listing(3), wild, "balanced", false, { nowValue: NOW });
+  assert.deepEqual(capped.bidLadder.map((step) => step.chance), [0.5, 0.6, 0.7], "a step the 1.25x clamp would move is dropped, not mislabelled");
+  const none = scoreBidForRow(listing(3), spread.slice(0, 3), "balanced", false, { nowValue: NOW });
+  assert.equal(none.bidStatus, "InsufficientComps");
+  assert.deepEqual([none.bidSuggested, none.bidOutcomeLow, none.bidOutcomeHigh, none.bidLadder.length], [0, 0, 0, 0]);
+  // Five comps plus one 79 days older, which counts 0.4: 5.65 effective.
+  const nearly = scoreBidForRow(listing(3), [...spread.slice(0, 5), { ...spread[5], saleDate: "2026-07-28" }], "balanced", false, { nowValue: NOW });
+  assert.equal(nearly.bidStatus, "InsufficientComps");
+  assert.equal(nearly.bidCompCount, 5, "never shown as 6 of the 6 needed");
+  for (const saleDate of ["2026-10-15", "2026-10-01", "2026-09-09"]) {
+    const six = scoreBidForRow(listing(3), spread.slice(0, 6).map((c) => ({ ...c, saleDate })), "balanced", false, { nowValue: NOW });
+    assert.equal(six.bidStatus, "SCored", `six equal comps are enough whatever rounding makes of them (${saleDate})`);
+  }
 });
 
 test("strategies stay ordered and the range brackets the suggestion", async () => {

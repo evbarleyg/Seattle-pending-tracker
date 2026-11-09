@@ -36,6 +36,7 @@ import { captureBaseline, diffSinceBaseline, isValidBaseline } from "../domain/c
 import { describeSalesLag } from "../domain/freshness.mjs";
 import { buildStageVerdict, computeStageLeverage, ratioVsAskPhrase, stageTypicalResult } from "../domain/listingStage.mjs";
 import { LONG_LISTED_DAYS, MIN_EXIT_SAMPLE, buildSupplyVerdict, supplyBalanceLabel } from "../domain/listingLedger.mjs";
+import { OUTLOOK_HORIZON_DAYS, buildOutlookVerdict } from "../domain/listingOutlook.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
@@ -706,7 +707,7 @@ function stageLeverageSectionHtml(closedRows, liveRows) {
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>
-      <p class="note">Days count from the first listing, so a home pulled and relisted under a new MLS number keeps its clock. The Bids tab prices each listing against sales from its own stage.</p>
+      <p class="note">Days count from the first listing, so a home pulled and relisted under a new MLS number keeps its clock. The Bids tab weights each listing's comps by how long they took to sell.</p>
     </section>
   `;
 }
@@ -812,6 +813,68 @@ function supplySectionHtml(supply) {
       </div>
       ${captionRow(renderUniverseCaption({ universeLabel: `Redfin listings seen for sale on ${formatDateShort(snap.asOf)}, filtered by type, neighborhood and asking price${supply.allTypes && supply.trackedTypes?.length ? ` (the feed follows ${supply.trackedTypes.join(" and ").toLowerCase()} only)` : ""}${snap.chainsKnown ? ". Relisted homes count once" : ""}${supply.coversEveryFilter ? "" : ". Your other filters cannot be applied to this block, so it covers more homes than the rest of the page"}` }))}
       <div class="supply-grid">${tiles.join("")}</div>
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Answer block 2d: "Is there any hurry?" What the next two weeks brought listings at
+// each point in their life: a sale, or a price cut. Hidden without ask history.
+
+function outlookRowHtml(label, detail, entry) {
+  const pct = (share) => (share === null ? "n/a" : `${Math.round(share * 100)}%`);
+  const bar = (cls, share) => `<span class="odds-bar ${cls}" style="inline-size:${share === null ? 0 : Math.max(1, Math.round(share * 100))}%"></span>`;
+  const words = `${label}: ${pct(entry.saleChance)} went under contract and ${pct(entry.cutChance)} cut the price within ${OUTLOOK_HORIZON_DAYS} days.`;
+  return `
+        <tr>
+          <th scope="row"><strong>${esc(label)}</strong><span>${esc(detail)}</span></th>
+          <td class="num"><strong>${esc(pct(entry.saleChance))}</strong></td>
+          <td class="num"><strong>${esc(pct(entry.cutChance))}</strong></td>
+          <td class="odds-cell wide-only"><div class="odds-bars" role="img" aria-label="${esc(words)}">${bar("sale", entry.saleChance)}${bar("cut", entry.cutChance)}</div></td>
+        </tr>`;
+}
+
+function outlookSectionHtml(outlook) {
+  const verdict = buildOutlookVerdict(outlook);
+  if (!verdict) return "";
+  const late = outlook.afterTwoWeeks;
+  const shown = (entry) => entry.cutChance !== null || entry.saleChance !== null;
+  const stageRows = outlook.stages.filter(shown).map((stage) => outlookRowHtml(stage.label, stage.range, stage)).join("");
+  const cutRows = [late.never, late.justCut, late.settling, late.due].filter(shown).map((entry) => outlookRowHtml(entry.label, "past day 14", entry)).join("");
+  const sizes = [
+    outlook.firstCutPct ? `a first cut is typically ${(outlook.firstCutPct * 100).toFixed(1)}% of the ask` : "",
+    outlook.laterCutPct ? `later ones ${(outlook.laterCutPct * 100).toFixed(1)}%` : "",
+  ].filter(Boolean).join(", ");
+  const typeWords = outlook.types.join(" and ").toLowerCase();
+  const caption = renderUniverseCaption({
+    count: outlook.homes,
+    universeLabel: `${typeWords} listings followed daily since ${formatDateShort(outlook.from)}, asking within 25% of your price band, any neighborhood`,
+  });
+  return `
+    <section class="section-block" id="listingOutlook">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Is there any hurry?</p>
+          <h3>${esc(verdict.headline)}</h3>
+        </div>
+      </div>
+      <p class="note">${esc(verdict.detail)}</p>
+      ${captionRow(caption, "listingOutlook")}
+      <div class="stage-table-wrap">
+        <table class="stage-table odds-table">
+          <thead>
+            <tr>
+              <th scope="col">In the next ${OUTLOOK_HORIZON_DAYS} days</th>
+              <th scope="col" class="num"><span class="odds-key sale"></span>Under contract</th>
+              <th scope="col" class="num"><span class="odds-key cut"></span>Price cut</th>
+              <th scope="col" class="wide-only">Within ${OUTLOOK_HORIZON_DAYS} days</th>
+            </tr>
+          </thead>
+          <tbody>${stageRows}</tbody>
+          ${cutRows ? `<tbody class="odds-group">${cutRows}</tbody>` : ""}
+        </table>
+      </div>
+      <p class="note">${sizes ? `${esc(`${sizes[0].toUpperCase()}${sizes.slice(1)}`)}. ` : ""}These are odds across many listings, not a forecast for one home. Each card on the Bids tab shows the odds for its own situation.</p>
     </section>
   `;
 }
@@ -935,6 +998,8 @@ export function renderOverviewView(deps) {
       ${stageLeverageSectionHtml(slices.closedSlice || [], state.derived.liveListingRows || [])}
 
       ${supplySectionHtml(state.derived.supply)}
+
+      ${outlookSectionHtml(state.derived.outlook)}
 
       ${changesSectionHtml(changes.diff)}
 

@@ -82,22 +82,6 @@ export function quantile(values, q) {
   return nums[base + 1] === undefined ? nums[base] : nums[base] + rest * (nums[base + 1] - nums[base]);
 }
 
-export function weightedQuantile(values, weights, q) {
-  const pairs = values
-    .map((value, index) => ({ value: Number(value || 0), weight: Number(weights[index] || 0) }))
-    .filter((pair) => Number.isFinite(pair.value) && Number.isFinite(pair.weight) && pair.weight > 0)
-    .sort((a, b) => a.value - b.value);
-  if (!pairs.length) return quantile(values, q);
-  const total = pairs.reduce((sum, pair) => sum + pair.weight, 0);
-  const target = total * clamp(q, 0, 1);
-  let acc = 0;
-  for (const pair of pairs) {
-    acc += pair.weight;
-    if (acc >= target) return pair.value;
-  }
-  return pairs[pairs.length - 1].value;
-}
-
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }

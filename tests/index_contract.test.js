@@ -206,7 +206,7 @@ test("bids includes a comp finder for prospective listings", () => {
     "Comp Finder",
     "Find Comps",
     "computeManualComps",
-    "computeBidCompTiers",
+    "selectBidComps",
     "manualCompRun",
   ].forEach((token) => {
     assert.match(source, new RegExp(token));

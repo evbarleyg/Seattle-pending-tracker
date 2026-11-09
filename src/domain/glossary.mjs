@@ -10,7 +10,7 @@ import { addDays, daysBetween, formatDateShort, toDate } from "./format.mjs";
 // - normalizeRow provenance flags, domMetric, hot thresholds (data.mjs)
 // - rowMatchesProfile / buildProfileCohort (buyerProfile.mjs)
 // - competitiveDelta sign conventions + watchlist pockets (pulseMetrics.mjs)
-// - scoreBidForRow / computeBidCompTiers / bidConfidenceLabel (selectors.mjs)
+// - scoreBidForRow / bidConfidenceScore (selectors.mjs), selectBidComps (bidComps.mjs)
 // - computeAffordability / listingTier (affordability.mjs)
 // - buildSliceWeeklySeries, ratioColor, record cells, data tiles (main.mjs)
 // - the validation report shape (scripts/validate_data_refresh.js)
@@ -227,7 +227,7 @@ export const METRICS = {
     label: "Bid queue",
     plain: "Active listings in your slice, and how many of them have enough recent comparable sales to back a suggested bid.",
     formulaWords:
-      "Counts active MLS listings that pass your filters. Each gets a suggested bid only when at least 6 similar closed sales with a real list price from the last 90 days exist, weighted toward the most recent ones; suggestions scoring 75 or more count as high confidence.",
+      "Counts active MLS listings that pass your filters. Each gets a suggested bid only when closed sales with a real list price from the last 12 months, weighted by how closely they resemble it, add up to the equivalent of at least 6 comps; suggestions scoring 75 or more count as high confidence.",
     source: { id: "derived", label: "Computed in your browser from active listings and recent closed comps" },
     cadence: CADENCE.derived,
     caveats: [
@@ -505,16 +505,33 @@ export const METRICS = {
     universeId: "actives",
   },
 
+  listingOutlook: {
+    id: "listingOutlook",
+    label: "What tends to happen next",
+    plain: "Of listings in the same situation, how many cut their price and how many went under contract within the next 14 days: is waiting likely to cost you the home or save you money?",
+    formulaWords:
+      "Every day each listing spent on the market is filed by its cumulative days on market and by how long ago it last cut (never, within 7 days, 8 to 21, or 22 plus), then marked with what the next 14 days brought. Uses the same home type, asking within 25% of your price band, any neighborhood. Thin groups lean on the average for their days on market.",
+    source: { id: "redfin", label: "Daily ledger of the Redfin listings feed, matched to recorded closings" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "Odds across many listings, not one home's forecast.",
+      "Replayed on ten past dates, predicted sales matched (11% against 10%). Cuts ranked correctly but came more often than predicted (28% against 22%): sellers cut more in autumn than in summer.",
+      "Sale odds lag two months, until closings record.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
   bidStage: {
     id: "bidStage",
     label: "Listing stage",
-    plain: "Where a listing is in its life: first week, just past its offer-review date, sitting, or stale. It decides which past sales the suggested bid is based on.",
+    plain: "Where a listing is in its life: first week, just past its offer-review date, sitting, or stale. Time on the market is the strongest single clue to what a home will sell for relative to its ask.",
     formulaWords:
-      "Reads the listing's cumulative days on market: 0 to 7 is First week, 8 to 14 Missed review, 15 to 45 Sitting, 46 or more Stale. The suggested bid then uses only comps that went pending in the same stage.",
+      "Reads the listing's cumulative days on market: 0 to 7 is First week, 8 to 14 Missed review, 15 to 45 Sitting, 46 or more Stale. A first-week listing is priced only against first-week sales. After that the labels are just labels: the bid weights each later sale by how close its days to pending were to this listing's days listed.",
     source: { id: "derived", label: "Computed in your browser from days on market" },
     cadence: CADENCE.derived,
     caveats: [
-      "A listing with no days-on-market reading has no stage; its bid falls back to all recent comps and loses 25 confidence points.",
+      "A listing with no days-on-market reading has no stage; its bid falls back to comps from every stage and loses 25 confidence points.",
       "A first-week suggestion is the price of competing at offer review. If the home is still there in week two, the math changes in your favor.",
     ],
     buyerDirection: "neutral",
@@ -522,24 +539,23 @@ export const METRICS = {
   },
 
   // --- Bids / Offer Lab tab --------------------------------------------------
-  // Grounded in scoreBidForRow, computeBidCompTiers, bidConfidenceLabel, and
-  // computeActiveBidSuggestions (selectors.mjs): same-stage comps, 90-day comp
-  // window (180 as a last resort), 30-day half-life weights, strategy
-  // percentiles, ratio clamp 0.85x to 1.25x.
+  // Grounded in scoreBidForRow, bidConfidenceScore and computeActiveBidSuggestions
+  // (selectors.mjs) and selectBidComps (bidComps.mjs): 12-month comp window, 60-day
+  // half-life, similarity weights, strategy percentiles, ratio clamp 0.85x to 1.25x.
 
   suggestedBid: {
     id: "suggestedBid",
     label: "Suggested bid",
-    plain: "A starting offer for an active listing, based on what similar homes that had been on the market about as long recently closed at relative to their asking prices.",
+    plain: "A starting offer for an active listing, based on what the most similar homes closed at relative to their asking prices.",
     formulaWords:
-      "Takes the sale-to-list ratios of similar recent sales that went pending in the same stage as this listing (first week, 8 to 14 days, 15 to 45, or 46 plus), weights newer sales more, picks the strategy percentile (Conservative 50th, Balanced 60th, Aggressive 70th), and multiplies the asking price by that ratio, rounded to the nearest $1,000.",
-    source: { id: "derived", label: "Computed in your browser from closed comps in the last 90 days (180 when a stage is thin)" },
+      "Takes the sale-to-ask ratios of same-type sales from the last 12 months, weights each by how closely it resembles this listing (how recent, how long it took to go pending, how close its ask, how near, same build era), picks the strategy percentile (Conservative 50th, Balanced 60th, Aggressive 70th), and multiplies the ask by that ratio, rounded to $1,000.",
+    source: { id: "derived", label: "Computed in your browser from closed comps in the last 12 months" },
     cadence: CADENCE.derived,
     caveats: [
-      "A model starting point, not an appraisal; pair it with a walkthrough and your agent's read.",
-      "Replayed on about 1,100 past sales, the three strategies met or beat the winning price 52%, 65% and 74% of the time.",
+      "A starting point, not an appraisal: it cannot see condition, layout or how many offers are in.",
+      "Replayed on about 1,100 past sales using only what had closed beforehand, the three strategies met or beat the winning price 51%, 62% and 74% of the time.",
       "First-week outcomes are wide: a quarter sell at ask or less, a quarter about 10% over.",
-      "Comp ratios are clamped between 0.85x and 1.25x of ask.",
+      "Ratios are clamped between 0.85x and 1.25x of ask.",
     ],
     buyerDirection: "neutral",
     universeId: "actives",
@@ -548,12 +564,45 @@ export const METRICS = {
   bidRange: {
     id: "bidRange",
     label: "Bid range",
-    plain: "The low-to-high band around the suggested bid, showing how spread out the comparable sales were.",
+    plain: "Bids one step more cautious and one step more aggressive than the suggestion. It is a range of offers to consider, not a forecast of the sale price.",
     formulaWords:
-      "Uses the same recency-weighted comp ratios as the suggested bid but takes a lower and a higher percentile for the chosen strategy, for example the 50th to 70th for Balanced.",
-    source: { id: "derived", label: "Computed in your browser from closed comps in the last 90 days" },
+      "Uses the same weighted comp ratios as the suggested bid but takes the percentile 10 points lower and 10 points higher, for example the 50th to 70th for Balanced: bids that would have won about 5 in 10 and 7 in 10 comparable sales.",
+    source: { id: "derived", label: "Computed in your browser from closed comps in the last 12 months" },
     cadence: CADENCE.derived,
-    caveats: ["A wide range means the comps disagree; lean on the confidence score before anchoring on it."],
+    caveats: ["The final price lands inside this narrow band only about a quarter of the time. For where the sale is likely to land, read Likely sale."],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
+  bidOutcomeRange: {
+    id: "bidOutcomeRange",
+    label: "Likely sale",
+    plain: "Where the sale price is likely to land: 8 in 10 of the most similar homes sold inside this range, applied to this listing's ask.",
+    formulaWords:
+      "Takes the 10th and 90th percentiles of the same weighted sale-to-ask ratios behind the suggested bid and multiplies each by the asking price.",
+    source: { id: "derived", label: "Computed in your browser from closed comps in the last 12 months" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "Checked against about 1,100 past sales: 83% closed inside the range the model would have shown before they went pending.",
+      "Measured against today's ask. A listing that cuts its price first will land lower.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
+  bidLadder: {
+    id: "bidLadder",
+    label: "Chance of winning at each price",
+    plain: "What each step up in price buys you: the offer that would have met or beaten the winning price on 5, 6, 7, 8 and 9 out of 10 comparable sales.",
+    formulaWords:
+      "Reads the 50th, 60th, 70th, 80th and 90th percentiles of the weighted sale-to-ask ratios behind the suggested bid and multiplies each by the asking price.",
+    source: { id: "derived", label: "Computed in your browser from closed comps in the last 12 months" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "Replayed on about 1,100 past sales, the five steps won 51%, 62%, 74%, 83% and 92% of the time.",
+      "Price only. Contingencies, financing and timing also decide who wins.",
+      "On a listing past its first week there may be no other bidder, so the seller's patience matters more than these odds.",
+    ],
     buyerDirection: "neutral",
     universeId: "actives",
   },
@@ -561,12 +610,15 @@ export const METRICS = {
   bidConfidence: {
     id: "bidConfidence",
     label: "Bid confidence",
-    plain: "A 0 to 100 score for how much the suggested bid can be trusted, based on the comps behind it.",
+    plain: "A 0 to 100 score for how close the suggested bid is likely to be to the real sale price: high when similar homes sold at similar ratios, low when they were all over the map.",
     formulaWords:
-      "Adds up to 45 points for comp count (20 comps scores full marks), 35, 25, or 15 points for how local the comps are (neighborhood, zip, or citywide), and up to 20 points for how recent they are, then takes off 25 if the comps could not be matched to the listing's stage. 75 or more shows as High, 55 to 74 as Medium.",
-    source: { id: "derived", label: "Computed in your browser from the comp pool behind each bid" },
+      "Starts at 100. Takes off 5 points for every percentage point between the comps' 20th and 80th percentile sale-to-ask ratios, 1.5 for each comp short of the equivalent of 20, up to 25 if the newest comp that matters closed more than 45 days ago, and 25 if the comps could not be matched to the listing's days on market. 75 or more shows as High, 55 to 74 as Medium.",
+    source: { id: "derived", label: "Computed in your browser from the comps behind each bid" },
     cadence: CADENCE.derived,
-    caveats: ["High confidence means the comps are plentiful, local, and fresh, not that the market is predictable."],
+    caveats: [
+      "Replayed on about 1,100 past sales, High bids missed the sale price by 2.4% on average, Medium by 3.5%, Low by 5.9%.",
+      "Nearly every first-week listing scores Low: nobody can tell in advance which ones draw a bidding war.",
+    ],
     buyerDirection: "higherIsBetter",
     universeId: "actives",
   },
@@ -574,14 +626,14 @@ export const METRICS = {
   bidCompBasis: {
     id: "bidCompBasis",
     label: "Comp basis",
-    plain: "Which pool of comparable sales backs a suggested bid, and how local it is.",
+    plain: "Which past sales stand behind a suggested bid, and how much each one counts.",
     formulaWords:
-      "Needs closed sales from the last 90 days with a real list price, the same home type and the same listing stage: 10 in the same neighborhood, else 10 in the same zip code, else 6 citywide, else 6 citywide over 180 days. If no stage match reaches 6, or the listing has no days-on-market reading, it uses all recent comps regardless of stage. Fewer than 6 anywhere shows as insufficient comps.",
-    source: { id: "derived", label: "Computed in your browser from recent closed sales" },
+      "Every same-type sale from the last 12 months with a real list price counts, weighted by resemblance. Weight halves every 60 days, falls as the comp's days to pending and ask move away from this listing's, counts up to 20 times over in the same neighborhood or ZIP, and is cut to a twentieth when only one of the two homes is under 15 years old. First-week listings are priced off first-week sales and later ones off later sales, unless too few exist. The count is the effective number (many sales that barely count add up to few); a suggestion needs 6 before the local boost.",
+    source: { id: "derived", label: "Computed in your browser from closed sales in the last 12 months" },
     cadence: CADENCE.derived,
     caveats: [
-      "Likely presold new builds are excluded from the comp pool so their list-price quirks do not skew the ratios.",
-      "Your price band is applied to each comp's asking price, not its sale price, because the asking price is what you know about the listing you are bidding on.",
+      "Mostly nearby: at least half the weight is local. A lone nearby sale counts 3 times.",
+      "Likely presold new builds are excluded; your price band does not limit comps.",
     ],
     buyerDirection: "neutral",
     universeId: "actives",

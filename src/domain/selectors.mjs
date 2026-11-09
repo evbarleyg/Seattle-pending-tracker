@@ -1,7 +1,6 @@
 import {
   addDays,
   clamp,
-  daysBetween,
   formatDateShort,
   median,
   monthKey,
@@ -10,7 +9,6 @@ import {
   quantile,
   roundToNearest,
   toIso,
-  weightedQuantile,
 } from "./format.mjs";
 import {
   DEFAULT_MAX_CLOSE,
@@ -25,7 +23,6 @@ import {
   matchesSpecialSaleFilter,
   rowInViewport,
   uniqueValues,
-  zip5,
 } from "./data.mjs";
 import {
   PULSE_GROUPS,
@@ -39,29 +36,39 @@ import {
   summarizeRows,
 } from "./pulseMetrics.mjs";
 import { listingTier } from "./affordability.mjs";
-import { hasPlausibleLiveDom, stageForRow, stageMeta } from "./listingStage.mjs";
+import { hasPlausibleLiveDom, stageMeta } from "./listingStage.mjs";
+import { BID_COMP_WINDOW_DAYS, BID_MIN_COMPS, compRatioQuantiles, isNewerBuild, selectBidComps, topBidComps } from "./bidComps.mjs";
+
+export { BID_COMP_WINDOW_DAYS, BID_MIN_COMPS, selectBidComps } from "./bidComps.mjs";
 
 export const DESKTOP_PAGE_SIZE = 100;
 export const MOBILE_PAGE_SIZE = 40;
-export const BID_COMP_WINDOW_DAYS = 90;
-// Older listings are a small share of sales, so when 90 days holds too few
-// same-stage comps even citywide the search widens to this. Their sale-to-ask
-// ratios barely move with the season (0.96x to 0.98x in every window checked),
-// so the extra age costs little.
-export const BID_COMP_WINDOW_EXTENDED_DAYS = 180;
-export const BID_HALFLIFE_DAYS = 30;
-export const BID_MIN_COMPS = 6;
-// Within one stage a neighborhood or ZIP rarely has many sales, and six of them
-// can say almost anything (a day-11 listing was once told to bid 10% over). In the
-// backtest local comps never beat citywide same-stage comps (mean error 4.7% at a
-// floor of 6, 4.6% at 10, 4.5% citywide only): stage carries the signal, location
-// adds little. So a local tier has to earn its place with a fuller sample.
-export const BID_MIN_LOCAL_STAGE_COMPS = 10;
 export const BID_RATIO_MIN = 0.85;
 export const BID_RATIO_MAX = 1.25;
-// Confidence points lost when the comps could not be matched to the listing's
-// stage (no days-on-market reading, or too few same-stage sales anywhere).
+// Confidence answers one question: how far off is this number likely to be? It
+// starts at 100 and loses points for whatever widens the likely miss.
+//
+// The main term is how much the comps disagree: 5 points per percentage point
+// between their 20th and 80th percentile sale-to-ask ratios. In the walk-forward
+// replay that spread tracked the real miss (rank correlation +0.44): bids whose
+// comps spread under 4.5 points missed by 2.5% of price on average, 6 to 8 points by
+// 3.1%, over 10 points by 6.0%. The score it replaced added points for many, local,
+// recent comps, which are most plentiful in week-one bidding wars, so it ran
+// backwards: "High" bids missed by 6.6%, "Low" ones by 2.3%.
+export const BID_CONFIDENCE_PER_SPREAD_POINT = 5;
+// Below this effective number of comps the percentiles themselves get shaky.
+export const BID_CONFIDENCE_FULL_COMPS = 20;
+export const BID_CONFIDENCE_PER_MISSING_COMP = 1.5;
+// No comparable sale in this long suggests the sold data has gone stale.
+export const BID_CONFIDENCE_FRESH_COMP_DAYS = 45;
+export const BID_CONFIDENCE_MAX_STALE_PENALTY = 25;
+// Lost when the comps could not be matched to the listing's days on market (no
+// reading, or too few sales from that stretch of the market).
 export const BID_UNSTAGED_CONFIDENCE_PENALTY = 25;
+// Win chances offered as a ladder beside the suggested bid.
+export const BID_LADDER_CHANCES = [0.5, 0.6, 0.7, 0.8, 0.9];
+// "8 in 10 similar homes sold between": covered 83% of real outcomes in the replay.
+export const BID_OUTCOME_BAND = [0.1, 0.9];
 
 export const BID_STRATEGIES = {
   conservative: { point: 0.5, low: 0.4, high: 0.6, label: "Conservative" },
@@ -509,153 +516,99 @@ export function bidConfidenceLabel(score) {
 }
 
 export function bidTierLabel(value) {
-  if (value === "T1_NEIGHBORHOOD_TYPE") return "Neighborhood + Type";
-  if (value === "T2_ZIP_TYPE") return "Zip + Type";
-  if (value === "T3_CITY_TYPE") return "Seattle Type";
+  if (value === "T1_NEIGHBORHOOD_TYPE") return "Mostly nearby";
+  if (value === "T3_CITY_TYPE") return "Mostly citywide";
   return "Insufficient comps";
 }
 
-export function computeBidCompTiers(targetRow, compPool, minLocalComps = BID_MIN_COMPS) {
-  const zip = zip5(targetRow.zip);
-  const byType = (compPool || []).filter((row) => row.typeLabel === targetRow.typeLabel);
-  const tier1 = byType.filter((row) => row.neighborhoodLabel === targetRow.neighborhoodLabel);
-  if (tier1.length >= minLocalComps) return { tier: "T1_NEIGHBORHOOD_TYPE", rows: tier1 };
-  const tier2 = byType.filter((row) => zip && zip5(row.zip) === zip);
-  if (tier2.length >= minLocalComps) return { tier: "T2_ZIP_TYPE", rows: tier2 };
-  if (byType.length >= BID_MIN_COMPS) return { tier: "T3_CITY_TYPE", rows: byType };
-  return { tier: "NONE", rows: byType };
-}
-
-// Every sale a bid could lean on: closed in the extended window with a real
-// asking price. The price band is applied to the ASKING price, because that is
-// what the buyer knows about the listing being bid on. Banding comps by close
-// price instead skews the ratios at both edges: just above the floor it keeps
-// the homes that were bid up into the band and drops the ones that sold down out
-// of it.
+// Every sale a bid could lean on: closed in the comp window with a real asking
+// price. The lens's price band is deliberately NOT applied. Each bid weights comps
+// by how close their ask is to the listing's own (see bidComps.mjs), which keeps a
+// listing at the edge of the band from seeing only the comps on one side of it.
 export function buildBidCompPool(filterState, normalizedRows, nowValue = new Date()) {
-  const windowStartIso = toIso(addDays(nowValue, -BID_COMP_WINDOW_EXTENDED_DAYS));
+  const windowStartIso = toIso(addDays(nowValue, -BID_COMP_WINDOW_DAYS));
+  // The affordability filter is a ceiling on the ask, so it goes the same way. Nor is
+  // the lens's home type: each bid reads only its own type's comps, and the comp finder
+  // lets the buyer price a townhouse while the lens is on houses.
+  const anyPrice = { ...normalizeFilters(filterState), minClose: 0, maxClose: null, affordability: "all", type: "All", excludeTypes: [] };
   return (normalizedRows || [])
     .filter((row) => row.dataMode === "MLS_ENRICHED" && row.hasActualClose && row.pendingListPrice > 0 && row.saleToList > 0)
     .filter((row) => !row.isLikelyPresoldNewBuild)
     .filter((row) => !!row.saleDate && row.saleDate >= windowStartIso)
-    .filter((row) => matchesSharedGlobalFilters(row, filterState, { priceField: "pendingListPrice", dateField: "saleDate" }));
+    .filter((row) => matchesSharedGlobalFilters(row, anyPrice, { priceField: "pendingListPrice", dateField: "saleDate" }));
 }
 
-// Age and stage of every comp, worked out once per pool rather than once per
-// listing scored against it (a 2,000-comp pool against 1,300 listings spent
-// seconds re-parsing the same dates). Keyed on the pool array, which main.mjs
-// rebuilds on every recompute.
-const preparedPools = new WeakMap();
-
-function prepareCompPool(pool, nowValue) {
-  const nowIso = toIso(nowValue);
-  const cached = preparedPools.get(pool);
-  if (cached && cached.nowIso === nowIso) return cached;
-  const prepared = { nowIso, ages: new Map(), recent: [], recentByStage: new Map(), allByStage: new Map() };
-  const push = (map, key, comp) => {
-    const list = map.get(key);
-    if (list) list.push(comp); else map.set(key, [comp]);
-  };
-  for (const comp of pool) {
-    const raw = daysBetween(comp.saleDate, nowIso);
-    const age = raw === null ? null : Math.max(0, raw);
-    const stage = stageForRow(comp);
-    const isRecent = age !== null && age <= BID_COMP_WINDOW_DAYS;
-    prepared.ages.set(comp, age);
-    if (isRecent) prepared.recent.push(comp);
-    if (stage) {
-      push(prepared.allByStage, stage, comp);
-      if (isRecent) push(prepared.recentByStage, stage, comp);
-    }
-  }
-  preparedPools.set(pool, prepared);
-  return prepared;
-}
-
-// Picks the comps behind one bid. The listing's stage comes first: a home on day
-// 40 is compared with homes that also took weeks to sell, not with the bidding
-// wars of week one. Within the stage the search goes neighborhood, ZIP, city (90
-// days), then city over the extended window. A listing with no days-on-market
-// reading, or a stage with too few sales anywhere, falls back to every recent
-// comp regardless of stage, flagged so confidence can say so.
-export function selectBidComps(targetRow, compPool, { nowValue = new Date() } = {}) {
-  const prepared = prepareCompPool(compPool || [], nowValue);
-  const stage = stageForRow(targetRow);
-  if (stage) {
-    const staged = computeBidCompTiers(targetRow, prepared.recentByStage.get(stage) || [], BID_MIN_LOCAL_STAGE_COMPS);
-    if (staged.tier !== "NONE") return { ...staged, stage, stageMatched: true, windowDays: BID_COMP_WINDOW_DAYS, ages: prepared.ages };
-    const extended = (prepared.allByStage.get(stage) || []).filter((comp) => comp.typeLabel === targetRow.typeLabel);
-    if (extended.length >= BID_MIN_COMPS) {
-      return { tier: "T3_CITY_TYPE", rows: extended, stage, stageMatched: true, windowDays: BID_COMP_WINDOW_EXTENDED_DAYS, ages: prepared.ages };
-    }
-  }
-  return { ...computeBidCompTiers(targetRow, prepared.recent), stage, stageMatched: false, windowDays: BID_COMP_WINDOW_DAYS, ages: prepared.ages };
+export function bidConfidenceScore({ spread, effectiveCount, newestAge, stageMatched }) {
+  const disagreement = Math.max(0, spread) * 100 * BID_CONFIDENCE_PER_SPREAD_POINT;
+  const thin = Math.max(0, BID_CONFIDENCE_FULL_COMPS - effectiveCount) * BID_CONFIDENCE_PER_MISSING_COMP;
+  const stale = clamp(((newestAge ?? BID_COMP_WINDOW_DAYS) - BID_CONFIDENCE_FRESH_COMP_DAYS) / 3, 0, BID_CONFIDENCE_MAX_STALE_PENALTY);
+  const unstaged = stageMatched ? 0 : BID_UNSTAGED_CONFIDENCE_PENALTY;
+  // Never 0: that is the score of a listing with no suggestion at all, and reads "N/A".
+  return Math.round(clamp(100 - disagreement - thin - stale - unstaged, 1, 100));
 }
 
 export function scoreBidForRow(row, compPool, strategy = "balanced", includeCompRows = false, options = {}) {
   const strat = BID_STRATEGIES[strategy] || BID_STRATEGIES.balanced;
   const nowValue = options.nowValue || new Date();
-  const tier = selectBidComps(row, compPool, { nowValue });
-  const compRows = tier.rows;
-  const compRowsSorted = compRows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || "")));
-  const stageFields = {
-    bidStage: tier.stage || "",
-    bidStageLabel: stageMeta(tier.stage)?.label || "",
-    bidStageMatched: tier.stageMatched,
-    bidCompWindowDays: tier.windowDays,
+  const picked = selectBidComps(row, compPool, { nowValue });
+  // 5.7 effective comps is short of 6, and must not be shown as "6 of the 6 needed".
+  const compCount = picked.tier === "NONE" ? Math.min(Math.round(picked.comparableCount), BID_MIN_COMPS - 1) : Math.round(picked.effectiveCount);
+  const base = {
+    ...row,
+    bidStage: picked.stage || "",
+    bidStageLabel: stageMeta(picked.stage)?.label || "",
+    bidStageMatched: picked.stageMatched,
+    bidDomMatch: picked.domMatch,
+    bidNewerBuild: isNewerBuild(row, nowValue),
+    bidStrategy: strat.label,
+    bidCompCount: compCount,
+    bidCompTier: picked.tier,
+    bidCompRows: includeCompRows ? topBidComps(picked) : [],
   };
-  if (tier.tier === "NONE" || compRows.length < BID_MIN_COMPS) {
+  if (picked.tier === "NONE") {
     return {
-      ...row,
-      ...stageFields,
-      bidStrategy: strat.label,
+      ...base,
       bidSuggested: 0,
       bidLow: 0,
       bidHigh: 0,
+      bidOutcomeLow: 0,
+      bidOutcomeHigh: 0,
+      bidLadder: [],
       bidRatio: 0,
       bidConfidence: 0,
       bidConfidenceLabel: "N/A",
-      bidCompCount: compRows.length,
-      bidCompTier: "NONE",
       bidStatus: "InsufficientComps",
-      bidCompRows: includeCompRows ? compRowsSorted.slice(0, 12) : [],
     };
   }
 
-  const ratios = compRows.map((comp) => comp.saleToList);
-  const ages = compRows.map((comp) => tier.ages.get(comp) ?? null);
-  const recencies = ages.filter((value) => value !== null);
-  const weights = ages.map((age) => Math.pow(0.5, (age ?? tier.windowDays) / BID_HALFLIFE_DAYS));
+  const ask = row.pendingListPrice;
+  const wanted = [...new Set([...BID_OUTCOME_BAND, 0.2, 0.8, strat.low, strat.point, strat.high, ...BID_LADDER_CHANCES])].sort((a, b) => a - b);
+  const found = compRatioQuantiles(picked, wanted);
+  const rawRatio = (q) => found[wanted.indexOf(q)];
+  const ratioAt = (q) => clamp(rawRatio(q), BID_RATIO_MIN, BID_RATIO_MAX);
+  const dollars = (ratio) => roundToNearest(ask * ratio, 1000);
 
-  const pointRatio = clamp(weightedQuantile(ratios, weights, strat.point), BID_RATIO_MIN, BID_RATIO_MAX);
-  const lowRatio = Math.min(pointRatio, clamp(weightedQuantile(ratios, weights, strat.low), BID_RATIO_MIN, BID_RATIO_MAX));
-  const highRatio = Math.max(pointRatio, clamp(weightedQuantile(ratios, weights, strat.high), BID_RATIO_MIN, BID_RATIO_MAX));
-
-  const suggestedBid = roundToNearest(row.pendingListPrice * pointRatio, 1000);
-  const bidLow = roundToNearest(row.pendingListPrice * lowRatio, 1000);
-  const bidHigh = roundToNearest(row.pendingListPrice * highRatio, 1000);
-  const bidRatio = row.pendingListPrice > 0 ? suggestedBid / row.pendingListPrice : 0;
-  const countScore = clamp((compRows.length / 20) * 45, 0, 45);
-  const tierScore = tier.tier === "T1_NEIGHBORHOOD_TYPE" ? 35 : (tier.tier === "T2_ZIP_TYPE" ? 25 : 15);
-  const medianRecency = recencies.length ? median(recencies) : BID_COMP_WINDOW_DAYS;
-  const recencyScore = clamp((1 - (medianRecency / BID_COMP_WINDOW_DAYS)) * 20, 0, 20);
-  const stagePenalty = tier.stageMatched ? 0 : BID_UNSTAGED_CONFIDENCE_PENALTY;
-  const bidConfidence = Math.round(clamp(countScore + tierScore + recencyScore - stagePenalty, 0, 100));
+  const suggestedBid = dollars(ratioAt(strat.point));
+  const bidConfidence = bidConfidenceScore({
+    spread: rawRatio(0.8) - rawRatio(0.2),
+    effectiveCount: picked.effectiveCount,
+    newestAge: picked.newestAge,
+    stageMatched: picked.stageMatched,
+  });
 
   return {
-    ...row,
-    ...stageFields,
-    bidStrategy: strat.label,
+    ...base,
     bidSuggested: suggestedBid,
-    bidLow,
-    bidHigh,
-    bidRatio,
+    bidLow: dollars(ratioAt(strat.low)),
+    bidHigh: dollars(ratioAt(strat.high)),
+    bidOutcomeLow: dollars(rawRatio(BID_OUTCOME_BAND[0])),
+    bidOutcomeHigh: dollars(rawRatio(BID_OUTCOME_BAND[1])),
+    // A step the clamp would move no longer carries the win chance on its label.
+    bidLadder: BID_LADDER_CHANCES.filter((chance) => ratioAt(chance) === rawRatio(chance)).map((chance) => ({ chance, bid: dollars(rawRatio(chance)) })),
+    bidRatio: ask > 0 ? suggestedBid / ask : 0,
     bidConfidence,
     bidConfidenceLabel: bidConfidenceLabel(bidConfidence),
-    bidCompCount: compRows.length,
-    bidCompTier: tier.tier,
     bidStatus: "SCored",
-    bidCompRows: includeCompRows ? compRowsSorted.slice(0, 12) : [],
   };
 }
 
@@ -829,8 +782,7 @@ export function getBidSortValue(row, key) {
   if (key === "confidence") return Number(row.bidConfidence || 0);
   if (key === "compCount") return Number(row.bidCompCount || 0);
   if (key === "compTier") {
-    if (row.bidCompTier === "T1_NEIGHBORHOOD_TYPE") return 3;
-    if (row.bidCompTier === "T2_ZIP_TYPE") return 2;
+    if (row.bidCompTier === "T1_NEIGHBORHOOD_TYPE") return 2;
     if (row.bidCompTier === "T3_CITY_TYPE") return 1;
     return 0;
   }

@@ -56,16 +56,14 @@ Bid guidance is produced for rows where:
 - `pendingListPrice > 0`
 
 Default model behavior:
-- listing stage first (`src/domain/listingStage.mjs`): cumulative days on market 0-7 `fresh`, 8-14 `past`, 15-45 `sitting`, 46+ `stale`. Comps must have gone pending in the same stage.
-- comp window: 90 days (sold MLS only); 180 days citywide as a last resort for a thin stage
-- price band applied to each comp's ASKING price (it used to be the close price, which skews ratios at the band edges)
+- comps (`src/domain/bidComps.mjs`): every same-type sold MLS row from the last 365 days, weighted by recency (60-day half-life), closeness of days to pending (log scale, bandwidth 0.5; 0-7 days is pooled and walled off from later sales), closeness of asking price (log scale, bandwidth 0.25), same neighborhood or ZIP (up to 20x: `1 + 19n / (n + 8)` for n effective nearby comps) and same build era (under / over 15 years old; 0.05x across)
+- the lens's price band and affordability filter are not applied to comps; its other filters are
 - bid anchor: `pendingListPrice`
-- comp hierarchy, within the stage:
-  - `T1_NEIGHBORHOOD_TYPE`
-  - `T2_ZIP_TYPE`
-  - `T3_CITY_TYPE`
-- minimum comps: 10 for a neighborhood or ZIP tier within a stage, 6 citywide (in the backtest local comps never beat citywide same-stage comps, so a thin local sample does not outrank them)
-- no days-on-market reading, or no stage with 6 comps: every recent comp regardless of stage, `bidStageMatched = false`, 25 confidence points off
+- listing stage (`src/domain/listingStage.mjs`) is a label: cumulative days on market 0-7 `fresh`, 8-14 `past`, 15-45 `sitting`, 46+ `stale`
+- minimum comps: an effective 6 (Kish: squared sum of weights over sum of squared weights), measured before the location boost
+- under 6 near a late listing's days on market: every sale past week one (`bidDomMatch = side`)
+- no days-on-market reading, or still under 6: comps regardless of days on market (`bidDomMatch = none`, `bidStageMatched = false`), 25 confidence points off
+- confidence: 100, minus 5 per percentage point between the comps' 20th and 80th percentile ratios, minus 1.5 per effective comp short of 20, minus up to 25 when the newest comp that matters is over 45 days old
 - ratio clamp 0.85x to 1.25x
 - likely pre-sold new-build comps excluded by default
 
@@ -77,10 +75,11 @@ Output fields:
 - `bidRatio`
 - `bidConfidence`
 - `bidConfidenceLabel` (`High` / `Medium` / `Low` / `N/A`)
-- `bidCompCount`
-- `bidCompTier` (`T1_NEIGHBORHOOD_TYPE` | `T2_ZIP_TYPE` | `T3_CITY_TYPE` | `NONE`)
+- `bidCompCount` (effective number of comps, rounded)
+- `bidCompTier` (`T1_NEIGHBORHOOD_TYPE` = at least half the weight is in the same neighborhood or ZIP | `T3_CITY_TYPE` | `NONE`)
 - `bidStatus` (`SCored` | `InsufficientComps`)
-- `bidStage` (`fresh` | `past` | `sitting` | `stale` | blank), `bidStageLabel`, `bidStageMatched`, `bidCompWindowDays`
+- `bidStage` (`fresh` | `past` | `sitting` | `stale` | blank), `bidStageLabel`, `bidStageMatched`
+- in the app only: `bidOutcomeLow` / `bidOutcomeHigh` (10th and 90th percentile), `bidLadder` (bid at each win chance, 50% to 90%), `bidDomMatch` (`near` | `side` | `none`), `bidNewerBuild`
 
 ## Actives ledger (`redfin_active_ledger.csv`, published slim as `public/listing_ledger.csv`)
 
@@ -88,7 +87,9 @@ One row per MLS# ever seen in the Redfin actives feed. Columns derived on every 
 - `listDateSource`: `FEED` (fetch date minus the feed's DOM) or `FIRST_SEEN` (estimated as the day before the first snapshot that held the listing, only when the feed was also sampled within the 3 days before). On the 1,749 listings first seen Jul 23 to Sep 19, which have both readings, the first sighting was within 1 day of the list date 94.5% of the time and within 2 days 98.3%.
 - `chainId`, `chainPosition`, `chainListDate`, `chainFirstAsk`, `chainPriorDays`: relist chain. Consecutive MLS#s at one street + ZIP + unit are one marketing period when the next appears within 90 days of the last, asks no more than 10% above and no more than 30% below it, and (if the two overlap by more than a day) asks within 10% of it. `chainId` is the first MLS# in the chain; `chainPriorDays` is the days the earlier listings spent on the market, so cumulative days exclude time off the market. A "Coming Soon" teaser id never joins a chain.
 
-The app groups the ledger by `chainId` (`src/domain/listingLedger.mjs`) for standing inventory, months of supply, price cuts, relists and withdrawals.
+- `askHistory`: every asking price with the first morning it was seen, oldest first, as `date:ask|date:ask` (`2026-07-15:1250000|2026-08-02:1199000`). Appended to by the daily upsert. The first run on a ledger without the column fills the past from the daily snapshots in git, writing no other column (about 30 seconds; on the 5,051-row ledger of 2026-11-08 the result matched `askChangeCount` on 5,045 rows, and `firstAsk`, `lastAsk` and `lastAskChangeDate` on all of them). Where git has no depth it falls back to the first and last asks and tries again on each run until under 2% of the listings that changed price are missing changes. The app ignores a history with fewer entries than `askChangeCount + 1`, and shows no cut or sale odds at all unless 95% of homes have a complete one. Blank in the published copy means "not recorded", never "no change".
+
+The app groups the ledger by `chainId` (`src/domain/listingLedger.mjs`) for standing inventory, months of supply, price cuts, relists and withdrawals, and reads `askHistory` (`src/domain/listingOutlook.mjs`) for the odds of a cut or a sale in the next 14 days.
 
 # Build and Run
 

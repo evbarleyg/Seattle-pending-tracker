@@ -27,7 +27,7 @@ Live site: [https://evbarleyg.github.io/Seattle-pending-tracker/](https://evbarl
 ## Buyer-Focused Flags
 
 - `Pending Price Projection (Experimental)`: projects close price ranges for pending MLS rows using filtered comp ratios.
-- `Bids` tab: active-listing offer guidance using recent sold MLS comps (default 90 days), with suggested bid point/range and confidence.
+- `Bids` tab: active-listing offer guidance from the last 12 months of sold MLS comps, weighted by resemblance, with a suggested bid, win odds, a likely sale range, confidence, and the odds of a price cut or a sale in the next 14 days.
 - `Exclude likely pre-sold new builds` (off by default): removes rows matching:
   - `dataMode = MLS_ENRICHED`
   - `closePrice > 0` and `listPriceAtPending > 0`
@@ -152,25 +152,42 @@ Use `npm run scrape:pending2026` as an alias when the workflow is focused on col
 - Bid anchor: `List@Pending` (`pendingListPrice`).
 - Default strategy: `Balanced`.
 - Output per listing:
-  - Suggested bid
-  - Bid range
-  - Suggested Sale/List ratio
-  - Confidence score/label
-  - Comp count and comp tier
+  - Suggested bid and bid range (one step more cautious, one step more aggressive)
+  - Likely sale: the range 8 in 10 similar homes sold inside
+  - Confidence score/label: how close the number is likely to be
+  - Effective comp count, and whether the weight is mostly nearby or mostly citywide
+  - What tends to happen next: odds of a price cut and of a sale within 14 days
 - Manual scenario support:
-  - In the `Bids` tab, `Try A Listing (Manual Scenario)` lets you enter ask + neighborhood/type/ZIP + DOM/CDOM.
-  - The app returns a suggested bid and shows the comp rows used.
-- Comp model defaults:
-  - comps come from the listing's own stage (0-7, 8-14, 15-45 or 46+ cumulative days on market), because homes that sell in week one and homes that miss their offer review are different negotiations
-  - sold MLS comps in the last 90 days (180 citywide as a last resort), price-banded on asking price
-  - hierarchical tiers: neighborhood+type, zip+type (10 same-stage comps each), then city+type (6)
-  - likely pre-sold new-build comps excluded by default
-- Backtest (about 1,100 single-family sales listed at $1.1M to $1.6M since Oct 2025, each scored with only the sales closed before it went pending): Conservative / Balanced / Aggressive met or beat the winning price 52% / 65% / 74% of the time against targets of 50 / 60 / 70. On listings past day 14 the previous stage-blind model overbid 9 times in 10, by a median of about $55K.
+  - In the `Bids` tab the comp finder takes ask + neighborhood/type/ZIP + DOM/CDOM + year built, or loads an active listing.
+  - It returns the suggested bid, the price at each win chance from 50% to 90%, and the 12 comps that count most with each one's share of the weight.
+- Comp model (`src/domain/bidComps.mjs`): every same-type sale from the last 12 months counts, weighted by resemblance.
+  - recency: weight halves every 60 days
+  - days on market: week one (0-7 days) is pooled and walled off from everything later; after that a sale counts by how close its days to pending were, on a log scale
+  - asking price: by how close the two asks are, on a log scale (the lens's price band does not limit comps)
+  - location: same neighborhood or ZIP counts up to 20x; the boost is earned (one nearby sale 3x, eight 10x, fifty 17x), so a lone nearby sale cannot decide a bid
+  - build era: homes under 15 years old and older homes inform each other at a twentieth
+  - a suggestion needs an effective 6 comparable sales, counted before the location boost; likely pre-sold new-build comps are excluded
+  - too few sales near a late listing's age: every sale past week one is used before any week-one sale is
+- Confidence starts at 100 and loses 5 points per percentage point between the comps' 20th and 80th percentile ratios, plus penalties for thin, stale or unmatched comps.
+- Backtest (1,113 single-family sales listed at $1.1M to $1.6M, Oct 2025 to Nov 2026, each scored with only the sales closed before it went pending):
+
+  | | hard tiers (before) | weighted (now) |
+  |---|---|---|
+  | quantile loss, mean of 50th/60th/70th | 2.135 | 2.019 |
+  | mean miss | 4.57% | 4.28% |
+  | win rate at 50 / 60 / 70 (/ 80 / 90) | 52 / 65 / 74 | 51 / 62 / 74 / 83 / 92 |
+  | mean miss by confidence, High / Medium / Low | 6.6% / 4.1% / 2.3% (backwards) | 2.4% / 3.5% / 5.9% |
+  | range shown contains the sale | 24% (bid range) | 83% (likely sale) |
+  | newer builds in week one: win rate, mean overpayment | 89%, $72K | 64%, $25K |
+
+  Slices it was not tuned on improved too: quantile loss down 4.5% ($0.6M to $1.1M houses), 2.8% ($1.6M to $3.0M), 4.5% (townhouses), 2.3% (condos).
+  A gradient-boosted model given every available field does no better, so this is close to what the data can say. Tried and dropped for having no effect: ask against a fitted fair value, price per square foot, list weekday, round or charm pricing, size of earlier cuts, trailing market heat.
 
 ## Supply And Leverage (Overview)
 
 - `When does leverage flip?`: over / at / under ask by days to pending, next to how many homes for sale now sit in each stage.
 - `How much choice is there?`: standing inventory, months of supply, time on market, price cuts, relists and withdrawals, read from `public/listing_ledger.csv`. Relisted homes count once.
+- `Is there any hurry?` (`src/domain/listingOutlook.mjs`): of listings at the same point in their life and the same distance from their last cut, how many cut again and how many went under contract within 14 days. Built from the ledger's `askHistory`. Replayed on ten dates (Aug 20 to Oct 22 2026): predicted sales 10.8% against 10.5% actual; listings labelled "Time is on your side" sold 6% of the time and cut 31%, "Likely gone soon" sold 30%. Cuts ranked correctly but ran above prediction (28% against 22%) because autumn sellers cut more than summer ones. A home already on the market when tracking found it has no known cut state until it is seen to cut, and mornings that look ahead into a sampling gap of more than 3 days are left out of the cut odds.
 
 ## Data Health Warnings
 

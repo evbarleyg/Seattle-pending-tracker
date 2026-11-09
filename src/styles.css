@@ -2006,6 +2006,113 @@ tbody tr:hover td {
   font-size: 0.72rem;
 }
 
+/* What tends to happen next: a line on each bid card, a table on the Overview. */
+.bid-outlook {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.outlook-chip {
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.outlook-chip.hot { color: var(--hot); }
+.outlook-chip.warm { color: var(--warm); }
+.outlook-chip.cool { color: var(--cool); }
+
+.odds-cell {
+  inline-size: 40%;
+  min-inline-size: 120px;
+}
+
+.odds-bars {
+  display: grid;
+  gap: 2px;
+}
+
+.odds-bar {
+  display: block;
+  block-size: 6px;
+  border-radius: 0 3px 3px 0;
+}
+
+.odds-bar.sale,
+.odds-key.sale { background: var(--hot); }
+
+.odds-bar.cut,
+.odds-key.cut { background: var(--cool); }
+
+.odds-key {
+  display: inline-block;
+  inline-size: 8px;
+  block-size: 8px;
+  margin-inline-end: 5px;
+  border-radius: 2px;
+}
+
+.odds-group tr:first-child th,
+.odds-group tr:first-child td {
+  border-block-start: 2px solid var(--line-strong);
+}
+
+/* Win-chance ladder in the Offer Lab: five steps, read left to right. */
+.bid-ladder {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+}
+
+.bid-ladder ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bid-ladder li {
+  display: grid;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-inline-size: 0;
+}
+
+.ladder-chance {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.bid-ladder strong {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder-vs-ask {
+  color: var(--faint);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 560px) {
+  .bid-ladder ol {
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  }
+}
+
 .bid-history-note {
   margin: 0;
   color: var(--cool);
@@ -2852,7 +2959,7 @@ a.changes-link:focus-visible {
 
 .bid-card-grid-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 12px;
   font-size: 0.8125rem;
 }
