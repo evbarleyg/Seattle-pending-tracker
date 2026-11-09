@@ -180,6 +180,7 @@ export function parseCsv(text) {
       mlsListingPrice: num(pickAny("mlsListingPrice", "mlsListPriceAtPending")),
       mlsOriginalPrice: num(pick("mlsOriginalPrice")),
       mlsClosePrice: num(pickAny("mlsClosePrice", "mlsSellingPrice")),
+      mlsListingNumber: pick("mlsListingNumber"),
       mlsRegion: pick("mlsRegion"),
       mlsStyleCode: pick("mlsStyleCode"),
       mlsDOMRaw: pick("mlsDOM"),
@@ -196,6 +197,9 @@ export function parseCsv(text) {
       mlsThirdPartyApprovalRequiredRaw: pick("mlsThirdPartyApprovalRequired"),
       mlsNewConstructionState: pick("mlsNewConstructionState"),
       mlsSquareFootageSource: pick("mlsSquareFootageSource"),
+      // Active rows only: this home's latest earlier closing in the dataset.
+      priorSaleDate: pick("priorSaleDate"),
+      priorSalePrice: num(pick("priorSalePrice")),
       hotMarketTag: pick("hotMarketTag"),
       saleToListRatio: num(pick("saleToListRatio")),
       saleToOriginalListRatio: num(pick("saleToOriginalListRatio")),
@@ -233,6 +237,10 @@ export function labelNeighborhood(rawNeighborhood, zip) {
   const broadMlsRegion = /^(nw|ne)\s+seattle$/i.test(raw)
     || /^qa[\s/_-]*magnolia$/i.test(raw)
     || /^central[\s/_-]*south\s+seattle$/i.test(raw);
+  // Two pipeline scripts used to label 98107 "Ballard / Crown Hill" while the
+  // county build called it "Ballard", which split one ZIP across two pockets
+  // (and across two bid comp pools). Rows already written keep the old label.
+  if (raw === "Ballard / Crown Hill" && zipValue === "98107") return ZIP_NEIGHBORHOOD[zipValue];
   if (/[a-z]/i.test(raw) && !broadMlsRegion) return raw;
   return ZIP_NEIGHBORHOOD[zipValue] || "Seattle (Other)";
 }

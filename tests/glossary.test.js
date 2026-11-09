@@ -23,6 +23,13 @@ const REQUIRED_METRIC_IDS = [
   "savedMatches",
   "bidQueue",
   "freshness",
+  "stageLeverage",
+  "supplyForSale",
+  "monthsOfSupply",
+  "supplyDaysListed",
+  "priceCutShare",
+  "relistShare",
+  "withdrawnShare",
   // Pulse
   "pulseSalesCount",
   "pulseFastSaleShare",
@@ -40,6 +47,7 @@ const REQUIRED_METRIC_IDS = [
   "bidCompBasis",
   "suggestedSaleList",
   "bidMedianOverAsk",
+  "bidStage",
   // Afford
   "affordDecision",
   "affordMaxComfortable",
@@ -159,14 +167,17 @@ test("tab entries stay grounded in the real thresholds and universes", async () 
   assert.match(M.watchlistPockets.plain, /Magnolia/);
 
   // Bids: BID_MIN_COMPS=6, 90-day comp window, strategy percentiles,
-  // clamp 0.90x-1.25x, confidence bands at 75/55 (selectors.mjs).
+  // clamp 0.85x-1.25x, confidence bands at 75/55 (selectors.mjs).
   assert.match(M.suggestedBid.formulaWords, /50th/);
   assert.match(M.suggestedBid.formulaWords, /60th/);
   assert.match(M.suggestedBid.formulaWords, /70th/);
-  assert.match(M.suggestedBid.caveats.join(" "), /0\.90x/);
+  assert.match(M.suggestedBid.caveats.join(" "), /0\.85x/);
+  assert.match(M.suggestedBid.formulaWords, /same stage/);
   assert.match(M.suggestedBid.caveats.join(" "), /1\.25x/);
   assert.match(M.bidCompBasis.formulaWords, /6 /);
   assert.match(M.bidCompBasis.formulaWords, /90 days/);
+  assert.match(M.bidCompBasis.formulaWords, /180 days/);
+  assert.match(M.bidConfidence.formulaWords, /25/);
   assert.match(M.bidConfidence.formulaWords, /75/);
   assert.match(M.bidConfidence.formulaWords, /55/);
 

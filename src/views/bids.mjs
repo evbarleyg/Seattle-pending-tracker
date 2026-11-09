@@ -23,6 +23,7 @@ import {
   formatMoneyOrNa,
   formatRatio,
   formatWholeNumber,
+  monthLabelCompact,
   num,
 } from "../domain/format.mjs";
 import { domMetric } from "../domain/data.mjs";
@@ -31,12 +32,13 @@ import {
   BID_MIN_COMPS,
   BID_STRATEGIES,
   bidTierLabel,
-  computeBidCompTiers,
   getBidSortValue,
   paginateRows,
   scoreBidForRow,
+  selectBidComps,
   sortRows,
 } from "../domain/selectors.mjs";
+import { LISTING_STAGES, stageMeta } from "../domain/listingStage.mjs";
 import { formatAge } from "../domain/freshness.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
@@ -91,12 +93,88 @@ export function compScopeLabel(tier) {
 // "of 28 nearby single family comps" style caption for a scored bid, reusing
 // the same shared universe-caption component the Overview uses so both tabs
 // state their comp basis the same way.
-export function compBasisCaption(compCount, tier, typeLabel) {
+export function compBasisCaption(compCount, tier, typeLabel, stageId = "", windowDays = BID_COMP_WINDOW_DAYS) {
   if (!compCount) return "";
   const scope = compScopeLabel(tier);
   const typeWord = String(typeLabel || "home").toLowerCase();
-  const universeLabel = [scope, `${typeWord} comps`].filter(Boolean).join(" ");
-  return renderUniverseCaption({ count: compCount, universeLabel });
+  const stage = stageMeta(stageId);
+  const stageWords = stage ? `that went pending in ${stage.range}` : "";
+  const universeLabel = [scope, `${typeWord} comps`, stageWords].filter(Boolean).join(" ");
+  // Only worth saying when the search had to reach past the usual window.
+  const windowLabel = windowDays > BID_COMP_WINDOW_DAYS ? `last ${windowDays} days` : "";
+  return renderUniverseCaption({ count: compCount, universeLabel, windowLabel });
+}
+
+// Why a scored bid could not use same-stage comps, in the buyer's terms.
+export function unstagedReason(scored) {
+  return scored.bidStage
+    ? `any stage: too few ${String(scored.bidStageLabel || "").toLowerCase()} comps`
+    : "any stage: enter DOM for a sharper read";
+}
+
+// Stage pill. Tone follows who holds the leverage: the first week is the
+// seller's (hot), a sitting or stale listing is the buyer's (cool).
+const STAGE_TONE = { fresh: "hot", past: "warm", sitting: "cool", stale: "cool" };
+
+export function stagePillHtml(row) {
+  const stage = stageMeta(row?.bidStage);
+  if (!stage) return `<span class="stage-pill unknown" title="No days-on-market reading for this listing">Stage unknown</span>`;
+  return `<span class="stage-pill ${STAGE_TONE[stage.id]}" title="${esc(stage.range)} on the market">${esc(stage.label)}</span>`;
+}
+
+// What the listing's own history says: how far the ask has come down from the
+// opening price, and whether the advertised clock was reset by a relist.
+export function listingHistoryFacts(row) {
+  const ask = Number(row?.pendingListPrice) || 0;
+  const original = Number(row?.originalListPrice) || 0;
+  const cutUsd = original > ask && ask > 0 ? original - ask : 0;
+  const ownDays = row?.hasMlsDomValue ? Number(row.mlsDOM) : null;
+  const totalDays = domMetric(row);
+  const relisted = ownDays !== null && totalDays !== null && totalDays > ownDays;
+  const priorPrice = Number(row?.priorSalePrice) || 0;
+  return {
+    priorSaleDate: priorPrice > 0 ? String(row.priorSaleDate || "") : "",
+    priorSalePrice: priorPrice,
+    askVsPriorPct: priorPrice > 0 && ask > 0 ? ask / priorPrice - 1 : null,
+    cutUsd,
+    cutPct: cutUsd > 0 ? cutUsd / original : 0,
+    totalDays,
+    ownDays,
+    relisted,
+  };
+}
+
+export function daysListedText(facts) {
+  if (facts.totalDays === null) return "n/a";
+  return facts.relisted ? `${facts.totalDays} (${facts.ownDays} since relist)` : String(facts.totalDays);
+}
+
+function historyNoteHtml(facts) {
+  const bits = [];
+  if (facts.cutUsd > 0) bits.push(`Cut ${formatMoneyCompact(facts.cutUsd)} (${(facts.cutPct * 100).toFixed(1)}%) from its first ask`);
+  if (facts.relisted) bits.push("relisted under a new MLS number");
+  if (facts.priorSalePrice > 0) {
+    const change = Math.round(facts.askVsPriorPct * 100);
+    const versus = change === 0 ? "the same as the ask" : `ask is ${Math.abs(change)}% ${change > 0 ? "higher" : "lower"}`;
+    bits.push(`last sold ${monthLabelCompact(facts.priorSaleDate.slice(0, 7))} for ${formatMoneyCompact(facts.priorSalePrice)} (${versus})`);
+  }
+  if (!bits.length) return "";
+  const text = bits.join(" · ");
+  return `<p class="bid-history-note">${esc(`${text[0].toUpperCase()}${text.slice(1)}`)}</p>`;
+}
+
+// How the queue splits by stage, so the page opens with where the leverage is.
+function stageSummaryHtml(rows) {
+  const counts = Object.fromEntries(LISTING_STAGES.map((stage) => [stage.id, 0]));
+  let unknown = 0;
+  for (const row of rows) {
+    if (counts[row.bidStage] === undefined) unknown += 1;
+    else counts[row.bidStage] += 1;
+  }
+  if (!rows.length) return "";
+  const chips = LISTING_STAGES.map((stage) => `<span class="stage-count"><span class="stage-pill ${STAGE_TONE[stage.id]}">${esc(stage.label)}</span><b>${formatWholeNumber(counts[stage.id])}</b><span class="stage-range">${esc(stage.range)}</span></span>`);
+  if (unknown) chips.push(`<span class="stage-count"><span class="stage-pill unknown">Stage unknown</span><b>${formatWholeNumber(unknown)}</b></span>`);
+  return `<div class="stage-summary" id="bidStageSummary"><span class="mini-label">By stage ${renderExplainButton("bidStage")}</span>${chips.join("")}</div>`;
 }
 
 // Cost-to-win-style wording for how a suggested bid compares with the asking
@@ -136,7 +214,7 @@ export function renderBidsView(deps) {
           ${Object.entries(BID_STRATEGIES).map(([key, strategy]) => `<button type="button" class="scope-pill ${state.bid.strategy === key ? "active" : ""}" data-bid-strategy="${esc(key)}">${esc(strategy.label)}</button>`).join("")}
         </div>
       </section>
-      <p class="note">Load an active listing or enter a prospective address to find comps first, then estimate a bid range from the same comp pool.</p>
+      <p class="note">Each suggestion is built from homes that sold after a similar time on the market, because a week-one listing and a week-eight listing are different negotiations. Load a listing or enter an address to see the comps behind a number.</p>
       ${renderManualBidPanel()}
       <div class="metric-row">
         ${miniMetric("Active listings", formatWholeNumber(stats.activeCount))}
@@ -145,6 +223,7 @@ export function renderBidsView(deps) {
         ${miniMetric("Watched", formatWholeNumber(watchedCount))}
         ${metricWithExplain("Median over ask", stats.scoredCount ? `${(stats.medianOverAskPct || 0).toFixed(1)}%` : "n/a", "bidMedianOverAsk")}
       </div>
+      ${stageSummaryHtml(baseRows)}
       ${noSuggestionsNoticeHtml(stats, state.dataSource.freshness?.items?.find((item) => item.id === "pricedSales"))}
       <section class="section-block">
         <div class="section-head compact">
@@ -180,6 +259,7 @@ export function renderBidsView(deps) {
                 ${bidTh("originalListPrice", "Original List")}
                 ${bidTh("pendingListPrice", "List at pending")}
                 ${bidTh("dom", "Days on market")}
+                <th><span class="th-cell">Stage ${renderExplainButton("bidStage")}</span></th>
                 ${bidTh("suggestedBid", "Suggested Bid", "suggestedBid")}
                 ${bidTh("bidRange", "Bid Range", "bidRange")}
                 ${bidTh("ratio", "Bid vs Ask", "suggestedSaleList")}
@@ -188,7 +268,7 @@ export function renderBidsView(deps) {
                 ${bidTh("compTier", "Comp Tier")}
               </tr>
             </thead>
-            <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="12">No active listings match the current filters.</td></tr>`}</tbody>
+            <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="13">No active listings match the current filters.</td></tr>`}</tbody>
           </table>
         </div>
         <div class="mobile-card-list" id="bidMobileList">${page.rows.map(bidMobileCard).join("")}</div>
@@ -202,13 +282,14 @@ function bidCardHtml(row) {
   const { state, propertyAddressLink, affordTierBadge } = ctx;
   const isWatched = state.watched.has(row.id);
   const scored = row.bidStatus === "SCored";
-  const dom = domMetric(row);
+  const facts = listingHistoryFacts(row);
   const head = `
       <header class="bid-card-head">
         <button type="button" class="watch-star ${isWatched ? "active" : ""}" data-toggle-watch="${esc(row.id)}" aria-label="${isWatched ? "Unwatch" : "Watch"} ${esc(row.address || "listing")}" title="${isWatched ? "Unwatch" : "Watch"}">★</button>
         <div class="bid-card-address">
           ${propertyAddressLink(row, "bid-card-address-link")}
           <span class="bid-card-meta">${esc(row.neighborhoodLabel || "")}${row.typeLabel ? ` · ${esc(row.typeLabel)}` : ""}</span>
+          ${stagePillHtml(row)}
         </div>
         ${affordTierBadge(row)}
       </header>`;
@@ -222,8 +303,9 @@ function bidCardHtml(row) {
       <div class="bid-card-grid-meta">
         <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
         <div><span>First listed at</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
-        <div><span>Days listed</span><strong>${dom ?? "n/a"}</strong></div>
+        <div><span>Days listed</span><strong>${esc(daysListedText(facts))}</strong></div>
       </div>
+      ${historyNoteHtml(facts)}
       <p class="bid-unscored-note">No suggestion: ${compCount} of ${BID_MIN_COMPS} recent comps ${renderExplainButton("suggestedBid")}</p>
       <footer class="bid-card-footer">
         <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
@@ -241,7 +323,7 @@ function bidCardHtml(row) {
   const overAskBadge = overAsk === null
     ? ""
     : `<span class="bid-over-ask ${overAsk > 0 ? "up" : overAsk < 0 ? "down" : "flat"}">${esc(overAskPhrase(overAsk))}</span>`;
-  const compCaption = compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel);
+  const compCaption = compBasisCaption(row.bidCompCount, row.bidCompTier, row.typeLabel, row.bidStageMatched ? row.bidStage : "", row.bidCompWindowDays);
   return `
     <article class="bid-card ${isWatched ? "watched" : ""}" data-row-id="${esc(row.id)}">
       ${head}
@@ -260,11 +342,12 @@ function bidCardHtml(row) {
       <div class="bid-card-grid-meta">
         <div><span>Range</span><strong>${range}</strong></div>
         <div><span>Ask</span><strong>${formatMoneyOrNa(row.pendingListPrice)}</strong></div>
-        <div><span>Original list</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
-        <div><span>DOM</span><strong>${dom ?? "n/a"}</strong></div>
+        <div><span>First listed at</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
+        <div><span>Days listed</span><strong>${esc(daysListedText(facts))}</strong></div>
         <div><span>Bid vs ask price</span><strong>${ratio}</strong></div>
         <div><span>Comps</span><strong>${row.bidCompCount || 0} (${esc(bidTierLabel(row.bidCompTier))})</strong></div>
       </div>
+      ${historyNoteHtml(facts)}
       <footer class="bid-card-footer">
         <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>
       </footer>
@@ -353,13 +436,13 @@ function computeManualComps() {
   if (!row.address && !row.zip && (!row.neighborhoodLabel || row.neighborhoodLabel === "Seattle")) {
     return { status: "Enter an address plus ZIP or neighborhood, or load an active listing.", rowsHtml: "" };
   }
-  const tier = computeBidCompTiers(row, state.derived.compPool);
+  const tier = selectBidComps(row, state.derived.compPool);
   const rows = tier.rows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || ""))).slice(0, 12);
   if (!rows.length) {
     return { status: "No comparable recent sales found for this type and location.", rowsHtml: "" };
   }
   return {
-    status: `Showing ${rows.length} comps from ${bidTierLabel(tier.tier)}.`,
+    status: `Showing ${rows.length} of ${tier.rows.length} comps from ${bidTierLabel(tier.tier)}${tier.stageMatched ? `, all pending in ${stageMeta(tier.stage).range}` : ""}.`,
     rowsHtml: compRowsHtml(rows),
   };
 }
@@ -377,13 +460,14 @@ function computeManualBid() {
     };
   }
   return {
-    status: `Estimated using ${scored.bidCompCount} comps (${bidTierLabel(scored.bidCompTier)}).`,
+    status: `Estimated using ${scored.bidCompCount} comps (${bidTierLabel(scored.bidCompTier)}${scored.bidStageMatched ? `, pending in ${stageMeta(scored.bidStage).range}${scored.bidCompWindowDays > BID_COMP_WINDOW_DAYS ? `, last ${scored.bidCompWindowDays} days` : ""}` : `, ${unstagedReason(scored)}`}).`,
     html: `
       ${metricWithExplain("Suggested bid", formatMoney(scored.bidSuggested), "suggestedBid")}
       ${metricWithExplain("Range", `${formatMoney(scored.bidLow)} - ${formatMoney(scored.bidHigh)}`, "bidRange")}
       ${metricWithExplain("Bid vs ask price", `${scored.bidRatio.toFixed(2)}x`, "suggestedSaleList")}
       ${metricWithExplain("Confidence", `${scored.bidConfidenceLabel} (${scored.bidConfidence})`, "bidConfidence")}
       ${metricWithExplain("Comp basis", `${scored.bidCompCount} comps · ${bidTierLabel(scored.bidCompTier)}`, "bidCompBasis")}
+      ${metricWithExplain("Listing stage", scored.bidStageLabel || "Unknown", "bidStage")}
     `,
     compRows: compRowsHtml(scored.bidCompRows || []),
   };
@@ -409,7 +493,8 @@ function bidRowHtml(row) {
       <td>${esc(row.typeLabel)}</td>
       <td>${formatMoneyOrNa(row.originalListPrice)}</td>
       <td>${formatMoneyOrNa(row.pendingListPrice)}</td>
-      <td>${domMetric(row) ?? "n/a"}</td>
+      <td>${esc(daysListedText(listingHistoryFacts(row)))}</td>
+      <td>${stagePillHtml(row)}</td>
       <td>${suggested}</td>
       <td>${range}</td>
       <td>${ratio}</td>
@@ -432,6 +517,8 @@ function bidMobileCard(row) {
       <div class="mrow-grid">
         <div><span>Neighborhood</span><strong>${esc(row.neighborhoodLabel)}</strong></div>
         <div><span>Ask</span><strong>${formatMoneyCompact(row.pendingListPrice)}</strong></div>
+        <div><span>Days listed</span><strong>${esc(daysListedText(listingHistoryFacts(row)))}</strong></div>
+        <div><span>Stage</span><strong>${esc(row.bidStageLabel || "Unknown")}</strong></div>
         <div><span>Range</span><strong>${scored ? `${formatMoneyCompact(row.bidLow)} - ${formatMoneyCompact(row.bidHigh)}` : "n/a"}</strong></div>
         <div><span>Confidence ${renderExplainButton("bidConfidence")}</span><strong>${esc(row.bidConfidenceLabel)} (${row.bidConfidence || 0})</strong></div>
       </div>

@@ -13,7 +13,10 @@
 import { daysBetween, num, toDate } from "./format.mjs";
 import { zillowUrl } from "./data.mjs";
 
-export const CHANGES_BASELINE_VERSION = 1;
+// v2: open listings are keyed without their (movable) list date. A v1 baseline's
+// listing keys can never match, so it reads as a first visit instead of
+// reporting every listing as new.
+export const CHANGES_BASELINE_VERSION = 2;
 // "Fast" = went pending within this many days of listing.
 export const FAST_PENDING_DAYS = 10;
 // King County recorded sales lag roughly two weeks and coverage backfills
@@ -78,7 +81,11 @@ function rowPrice(row, code) {
 //   "mls-open-..."/"mls-only-..." ids embed a row index that does not).
 // - Everything else (county sale records, Redfin actives): the dataset id is
 //   stable; parcel + sale date disambiguate multi-parcel county records that
-//   reuse one excise id.
+//   reuse one excise id. Only a CLOSED row contributes its sale date: on an open
+//   listing normalizeRow fills saleDate from the list date, which is an estimate
+//   that can move. While the feed's days on market was being misread (Sep 21 to
+//   Nov 2026) it moved every morning, so every listing looked new each day and
+//   no price cut could ever match its baseline entry.
 export function changeKey(row) {
   if (!row || typeof row !== "object") return "";
   const parcel = parcelDigits(row);
@@ -87,7 +94,7 @@ export function changeKey(row) {
     return `apn:${parcel}|${anchor}`;
   }
   const id = String(row.id || "").trim();
-  if (id) return `id:${id}|${parcel}|${String(row.saleDate || "").trim()}`;
+  if (id) return `id:${id}|${parcel}|${isClosedRow(row) ? String(row.saleDate || "").trim() : ""}`;
   const address = String(row.address || "").trim().toUpperCase();
   if (address) return `addr:${address}|${String(row.listDate || row.saleDate || "").trim()}`;
   return "";
@@ -165,6 +172,9 @@ function feedRow(row, key, code) {
     price: rowPrice(row, code),
     status: String(row.mlsStatusLabel || row.mlsStatusNorm || row.mlsStatus || "").trim(),
     listDate: String(row.listDate || ""),
+    // A "new" listing whose cumulative days exceed its own is a relist.
+    isRelist: !!row.hasMlsCdomValue && !!row.hasMlsDomValue && Number(row.mlsCDOM) > Number(row.mlsDOM),
+    originalListPrice: num(row.originalListPrice),
     pendingDate: String(row.pendingDate || ""),
     saleDate: String(row.saleDate || ""),
     url: row.address ? zillowUrl(row) : "",

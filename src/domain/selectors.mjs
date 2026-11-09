@@ -1,9 +1,11 @@
 import {
   addDays,
   clamp,
-  daysAgo,
+  daysBetween,
+  formatDateShort,
   median,
   monthKey,
+  monthLabelCompact,
   nullableMedian,
   quantile,
   roundToNearest,
@@ -37,14 +39,23 @@ import {
   summarizeRows,
 } from "./pulseMetrics.mjs";
 import { listingTier } from "./affordability.mjs";
+import { hasPlausibleLiveDom, stageForRow, stageMeta } from "./listingStage.mjs";
 
 export const DESKTOP_PAGE_SIZE = 100;
 export const MOBILE_PAGE_SIZE = 40;
 export const BID_COMP_WINDOW_DAYS = 90;
+// Older listings are a small share of sales, so when 90 days holds too few
+// same-stage comps even citywide the search widens to this. Their sale-to-ask
+// ratios barely move with the season (0.96x to 0.98x in every window checked),
+// so the extra age costs little.
+export const BID_COMP_WINDOW_EXTENDED_DAYS = 180;
 export const BID_HALFLIFE_DAYS = 30;
 export const BID_MIN_COMPS = 6;
-export const BID_RATIO_MIN = 0.9;
+export const BID_RATIO_MIN = 0.85;
 export const BID_RATIO_MAX = 1.25;
+// Confidence points lost when the comps could not be matched to the listing's
+// stage (no days-on-market reading, or too few same-stage sales anywhere).
+export const BID_UNSTAGED_CONFIDENCE_PENALTY = 25;
 
 export const BID_STRATEGIES = {
   conservative: { point: 0.5, low: 0.4, high: 0.6, label: "Conservative" },
@@ -133,6 +144,29 @@ function formatPriceSummary(value) {
   if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (amount >= 1000) return `$${Math.round(amount / 1000)}K`;
   return `$${Math.round(amount)}`;
+}
+
+// The span a set of counted sales actually covers, for captions. Captions used to
+// print "last 12 mo" unconditionally while the MLS rows in the file reach back to
+// January 2025, so a 22-month count was labelled as a year.
+export function describeSaleWindow(filters, rows) {
+  if (filters?.dateFrom || filters?.dateTo) {
+    const from = filters.dateFrom ? formatDateShort(filters.dateFrom) : "start";
+    const to = filters.dateTo ? formatDateShort(filters.dateTo) : "today";
+    return `${from} to ${to}`;
+  }
+  let first = "";
+  let last = "";
+  for (const row of rows || []) {
+    const date = row?.saleDate;
+    if (!date) continue;
+    if (!first || date < first) first = date;
+    if (date > last) last = date;
+  }
+  if (!first) return "";
+  const firstMonth = first.slice(0, 7);
+  const lastMonth = last.slice(0, 7);
+  return firstMonth === lastMonth ? monthLabelCompact(firstMonth) : `${monthLabelCompact(firstMonth)} to ${monthLabelCompact(lastMonth)}`;
 }
 
 export function normalizeFilters(filters, options = {}) {
@@ -486,24 +520,88 @@ export function computeBidCompTiers(targetRow, compPool) {
   return { tier: "NONE", rows: byType };
 }
 
+// Every sale a bid could lean on: closed in the extended window with a real
+// asking price. The price band is applied to the ASKING price, because that is
+// what the buyer knows about the listing being bid on. Banding comps by close
+// price instead skews the ratios at both edges: just above the floor it keeps
+// the homes that were bid up into the band and drops the ones that sold down out
+// of it.
 export function buildBidCompPool(filterState, normalizedRows, nowValue = new Date()) {
-  const windowStart = addDays(nowValue, -BID_COMP_WINDOW_DAYS);
-  const windowStartIso = toIso(windowStart);
+  const windowStartIso = toIso(addDays(nowValue, -BID_COMP_WINDOW_EXTENDED_DAYS));
   return (normalizedRows || [])
     .filter((row) => row.dataMode === "MLS_ENRICHED" && row.hasActualClose && row.pendingListPrice > 0 && row.saleToList > 0)
     .filter((row) => !row.isLikelyPresoldNewBuild)
     .filter((row) => !!row.saleDate && row.saleDate >= windowStartIso)
-    .filter((row) => matchesSharedGlobalFilters(row, filterState, { priceField: "closePrice", dateField: "saleDate" }));
+    .filter((row) => matchesSharedGlobalFilters(row, filterState, { priceField: "pendingListPrice", dateField: "saleDate" }));
 }
 
-export function scoreBidForRow(row, compPool, strategy = "balanced", includeCompRows = false) {
+// Age and stage of every comp, worked out once per pool rather than once per
+// listing scored against it (a 2,000-comp pool against 1,300 listings spent
+// seconds re-parsing the same dates). Keyed on the pool array, which main.mjs
+// rebuilds on every recompute.
+const preparedPools = new WeakMap();
+
+function prepareCompPool(pool, nowValue) {
+  const nowIso = toIso(nowValue);
+  const cached = preparedPools.get(pool);
+  if (cached && cached.nowIso === nowIso) return cached;
+  const prepared = { nowIso, ages: new Map(), recent: [], recentByStage: new Map(), allByStage: new Map() };
+  const push = (map, key, comp) => {
+    const list = map.get(key);
+    if (list) list.push(comp); else map.set(key, [comp]);
+  };
+  for (const comp of pool) {
+    const raw = daysBetween(comp.saleDate, nowIso);
+    const age = raw === null ? null : Math.max(0, raw);
+    const stage = stageForRow(comp);
+    const isRecent = age !== null && age <= BID_COMP_WINDOW_DAYS;
+    prepared.ages.set(comp, age);
+    if (isRecent) prepared.recent.push(comp);
+    if (stage) {
+      push(prepared.allByStage, stage, comp);
+      if (isRecent) push(prepared.recentByStage, stage, comp);
+    }
+  }
+  preparedPools.set(pool, prepared);
+  return prepared;
+}
+
+// Picks the comps behind one bid. The listing's stage comes first: a home on day
+// 40 is compared with homes that also took weeks to sell, not with the bidding
+// wars of week one. Within the stage the search goes neighborhood, ZIP, city (90
+// days), then city over the extended window. A listing with no days-on-market
+// reading, or a stage with too few sales anywhere, falls back to every recent
+// comp regardless of stage, flagged so confidence can say so.
+export function selectBidComps(targetRow, compPool, { nowValue = new Date() } = {}) {
+  const prepared = prepareCompPool(compPool || [], nowValue);
+  const stage = stageForRow(targetRow);
+  if (stage) {
+    const staged = computeBidCompTiers(targetRow, prepared.recentByStage.get(stage) || []);
+    if (staged.tier !== "NONE") return { ...staged, stage, stageMatched: true, windowDays: BID_COMP_WINDOW_DAYS, ages: prepared.ages };
+    const extended = (prepared.allByStage.get(stage) || []).filter((comp) => comp.typeLabel === targetRow.typeLabel);
+    if (extended.length >= BID_MIN_COMPS) {
+      return { tier: "T3_CITY_TYPE", rows: extended, stage, stageMatched: true, windowDays: BID_COMP_WINDOW_EXTENDED_DAYS, ages: prepared.ages };
+    }
+  }
+  return { ...computeBidCompTiers(targetRow, prepared.recent), stage, stageMatched: false, windowDays: BID_COMP_WINDOW_DAYS, ages: prepared.ages };
+}
+
+export function scoreBidForRow(row, compPool, strategy = "balanced", includeCompRows = false, options = {}) {
   const strat = BID_STRATEGIES[strategy] || BID_STRATEGIES.balanced;
-  const tier = computeBidCompTiers(row, compPool);
+  const nowValue = options.nowValue || new Date();
+  const tier = selectBidComps(row, compPool, { nowValue });
   const compRows = tier.rows;
   const compRowsSorted = compRows.slice().sort((a, b) => String(b.saleDate || "").localeCompare(String(a.saleDate || "")));
+  const stageFields = {
+    bidStage: tier.stage || "",
+    bidStageLabel: stageMeta(tier.stage)?.label || "",
+    bidStageMatched: tier.stageMatched,
+    bidCompWindowDays: tier.windowDays,
+  };
   if (tier.tier === "NONE" || compRows.length < BID_MIN_COMPS) {
     return {
       ...row,
+      ...stageFields,
       bidStrategy: strat.label,
       bidSuggested: 0,
       bidLow: 0,
@@ -519,26 +617,13 @@ export function scoreBidForRow(row, compPool, strategy = "balanced", includeComp
   }
 
   const ratios = compRows.map((comp) => comp.saleToList);
-  const recencies = compRows.map((comp) => daysAgo(comp.saleDate)).filter((value) => value !== null);
-  const weights = compRows.map((comp) => {
-    const age = daysAgo(comp.saleDate) ?? BID_COMP_WINDOW_DAYS;
-    return Math.pow(0.5, age / BID_HALFLIFE_DAYS);
-  });
+  const ages = compRows.map((comp) => tier.ages.get(comp) ?? null);
+  const recencies = ages.filter((value) => value !== null);
+  const weights = ages.map((age) => Math.pow(0.5, (age ?? tier.windowDays) / BID_HALFLIFE_DAYS));
 
-  let pointRatio = weightedQuantile(ratios, weights, strat.point);
-  let lowRatio = weightedQuantile(ratios, weights, strat.low);
-  let highRatio = weightedQuantile(ratios, weights, strat.high);
-  let heatAdj = 0;
-  if (row.isUltraHot) heatAdj += 0.01;
-  else if (row.isHotMarket) heatAdj += 0.005;
-  const marketDom = domMetric(row);
-  if (marketDom !== null && marketDom >= 30) heatAdj -= 0.005;
-
-  pointRatio = clamp(pointRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
-  lowRatio = clamp(lowRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
-  highRatio = clamp(highRatio + heatAdj, BID_RATIO_MIN, BID_RATIO_MAX);
-  if (lowRatio > pointRatio) lowRatio = pointRatio;
-  if (highRatio < pointRatio) highRatio = pointRatio;
+  const pointRatio = clamp(weightedQuantile(ratios, weights, strat.point), BID_RATIO_MIN, BID_RATIO_MAX);
+  const lowRatio = Math.min(pointRatio, clamp(weightedQuantile(ratios, weights, strat.low), BID_RATIO_MIN, BID_RATIO_MAX));
+  const highRatio = Math.max(pointRatio, clamp(weightedQuantile(ratios, weights, strat.high), BID_RATIO_MIN, BID_RATIO_MAX));
 
   const suggestedBid = roundToNearest(row.pendingListPrice * pointRatio, 1000);
   const bidLow = roundToNearest(row.pendingListPrice * lowRatio, 1000);
@@ -548,10 +633,12 @@ export function scoreBidForRow(row, compPool, strategy = "balanced", includeComp
   const tierScore = tier.tier === "T1_NEIGHBORHOOD_TYPE" ? 35 : (tier.tier === "T2_ZIP_TYPE" ? 25 : 15);
   const medianRecency = recencies.length ? median(recencies) : BID_COMP_WINDOW_DAYS;
   const recencyScore = clamp((1 - (medianRecency / BID_COMP_WINDOW_DAYS)) * 20, 0, 20);
-  const bidConfidence = Math.round(clamp(countScore + tierScore + recencyScore, 0, 100));
+  const stagePenalty = tier.stageMatched ? 0 : BID_UNSTAGED_CONFIDENCE_PENALTY;
+  const bidConfidence = Math.round(clamp(countScore + tierScore + recencyScore - stagePenalty, 0, 100));
 
   return {
     ...row,
+    ...stageFields,
     bidStrategy: strat.label,
     bidSuggested: suggestedBid,
     bidLow,
@@ -564,6 +651,20 @@ export function scoreBidForRow(row, compPool, strategy = "balanced", includeComp
     bidStatus: "SCored",
     bidCompRows: includeCompRows ? compRowsSorted.slice(0, 12) : [],
   };
+}
+
+// Depends only on the loaded dataset, so it is worked out once per dataset.
+const liveDomVerdicts = new WeakMap();
+
+export function liveDomTrusted(normalizedRows) {
+  const rows = normalizedRows || [];
+  if (!liveDomVerdicts.has(rows)) liveDomVerdicts.set(rows, hasPlausibleLiveDom(rows.filter(isActiveListing)));
+  return liveDomVerdicts.get(rows);
+}
+
+function withoutZeroDom(row) {
+  if (domMetric(row) !== 0) return row;
+  return { ...row, hasMlsDomValue: false, hasMlsCdomValue: false, daysToPending: null, isHotMarket: false, isUltraHot: false };
 }
 
 export function computeActiveBidSuggestions(filterState, normalizedRows, strategy = "balanced", options = {}) {
@@ -587,8 +688,15 @@ export function computeActiveBidSuggestions(filterState, normalizedRows, strateg
     .filter((row) => row.mlsStatusNorm === "ACTIVE")
     .filter((row) => !row.hasActualClose && row.pendingListPrice > 0)
     .filter((row) => matchesSharedGlobalFilters(row, f, { priceField: "pendingListPrice", dateField: "effectiveDate" }));
-  const compPool = options.compPool || buildBidCompPool(f, normalizedRows, options.nowValue || new Date());
-  const scoredRows = activeRowsBase.map((row) => scoreBidForRow(row, compPool, strategy));
+  const nowValue = options.nowValue || new Date();
+  const compPool = options.compPool || buildBidCompPool(f, normalizedRows, nowValue);
+  // If the feed's days on market is visibly broken (nearly every listing at 0),
+  // those zeros are dropped to "unknown" so no listing is priced as a week-one
+  // bidding war on the strength of a bad reading.
+  // Judged on every live listing, not the filtered few: a narrow lens holds too
+  // few listings to tell a broken feed from a busy week.
+  const domTrusted = liveDomTrusted(normalizedRows);
+  const scoredRows = activeRowsBase.map((row) => scoreBidForRow(domTrusted ? row : withoutZeroDom(row), compPool, strategy, false, { nowValue }));
   const scored = scoredRows.filter((row) => row.bidStatus === "SCored");
   const highConfidenceCount = scoredRows.filter((row) => row.bidConfidence >= 75).length;
   const medianOverAskPct = scored.length
@@ -639,10 +747,16 @@ export function mergeBidFields(row, bidByKey) {
       bidCompCount: 0,
       bidCompTier: "NONE",
       bidStatus: "",
+      bidStage: "",
+      bidStageLabel: "",
+      bidStageMatched: false,
     };
   }
   return {
     ...row,
+    bidStage: bid.bidStage || "",
+    bidStageLabel: bid.bidStageLabel || "",
+    bidStageMatched: !!bid.bidStageMatched,
     bidStrategy: bid.bidStrategy || "",
     bidSuggested: bid.bidSuggested || 0,
     bidLow: bid.bidLow || 0,
@@ -762,7 +876,7 @@ export function exportRowsToCsv(rows) {
     "id", "address", "neighborhood", "type", "dataMode", "saleDate", "listDate", "pendingDate",
     "closePrice", "originalListPrice", "pendingListPrice", "listPriceAtPending", "saleToList", "saleToOriginalList", "delta", "deltaPct", "isHotMarket", "isUltraHot",
     "mlsStatus", "mlsRegion", "mlsParkingType", "mlsParkingCoveredTotal", "mlsTaxesAnnual", "mlsBuildingCondition", "mlsView", "mlsBankOwned", "mlsThirdPartyApprovalRequired", "mlsNewConstructionState", "mlsSquareFootageSource", "isSpecialSale",
-    "bidStrategy", "bidSuggested", "bidLow", "bidHigh", "bidRatio", "bidConfidence", "bidConfidenceLabel", "bidCompCount", "bidCompTier", "bidStatus",
+    "bidStrategy", "bidSuggested", "bidLow", "bidHigh", "bidRatio", "bidConfidence", "bidConfidenceLabel", "bidCompCount", "bidCompTier", "bidStatus", "bidStage",
     "hotCategory", "domDays", "isLikelyPresoldNewBuild", "presoldRuleReason", "isProjectionRow", "projectedClosePrice", "projectedCloseLow", "projectedCloseHigh", "projectionBasisCount",
     "beds", "baths", "sqft", "pricePerSqft", "lotSize", "yearBuilt", "zip",
   ];
@@ -810,6 +924,7 @@ export function exportRowsToCsv(rows) {
       activeBidEligible ? row.bidCompCount || "" : "",
       activeBidEligible ? row.bidCompTier || "" : "",
       activeBidEligible ? row.bidStatus || "" : "",
+      activeBidEligible ? row.bidStage || "" : "",
       hotCategory(row),
       domMetric(row) ?? "",
       row.isLikelyPresoldNewBuild ? "true" : "false",

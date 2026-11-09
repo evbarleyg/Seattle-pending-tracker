@@ -176,3 +176,19 @@ test("geo marker selection does not filter until map filter is applied", async (
   assert.equal(appliedFilter.closedSlice.length, 1);
   assert.equal(appliedFilter.closedSlice[0].mapPropertyKey, "map-a");
 });
+
+test("describeSaleWindow states the span the sales cover instead of assuming a year", async () => {
+  const { describeSaleWindow } = await importModule("src/domain/selectors.mjs");
+  const rows = [{ saleDate: "2025-01-14" }, { saleDate: "2026-11-06" }, { saleDate: "" }, {}];
+  assert.equal(describeSaleWindow({}, rows), "Jan '25 to Nov '26");
+  assert.equal(describeSaleWindow({}, [{ saleDate: "2026-11-02" }, { saleDate: "2026-11-06" }]), "Nov '26");
+  assert.equal(describeSaleWindow({}, []), "");
+  assert.equal(describeSaleWindow({ dateFrom: "2026-01-01" }, rows), "1/1/26 to today");
+});
+
+test("98107 rows share one neighborhood label whichever script wrote them", async () => {
+  const { labelNeighborhood } = await importModule("src/domain/data.mjs");
+  assert.equal(labelNeighborhood("Ballard / Crown Hill", "98107"), "Ballard");
+  assert.equal(labelNeighborhood("Ballard", "98107"), "Ballard");
+  assert.equal(labelNeighborhood("Ballard / Crown Hill", "98117"), "Ballard / Crown Hill");
+});

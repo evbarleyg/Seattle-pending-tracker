@@ -146,6 +146,29 @@ test("changeKey falls back to the stable id for parcel-less Redfin actives", asy
   assert.equal(changeKey(row), "id:redfin-active-220397186||");
 });
 
+test("an open listing keeps its identity when its list date moves, so price cuts still match", async () => {
+  const { captureBaseline, changeKey, diffSinceBaseline } = await loadChangesSince();
+  // normalizeRow fills an open row's saleDate from its list date.
+  const monday = activeRow({ id: "redfin-active-220397186", parcelNbr: "", listDate: "2026-06-29", saleDate: "2026-06-29" });
+  const tuesday = { ...monday, listDate: "2026-06-30", saleDate: "2026-06-30", pendingListPrice: 950_000, listPriceAtPending: 950_000 };
+  assert.equal(changeKey(monday), changeKey(tuesday));
+  const diff = diffSinceBaseline(captureBaseline([monday], BASELINE_AT), [tuesday], NOW);
+  assert.deepEqual(diff.newActives, [], "the same listing is not news");
+  assert.equal(diff.priceCuts.length, 1);
+  assert.equal(diff.priceCuts[0].cutAmount, 50_000);
+});
+
+test("a new listing that is really a relist says so", async () => {
+  const { captureBaseline, diffSinceBaseline } = await loadChangesSince();
+  const relist = activeRow({ id: "redfin-active-1", parcelNbr: "", listDate: "2026-07-02", hasMlsDomValue: true, mlsDOM: 2, hasMlsCdomValue: true, mlsCDOM: 61, originalListPrice: 1_100_000 });
+  const fresh = activeRow({ id: "redfin-active-2", parcelNbr: "", listDate: "2026-07-02", hasMlsDomValue: true, mlsDOM: 2, hasMlsCdomValue: true, mlsCDOM: 2, originalListPrice: 1_000_000 });
+  const diff = diffSinceBaseline(captureBaseline([], BASELINE_AT), [relist, fresh], NOW);
+  const byId = Object.fromEntries(diff.newActives.map((entry) => [entry.id, entry]));
+  assert.equal(byId["redfin-active-1"].isRelist, true);
+  assert.equal(byId["redfin-active-1"].originalListPrice, 1_100_000);
+  assert.equal(byId["redfin-active-2"].isRelist, false);
+});
+
 test("changeKey returns empty string for untrackable input instead of throwing", async () => {
   const { changeKey } = await loadChangesSince();
   assert.equal(changeKey(null), "");
@@ -222,9 +245,9 @@ test("isValidBaseline accepts a fresh capture and rejects malformed shapes", asy
     [],
     {},
     { v: 99, capturedAt: BASELINE_AT, rows: {} },
-    { v: 1, capturedAt: "not a date", rows: {} },
-    { v: 1, capturedAt: BASELINE_AT, rows: [] },
-    { v: 1, capturedAt: BASELINE_AT },
+    { v: 2, capturedAt: "not a date", rows: {} },
+    { v: 2, capturedAt: BASELINE_AT, rows: [] },
+    { v: 2, capturedAt: BASELINE_AT },
   ];
   for (const value of bad) {
     assert.equal(isValidBaseline(value), false, `expected invalid: ${JSON.stringify(value)}`);
@@ -234,7 +257,7 @@ test("isValidBaseline accepts a fresh capture and rejects malformed shapes", asy
 test("diffSinceBaseline treats missing or malformed baselines as a first visit and never throws", async () => {
   const { diffSinceBaseline } = await loadChangesSince();
   const rows = [activeRow(), closedRow()];
-  const malformed = [null, undefined, "garbage", 42, [], { v: 1 }, { v: 1, capturedAt: "nope", rows: {} }];
+  const malformed = [null, undefined, "garbage", 42, [], { v: 2 }, { v: 2, capturedAt: "nope", rows: {} }, { v: 1, capturedAt: BASELINE_AT, rows: {} }];
   for (const baseline of malformed) {
     const diff = diffSinceBaseline(baseline, rows, NOW);
     assert.equal(diff.isFirstVisit, true);
@@ -353,7 +376,7 @@ test("price cuts: a re-listed home that dropped its real list price mid-flight i
   // Baseline knew this key only as a closed sale; a later active row reusing
   // the key must not read as a price cut (no trustworthy old price).
   const baseline = {
-    v: 1,
+    v: 2,
     capturedAt: BASELINE_AT,
     rows: { "apn:1111111111|2026-06-20": { s: "C" } },
   };

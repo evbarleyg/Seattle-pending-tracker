@@ -198,7 +198,8 @@ export const METRICS = {
     source: { id: "redfin", label: "Redfin active listings plus manual MLS exports" },
     cadence: CADENCE.redfin,
     caveats: [
-      "MLS and Redfin listings only. County rows never appear here, so this is a flow gauge, not a full inventory count.",
+      "MLS and Redfin listings only; county rows never appear here.",
+      "The trend line is month-end standing inventory from the daily listings ledger (relisted homes counted once), which starts in June 2026.",
       "Both halves are feature-flag gated: turn off Include Open/Pending MLS or Pending Projection and the count drops.",
     ],
     buyerDirection: "higherIsBetter",
@@ -363,10 +364,10 @@ export const METRICS = {
     label: "Competition pockets",
     plain: "Neighborhoods in your slice ranked by how often homes sell fast, so you can see where bidding pressure concentrates.",
     formulaWords:
-      "Groups your closed slice by neighborhood, computes each one's fast-sale share, sale count, median sale/list, and median close, and ranks by fast-sale share.",
+      "Groups your closed slice by neighborhood, computes each one's fast-sale share, sale count, median sale/list, and median close, and ranks by fast-sale share. Neighborhoods with fewer than 10 days-on-market readings are listed after the well-sampled ones.",
     source: { id: "derived", label: "Computed in your browser by grouping your slice by neighborhood" },
     cadence: CADENCE.derived,
-    caveats: ["A small neighborhood can rank high on a handful of sales; check the sale count next to the share."],
+    caveats: ["Even 10 readings is a small sample; check the sale count next to the share."],
     buyerDirection: "neutral",
     universeId: "closedSlice",
   },
@@ -384,22 +385,161 @@ export const METRICS = {
     universeId: "pulseWatchlist",
   },
 
+  // --- Leverage and supply (Overview) ----------------------------------------
+  // Grounded in computeStageLeverage / LISTING_STAGES (listingStage.mjs) and
+  // buildMarketingPeriods / computeSupplySnapshot (listingLedger.mjs).
+
+  stageLeverage: {
+    id: "stageLeverage",
+    label: "Leverage by days on market",
+    plain: "How sale prices compared with asking prices, split by how long each home took to go under contract. It shows when the advantage passes to you.",
+    formulaWords:
+      "Groups closed sales by days on market at pending: 0 to 7, 8 to 14, 15 to 45, and 46 or more. Each group shows the share that closed over, at and under ask, and the middle dollar gap between close and ask. The last column counts homes for sale now in that group.",
+    source: { id: "mls-manual", label: "Manual MLS exports, Redfin listing history and the daily listings ledger" },
+    cadence: CADENCE.redfin,
+    caveats: [
+      "Only sales with both a genuine asking price and a days-on-market reading count.",
+      "Ask means the price in force at pending, so an older listing's discount comes on top of cuts already taken.",
+      "A home relisted under a new MLS number keeps its original clock.",
+      "A group with fewer than 5 sales shows n/a.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "closedSlice",
+  },
+
+  supplyForSale: {
+    id: "supplyForSale",
+    label: "Homes for sale now",
+    plain: "How many homes matching your type, neighborhood and price filters were for sale on the last morning the listings were checked.",
+    formulaWords:
+      "Counts homes seen in the Redfin listings feed on its most recent pull whose current asking price is inside your price band. A home relisted under a new MLS number counts once. The line shows the same count each week for the last 16 weeks; new arrivals count first-time listings only, not relists.",
+    source: { id: "redfin", label: "Daily ledger of the Redfin listings feed" },
+    cadence: CADENCE.redfin,
+    caveats: [
+      "The ledger knows type, ZIP and asking price only, so lot-size, affordability, special-sale and date filters do not apply here.",
+      "It can differ slightly from the Active + pending tile, which counts listing rows rather than homes.",
+      "Tracking began June 8, 2026 and was patchy until mid-July.",
+    ],
+    buyerDirection: "higherIsBetter",
+    universeId: "actives",
+  },
+
+  monthsOfSupply: {
+    id: "monthsOfSupply",
+    label: "Months of supply",
+    plain: "How long today's listings would take to sell at the recent pace of closings if nothing new came on. More months means more room to negotiate.",
+    formulaWords:
+      "Divides the homes for sale now by the average monthly closings over the last 90 days, both filtered by type, neighborhood and price only. Under about 2 months reads as tight, 2 to 4 as balanced, and over 4 as roomy. Fewer than 6 closings in the window shows n/a.",
+    source: { id: "derived", label: "Listings ledger divided by recent closed sales" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "Listings are banded by asking price and closings by sale price, so homes near the edges of your band can fall on different sides.",
+      "Closings trail contracts by about 3 to 4 weeks, so the pace describes demand from a month or so ago.",
+      "While King County records are behind, recent closings come from Redfin alone, which understates the pace and overstates the months.",
+    ],
+    buyerDirection: "higherIsBetter",
+    universeId: "actives",
+  },
+
+  supplyDaysListed: {
+    id: "supplyDaysListed",
+    label: "Typical time on market (for sale now)",
+    plain: "How long the middle home currently for sale has been on the market.",
+    formulaWords:
+      "For each home for sale now, counts days since it was listed and takes the middle value. A relisted home adds the days its earlier listings were up; days off the market in between do not count.",
+    source: { id: "redfin", label: "Daily ledger of the Redfin listings feed" },
+    cadence: CADENCE.redfin,
+    caveats: [
+      "This describes homes that have not sold, so it always runs longer than days on market for sales: quick sellers leave the pool and slow ones pile up.",
+      "Since September 21, 2026 Redfin no longer reports days on market for most listings, so newer list dates are estimated as the day before the listing first appeared. On listings with both readings that was within 1 day 94% of the time.",
+    ],
+    buyerDirection: "higherIsBetter",
+    universeId: "actives",
+  },
+
+  priceCutShare: {
+    id: "priceCutShare",
+    label: "Already cut the price",
+    plain: "The share of homes for sale now that ask less than they did when first listed.",
+    formulaWords:
+      "Compares each home's current asking price with its opening ask. For a relisted home the opening ask is the first listing's. The typical cut is the middle reduction among homes that cut, in dollars and as a percent of the opening ask.",
+    source: { id: "redfin", label: "Daily ledger of the Redfin listings feed" },
+    cadence: CADENCE.redfin,
+    caveats: [
+      "Homes already on the market when tracking began (June 8, 2026) may have cut earlier than the ledger can see, so this is a floor.",
+      "About 4 in 5 relists come back at a lower price, a cut that listing sites do not show as one.",
+    ],
+    buyerDirection: "higherIsBetter",
+    universeId: "actives",
+  },
+
+  relistShare: {
+    id: "relistShare",
+    label: "Relisted to reset the clock",
+    plain: "The share of homes for sale now that were cancelled and listed again under a new MLS number, which restarts the days-on-market count buyers see.",
+    formulaWords:
+      "Links listings at the same address and ZIP when the next one appears within 90 days of the last and does not raise the ask by more than 10 percent. A home with two or more linked listings counts as relisted.",
+    source: { id: "redfin", label: "Daily ledger of the Redfin listings feed" },
+    cadence: CADENCE.redfin,
+    caveats: [
+      "Matching is by address text, so a relist with a differently written address is missed.",
+      "A listing that fell out of contract and came back under the same MLS number is not a relist.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
+  withdrawnShare: {
+    id: "withdrawnShare",
+    label: "Stale listings that never sold",
+    plain: "Of homes that left the market after sitting 46 days or more, the share that were pulled without a sale. A high share means many slow sellers would rather wait than meet the market.",
+    formulaWords:
+      "Takes homes last seen for sale between 135 and 45 days ago, so a closing has had time to record, and checks whether any of their MLS numbers appears among closed sales. Those with no closing count as withdrawn.",
+    source: { id: "derived", label: "Listings ledger matched to closed sales by MLS number" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "A sale the Redfin sold feed missed would be counted as withdrawn, so treat this as an upper bound.",
+      "Shown only when at least 8 such homes are in your slice.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
+  bidStage: {
+    id: "bidStage",
+    label: "Listing stage",
+    plain: "Where a listing is in its life: first week, just past its offer-review date, sitting, or stale. It decides which past sales the suggested bid is based on.",
+    formulaWords:
+      "Reads the listing's cumulative days on market: 0 to 7 is First week, 8 to 14 Missed review, 15 to 45 Sitting, 46 or more Stale. The suggested bid then uses only comps that went pending in the same stage.",
+    source: { id: "derived", label: "Computed in your browser from days on market" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "A listing with no days-on-market reading has no stage; its bid falls back to all recent comps and loses 25 confidence points.",
+      "A first-week suggestion is the price of competing at offer review. If the home is still there in week two, the math changes in your favor.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
   // --- Bids / Offer Lab tab --------------------------------------------------
   // Grounded in scoreBidForRow, computeBidCompTiers, bidConfidenceLabel, and
-  // computeActiveBidSuggestions (selectors.mjs): 90-day comp window, 30-day
-  // half-life weights, strategy percentiles, ratio clamp 0.90x to 1.25x.
+  // computeActiveBidSuggestions (selectors.mjs): same-stage comps, 90-day comp
+  // window (180 as a last resort), 30-day half-life weights, strategy
+  // percentiles, ratio clamp 0.85x to 1.25x.
 
   suggestedBid: {
     id: "suggestedBid",
     label: "Suggested bid",
-    plain: "A starting offer for an active listing, based on what similar homes recently closed at relative to their asking prices.",
+    plain: "A starting offer for an active listing, based on what similar homes that had been on the market about as long recently closed at relative to their asking prices.",
     formulaWords:
-      "Takes similar recent sales' sale-to-list ratios, weights newer sales more, picks the strategy percentile (Conservative 50th, Balanced 60th, Aggressive 70th), adjusts slightly for market heat, and multiplies the asking price by that ratio, rounded to the nearest $1,000.",
-    source: { id: "derived", label: "Computed in your browser from closed comps in the last 90 days" },
+      "Takes the sale-to-list ratios of similar recent sales that went pending in the same stage as this listing (first week, 8 to 14 days, 15 to 45, or 46 plus), weights newer sales more, picks the strategy percentile (Conservative 50th, Balanced 60th, Aggressive 70th), and multiplies the asking price by that ratio, rounded to the nearest $1,000.",
+    source: { id: "derived", label: "Computed in your browser from closed comps in the last 90 days (180 when a stage is thin)" },
     cadence: CADENCE.derived,
     caveats: [
       "A model starting point, not an appraisal; pair it with a walkthrough and your agent's read.",
-      "Comp ratios are clamped between 0.90x and 1.25x of ask.",
+      "Replayed on about 1,100 past sales, the three strategies met or beat the winning price 54%, 64% and 72% of the time.",
+      "First-week outcomes are wide: a quarter sell at ask or less, a quarter about 10% over.",
+      "Comp ratios are clamped between 0.85x and 1.25x of ask.",
     ],
     buyerDirection: "neutral",
     universeId: "actives",
@@ -423,7 +563,7 @@ export const METRICS = {
     label: "Bid confidence",
     plain: "A 0 to 100 score for how much the suggested bid can be trusted, based on the comps behind it.",
     formulaWords:
-      "Adds up to 45 points for comp count (20 comps scores full marks), 35, 25, or 15 points for how local the comps are (neighborhood, zip, or citywide), and up to 20 points for how recent they are. 75 or more shows as High, 55 to 74 as Medium.",
+      "Adds up to 45 points for comp count (20 comps scores full marks), 35, 25, or 15 points for how local the comps are (neighborhood, zip, or citywide), and up to 20 points for how recent they are, then takes off 25 if the comps could not be matched to the listing's stage. 75 or more shows as High, 55 to 74 as Medium.",
     source: { id: "derived", label: "Computed in your browser from the comp pool behind each bid" },
     cadence: CADENCE.derived,
     caveats: ["High confidence means the comps are plentiful, local, and fresh, not that the market is predictable."],
@@ -436,10 +576,13 @@ export const METRICS = {
     label: "Comp basis",
     plain: "Which pool of comparable sales backs a suggested bid, and how local it is.",
     formulaWords:
-      "Needs at least 6 closed sales from the last 90 days with a real list price and the same home type: first tried in the same neighborhood, then the same zip code, then citywide. Fewer than 6 anywhere shows as insufficient comps.",
+      "Needs at least 6 closed sales from the last 90 days with a real list price, the same home type and the same listing stage: first tried in the same neighborhood, then the same zip code, then citywide, then citywide over 180 days. If no stage match reaches 6, or the listing has no days-on-market reading, it uses all recent comps regardless of stage. Fewer than 6 anywhere shows as insufficient comps.",
     source: { id: "derived", label: "Computed in your browser from recent closed sales" },
     cadence: CADENCE.derived,
-    caveats: ["Likely presold new builds are excluded from the comp pool so their list-price quirks do not skew the ratios."],
+    caveats: [
+      "Likely presold new builds are excluded from the comp pool so their list-price quirks do not skew the ratios.",
+      "Your price band is applied to each comp's asking price, not its sale price, because the asking price is what you know about the listing you are bidding on.",
+    ],
     buyerDirection: "neutral",
     universeId: "actives",
   },
@@ -451,7 +594,7 @@ export const METRICS = {
     formulaWords: "Divides the suggested bid by the listing's asking price.",
     source: { id: "derived", label: "Computed in your browser from the suggested bid" },
     cadence: CADENCE.derived,
-    caveats: ["Clamped between 0.90x and 1.25x, so extreme comp readings are trimmed."],
+    caveats: ["Clamped between 0.85x and 1.25x, so extreme comp readings are trimmed."],
     buyerDirection: "higherIsWorse",
     universeId: "actives",
   },
@@ -753,7 +896,7 @@ export const METRICS = {
   allRows: {
     id: "allRows",
     label: "All loaded rows",
-    plain: "Every row in the data file before any filters, covering roughly the last 12 months of King County sales plus current listings.",
+    plain: "Every row in the data file before any filters: about 12 months of King County sales, MLS and Redfin sales back to January 2025, and current listings.",
     formulaWords:
       "The raw row count of the loaded file: county recorded sales, manual MLS export rows, and Redfin listings merged into one dataset.",
     source: { id: "kc-assessor", label: "King County assessor base, enriched with manual MLS exports and Redfin" },

@@ -2,7 +2,9 @@
 //
 // The view leads with three plain-language answer blocks:
 //   1. "Is now a good time?"            — market-direction verdict + KPI tiles
-//   2. "What does winning cost?"        — over/at/under-ask spread (costToWin)
+//   2. "What does winning cost?"        — over/at/under-ask spread (costToWin),
+//      then when leverage flips (listingStage) and how much supply there is
+//      (listingLedger)
 //   3. "What changed since you last looked?" — per-slice delta feed (changesSince)
 // followed by the decision brief, buyer profile, trends, and micromarkets.
 //
@@ -11,7 +13,9 @@
 //   { state, qs, icon, buttonIcon, miniMetric, sparklineSvg, chartMetricLabel,
 //     pulseMetricConfig, medianValue, minTileComps }
 import {
+  addDays,
   esc,
+  formatDateNoYear,
   formatDateShort,
   formatMoneyCompact,
   formatMoneyOrNa,
@@ -20,15 +24,18 @@ import {
   formatWholeNumber,
   monthLabelCompact,
   safeNumber,
+  toIso,
 } from "../domain/format.mjs";
 import { domMetric } from "../domain/data.mjs";
-import { filtersToSummary, recordViewLabel } from "../domain/selectors.mjs";
+import { describeSaleWindow, filtersToSummary, recordViewLabel } from "../domain/selectors.mjs";
 import { buildProfileCohort, buildMicromarketProfiles } from "../domain/buyerProfile.mjs";
 import { metricDirection } from "../domain/pulseMetrics.mjs";
 import { getMetric, formatCadenceNote } from "../domain/glossary.mjs";
 import { computeCostToWin, buildCostToWinVerdict } from "../domain/costToWin.mjs";
 import { captureBaseline, diffSinceBaseline, isValidBaseline } from "../domain/changesSince.mjs";
 import { describeSalesLag } from "../domain/freshness.mjs";
+import { buildStageVerdict, computeStageLeverage, ratioVsAskPhrase, stageTypicalResult } from "../domain/listingStage.mjs";
+import { LONG_LISTED_DAYS, MIN_EXIT_SAMPLE, buildSupplyVerdict, supplyBalanceLabel } from "../domain/listingLedger.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
@@ -116,12 +123,7 @@ function getSliceChanges(state, universeRows) {
 // Shared small helpers
 
 function windowLabel(filters) {
-  if (filters?.dateFrom || filters?.dateTo) {
-    const from = filters.dateFrom ? formatDateShort(filters.dateFrom) : "start";
-    const to = filters.dateTo ? formatDateShort(filters.dateTo) : "today";
-    return `${from} to ${to}`;
-  }
-  return "last 12 mo";
+  return describeSaleWindow(filters, ctx?.state?.derived?.slices?.closedSlice);
 }
 
 function agoLabel(minutes) {
@@ -439,7 +441,9 @@ function commandCenterCardsHtml(costToWin) {
     : "Saved-home lens paused";
   const sliceSeries = state.derived.sliceMonthlySeries || [];
   const invSeries = state.derived.inventoryMonthlySeries || [];
-  const window = windowLabel(state.filters);
+  // These captions count stats.sampleSize, the sales passing the filters BEFORE
+  // chart or map clicks, so the span they quote must come from the same rows.
+  const window = describeSaleWindow(state.filters, slices.closedRows);
   const closedCaption = renderUniverseCaption({ count: stats.sampleSize, universeLabel: "closed sales in your filters", windowLabel: window });
   // The $/sqft and DOM medians rest on subsets of the closed slice (rows with
   // recorded square footage / a usable days-on-market value), so their
@@ -506,7 +510,9 @@ function commandCenterCardsHtml(costToWin) {
       explainId: "activePending",
       sub: "Homes on the market or under contract right now. More choice helps you.",
       caption: renderUniverseCaption({ universeLabel: "MLS and Redfin listings only, county rows excluded" }),
-      note: "MLS/Redfin listings only, a flow proxy, not standing inventory (county rows excluded).",
+      note: state.derived.inventorySeriesIsStanding
+        ? "MLS/Redfin listings only (county rows excluded). The line is month-end standing inventory from the daily listings ledger."
+        : "MLS/Redfin listings only (county rows excluded). The line groups today's listings by the month they listed: a flow proxy, not standing inventory.",
     }),
   ].join("");
 
@@ -551,7 +557,33 @@ function commandCenterSectionHtml(costToWin) {
 // ---------------------------------------------------------------------------
 // Answer block 2: "What does winning cost?"
 
-function costToWinSectionHtml(ctw) {
+// The headline spread covers the whole window, which spans two spring markets.
+// A buyer bidding this month needs the recent mix next to it.
+const RECENT_COST_WINDOW_DAYS = 90;
+const MIN_RECENT_COST_SALES = 10;
+const RECENT_COST_MAX_LAG_DAYS = 28; // the usual recording lag for closed sales
+
+function recentCostToWinHtml(rows) {
+  const newest = (rows || []).reduce((latest, row) => (row.saleDate > latest ? row.saleDate : latest), "");
+  if (!newest) return "";
+  const cutoff = toIso(addDays(newest, -RECENT_COST_WINDOW_DAYS));
+  const recent = computeCostToWin(rows.filter((row) => row.saleDate > cutoff));
+  if (recent.eligibleCount < MIN_RECENT_COST_SALES) return "";
+  // The window ends at the newest sale shown. That is "the last 90 days" only
+  // while the slice runs up to the present; under a date filter it is not.
+  const isCurrent = newest >= toIso(addDays(new Date(), -RECENT_COST_MAX_LAG_DAYS));
+  const heading = isCurrent ? `Last ${RECENT_COST_WINDOW_DAYS} days` : `${RECENT_COST_WINDOW_DAYS} days to ${formatDateShort(newest)}`;
+  const label = `${heading}, of ${formatWholeNumber(recent.eligibleCount)} sales with a real list price: ${formatPct(recent.overShare)} sold over ask, ${formatPct(recent.atShare)} at ask, ${formatPct(recent.underShare)} under ask.`;
+  const seg = (cls, share) => (share > 0 ? `<span class="cost-seg ${cls}" style="width:${(share * 100).toFixed(2)}%"></span>` : "");
+  return `
+      <div class="cost-recent" id="costToWinRecent">
+        <span class="cost-recent-label">${esc(heading)}</span>
+        <div class="cost-bar" role="img" aria-label="${esc(label)}">${seg("over", recent.overShare)}${seg("at", recent.atShare)}${seg("under", recent.underShare)}</div>
+        <span class="cost-recent-figures">Over <b>${esc(formatPct(recent.overShare))}</b> · At <b>${esc(formatPct(recent.atShare))}</b> · Under <b>${esc(formatPct(recent.underShare))}</b> <span class="universe-caption">of ${formatWholeNumber(recent.eligibleCount)} sales</span></span>
+      </div>`;
+}
+
+function costToWinSectionHtml(ctw, rows) {
   const { state } = ctx;
   const verdict = buildCostToWinVerdict(ctw);
   const caption = renderUniverseCaption({
@@ -592,6 +624,7 @@ function costToWinSectionHtml(ctw) {
         <span><i class="cost-swatch at"></i>At ask <b>${esc(formatPct(ctw.atShare))}</b> (${formatWholeNumber(ctw.atCount)})</span>
         <span><i class="cost-swatch under"></i>Under ask <b>${esc(formatPct(ctw.underShare))}</b> (${formatWholeNumber(ctw.underCount)})</span>
       </div>
+      ${recentCostToWinHtml(rows)}
       ${statItems.length ? `<div class="metric-list">${statItems.join("")}</div>` : ""}
     `;
   } else {
@@ -607,6 +640,178 @@ function costToWinSectionHtml(ctw) {
       </div>
       ${captionRow(caption, "shareOverAsk")}
       ${proof}
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Answer block 2b: "When does leverage flip?" Sale-versus-ask by how long the
+// home took to sell, next to how many homes for sale now sit in each stage.
+
+function stageLeverageSectionHtml(closedRows, liveRows) {
+  const leverage = computeStageLeverage(closedRows);
+  if (!leverage.eligibleCount) return "";
+  // bidStage is blank when a listing has no trustworthy days-on-market reading.
+  const liveByStage = {};
+  let liveStaged = 0;
+  for (const row of liveRows || []) {
+    if (!row.bidStage) continue;
+    liveByStage[row.bidStage] = (liveByStage[row.bidStage] || 0) + 1;
+    liveStaged += 1;
+  }
+  const seg = (cls, share) => (share > 0 ? `<span class="cost-seg ${cls}" style="width:${(share * 100).toFixed(2)}%"></span>` : "");
+  const rowsHtml = leverage.stages.map((stage) => {
+    const live = liveByStage[stage.id] || 0;
+    const barLabel = stage.enough
+      ? `${stage.label}: ${formatPct(stage.overShare)} sold over ask, ${formatPct(stage.atShare)} at ask, ${formatPct(stage.underShare)} under ask.`
+      : `${stage.label}: too few sales to show.`;
+    return `
+        <tr>
+          <th scope="row"><strong>${esc(stage.label)}</strong><span>${esc(stage.range)}</span></th>
+          <td class="num wide-only">${formatWholeNumber(stage.count)}<span>${stage.shareOfSales === null ? "" : esc(formatPct(stage.shareOfSales))}</span></td>
+          <td class="stage-bar-cell">${stage.enough ? `<div class="cost-bar" role="img" aria-label="${esc(barLabel)}">${seg("over", stage.overShare)}${seg("at", stage.atShare)}${seg("under", stage.underShare)}</div>` : `<span class="universe-caption">${esc(barLabel)}</span>`}</td>
+          <td class="num wide-only">${stage.enough ? esc(formatPct(stage.overShare)) : "n/a"}</td>
+          <td class="num wide-only">${stage.enough ? esc(formatPct(stage.underShare)) : "n/a"}</td>
+          <td class="num"><strong>${esc(stageTypicalResult(stage))}</strong><span>${stage.enough ? esc(ratioVsAskPhrase(stage.medianRatio)) : ""}</span></td>
+          <td class="num"><strong>${liveStaged ? formatWholeNumber(live) : "n/a"}</strong></td>
+        </tr>`;
+  }).join("");
+  const caption = renderUniverseCaption({
+    count: leverage.eligibleCount,
+    universeLabel: `sales with both a real list price and days on market, out of ${formatWholeNumber(leverage.totalCount)} closed comps in your slice`,
+    windowLabel: windowLabel(ctx.state.filters),
+  });
+  return `
+    <section class="section-block" id="stageLeverage">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">When does leverage flip?</p>
+          <h3>${esc(buildStageVerdict(leverage))}</h3>
+        </div>
+      </div>
+      ${captionRow(caption, "stageLeverage")}
+      <div class="stage-table-wrap">
+        <table class="stage-table">
+          <thead>
+            <tr>
+              <th scope="col">Days to go pending</th>
+              <th scope="col" class="num wide-only">Sales</th>
+              <th scope="col">Over / at / under ask</th>
+              <th scope="col" class="num wide-only">Over</th>
+              <th scope="col" class="num wide-only">Under</th>
+              <th scope="col" class="num">Typical result</th>
+              <th scope="col" class="num">For sale now</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      <p class="note">Days count from the first listing, so a home pulled and relisted under a new MLS number keeps its clock. The Bids tab prices each listing against sales from its own stage.</p>
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Answer block 2c: "How much choice is there?" Standing supply from the actives
+// ledger. Hidden when the ledger is missing or an uploaded CSV is loaded.
+
+function supplySparklineSvg(weekly) {
+  const data = (weekly || []).filter((point) => Number.isFinite(point.activeCount));
+  if (data.length < 3) return "";
+  const w = 240;
+  const h = 56;
+  const pad = 4;
+  const rightPad = 34;
+  const values = data.map((point) => point.activeCount);
+  const min = Math.min(...values);
+  const span = Math.max(Math.max(...values) - min, 1);
+  const xAt = (index) => pad + (index / (data.length - 1)) * (w - pad - rightPad);
+  const yAt = (value) => pad + (h - 16 - pad) - ((value - min) / span) * (h - 16 - pad * 2);
+  const path = data.map((point, index) => `${index ? "L" : "M"}${xAt(index).toFixed(1)},${yAt(point.activeCount).toFixed(1)}`).join(" ");
+  const first = data[0];
+  const last = data[data.length - 1];
+  const peak = data.reduce((best, point) => (point.activeCount > best.activeCount ? point : best), first);
+  const summary = `Homes for sale each week: ${first.activeCount} on ${formatDateNoYear(first.date)}, peak ${peak.activeCount} on ${formatDateNoYear(peak.date)}, ${last.activeCount} on ${formatDateNoYear(last.date)}.`;
+  return `
+    <svg class="sparkline supply-spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(summary)}">
+      <title>${esc(summary)}</title>
+      <path class="spark-line" d="${esc(path)}" fill="none" />
+      <circle class="spark-dot" cx="${xAt(data.length - 1).toFixed(1)}" cy="${yAt(last.activeCount).toFixed(1)}" r="2" />
+      <text class="spark-endpoint-label big" x="${(xAt(data.length - 1) + 4).toFixed(1)}" y="${(yAt(last.activeCount) + 3).toFixed(1)}" text-anchor="start">${esc(String(last.activeCount))}</text>
+      <text class="spark-endpoint-label muted" x="${pad}" y="${h - 2}" text-anchor="start">${esc(formatDateNoYear(first.date))}</text>
+      <text class="spark-endpoint-label muted" x="${xAt(data.length - 1).toFixed(1)}" y="${h - 2}" text-anchor="end">${esc(formatDateNoYear(last.date))}</text>
+    </svg>`;
+}
+
+function supplyTile(label, value, detail, explainId = "", extra = "") {
+  return `
+        <article class="supply-tile">
+          <span class="supply-label">${esc(label)}${explainId ? ` ${renderExplainButton(explainId)}` : ""}</span>
+          <strong>${esc(value)}</strong>
+          <p>${esc(detail)}</p>
+          ${extra}
+        </article>`;
+}
+
+function supplySectionHtml(supply) {
+  const snap = supply?.snapshot;
+  if (!snap) return "";
+  const pctOrNa = (share) => (share === null || share === undefined ? "n/a" : `${Math.round(share * 100)}%`);
+  const peak = (supply.weekly || []).reduce((best, point) => (!best || point.activeCount > best.activeCount ? point : best), null);
+  const offPeak = peak && peak.activeCount > snap.activeCount
+    ? `Down from ${formatWholeNumber(peak.activeCount)} on ${formatDateNoYear(peak.date)}. ${formatWholeNumber(snap.newLast28)} came on in the last 4 weeks, ${formatWholeNumber(snap.newLast7)} of them this week.`
+    : `${formatWholeNumber(snap.newLast28)} came on in the last 4 weeks, ${formatWholeNumber(snap.newLast7)} of them this week.`;
+  const balance = supplyBalanceLabel(snap.monthsOfSupply);
+  const stale = snap.exits?.byStage?.stale;
+  const tiles = [
+    supplyTile("Homes for sale now", formatWholeNumber(snap.activeCount), offPeak, "supplyForSale", supplySparklineSvg(supply.weekly)),
+    supplyTile(
+      "Months of supply",
+      snap.monthsOfSupply === null ? "n/a" : snap.monthsOfSupply.toFixed(1),
+      snap.monthsOfSupply === null
+        ? `Only ${formatWholeNumber(snap.recentSales)} ${snap.recentSales === 1 ? "closing" : "closings"} here in the last ${supply.salesWindowDays} days, too few to call a pace.`
+        : `${balance ? `${balance[0].toUpperCase()}${balance.slice(1)}. ` : ""}At the recent pace of ${snap.monthlySales < 10 ? snap.monthlySales.toFixed(1) : formatWholeNumber(snap.monthlySales)} closings a month, today's listings would take this long to clear.`,
+      "monthsOfSupply",
+    ),
+    supplyTile(
+      "Typical time on market",
+      snap.medianDays === null ? "n/a" : `${Math.round(snap.medianDays)} days`,
+      snap.longListedShare === null ? "No list dates to measure from yet." : `${pctOrNa(snap.longListedShare)} have been listed more than ${LONG_LISTED_DAYS} days; ${formatWholeNumber(snap.stageCounts.fresh)} are in their first week.`,
+      "supplyDaysListed",
+    ),
+    supplyTile(
+      "Already cut the price",
+      pctOrNa(snap.cutShare),
+      snap.cutCount ? `${formatWholeNumber(snap.cutCount)} homes ask less than they first did. Typical cut so far: ${formatMoneyCompact(snap.medianCutUsd)} (${formatPct(snap.medianCutPct)}).` : "No home in this slice asks less than it first did.",
+      "priceCutShare",
+    ),
+  ];
+  if (snap.relistShare !== null) {
+    tiles.push(supplyTile(
+      "Relisted to reset the clock",
+      pctOrNa(snap.relistShare),
+      `${formatWholeNumber(snap.relistCount)} were pulled and relisted under a new MLS number, so listing sites show fewer days than they have really been for sale.`,
+      "relistShare",
+    ));
+  }
+  if (stale && stale.count >= MIN_EXIT_SAMPLE) {
+    tiles.push(supplyTile(
+      "Stale listings that never sold",
+      pctOrNa(stale.withdrawnShare),
+      `Of ${formatWholeNumber(stale.count)} homes that left the market after 46+ days, this share was withdrawn rather than sold. Across all ${formatWholeNumber(snap.exits.all.count)} exits it was ${pctOrNa(snap.exits.all.withdrawnShare)}.`,
+      "withdrawnShare",
+    ));
+  }
+  return `
+    <section class="section-block" id="supplyLeverage">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">How much choice is there?</p>
+          <h3>${esc(buildSupplyVerdict(snap))}</h3>
+        </div>
+      </div>
+      ${captionRow(renderUniverseCaption({ universeLabel: `Redfin listings seen for sale on ${formatDateShort(snap.asOf)}, filtered by type, neighborhood and asking price${supply.allTypes && supply.trackedTypes?.length ? ` (the feed follows ${supply.trackedTypes.join(" and ").toLowerCase()} only)` : ""}${snap.chainsKnown ? ". Relisted homes count once" : ""}${supply.coversEveryFilter ? "" : ". Your other filters cannot be applied to this block, so it covers more homes than the rest of the page"}` }))}
+      <div class="supply-grid">${tiles.join("")}</div>
     </section>
   `;
 }
@@ -658,7 +863,10 @@ function changesSectionHtml(diff) {
     `;
   }
   const groups = [
-    changesGroupHtml("New on the market", diff.newActives, (entry) => feedItemHtml(entry, entry.listDate ? ` · listed ${esc(formatDateShort(entry.listDate))}` : "")),
+    changesGroupHtml("New on the market", diff.newActives, (entry) => feedItemHtml(entry, [
+      entry.listDate ? ` · listed ${esc(formatDateShort(entry.listDate))}` : "",
+      entry.isRelist ? ` · relist${entry.originalListPrice > entry.price ? `, first asked ${esc(formatMoneyCompact(entry.originalListPrice))}` : ""}` : "",
+    ].join(""))),
     changesGroupHtml("Price cuts", diff.priceCuts, (entry) => feedItemHtml(
       { ...entry, price: 0 },
       ` · was ${esc(formatMoneyCompact(entry.oldPrice))}, now ${esc(formatMoneyCompact(entry.newPrice))} (down ${esc(formatMoneyCompact(entry.cutAmount))}, ${esc(formatPct(entry.cutPct))})`
@@ -722,7 +930,11 @@ export function renderOverviewView(deps) {
       ${goodTimeBannerHtml()}
       ${commandCenterSectionHtml(costToWin)}
 
-      ${costToWinSectionHtml(costToWin)}
+      ${costToWinSectionHtml(costToWin, slices.closedSlice || [])}
+
+      ${stageLeverageSectionHtml(slices.closedSlice || [], state.derived.liveListingRows || [])}
+
+      ${supplySectionHtml(state.derived.supply)}
 
       ${changesSectionHtml(changes.diff)}
 

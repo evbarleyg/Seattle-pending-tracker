@@ -20,6 +20,7 @@ import {
   toIso,
 } from "../domain/format.mjs";
 import { hasHeatSignal } from "../domain/data.mjs";
+import { describeSaleWindow } from "../domain/selectors.mjs";
 import {
   PULSE_GROUPS,
   competitiveDelta,
@@ -166,7 +167,7 @@ export function renderPulseView(deps) {
           </div>
         </div>
         <p class="note">Use this to separate broad buyer pressure from a single neighborhood spike.</p>
-        ${captionRow(renderUniverseCaption({ count: snapshot.selectedRows.length, universeLabel: `watchlist sales in ${snapshot.selectedLabel} (trailing 12 mo)` }))}
+        ${captionRow(renderUniverseCaption({ count: snapshot.selectedRows.length, universeLabel: `watchlist sales in ${snapshot.selectedLabel}`, windowLabel: describeSaleWindow(state.filters, snapshot.selectedRows) }))}
         <div id="pulseTrajectory" class="trajectory-grid">
           ${pulseTrajectoryCards(snapshot)}
         </div>
@@ -187,7 +188,7 @@ export function renderPulseView(deps) {
         <p class="note">${weekly
           ? "Each point is one calendar week keyed on sale date (not a rolling average), so you read genuine week-to-week movement. The newest week is partial and de-weighted; weeks with fewer than 5 sales show volume only — a thin-week median would whipsaw. Sale/list, pending and DOM stay on monthly grain (too sparse weekly)."
           : "These are the old Charts view, kept here so the context sits beside the watchlist pulse."} These four charts cover every closed sale in your current filters, not just the watchlist pockets above.</p>
-        ${captionRow(renderUniverseCaption({ count: sliceRows.length, universeLabel: "closed sales in your current filters, citywide not just the watchlist", windowLabel: "trailing 12 mo" }))}
+        ${captionRow(renderUniverseCaption({ count: sliceRows.length, universeLabel: "closed sales in your current filters, citywide not just the watchlist", windowLabel: describeSaleWindow(state.filters, sliceRows) }))}
         <div class="chart-grid">
           ${chartPanel(weekly ? "Weekly volume" : "Monthly volume", "chartVolume", barSvg(volSeries, "salesCount", grainOpts), chartSummary(volSeries, "salesCount"), chartGuide("salesCount", "bar", weekly ? "week" : "month"), chartInsight("salesCount"))}
           ${chartPanel("Median close", "chartClose", lineSvg(priceSeries, "medianClosePrice", grainOpts), chartSummary(priceSeries, "medianClosePrice"), chartGuide("medianClosePrice", "line", weekly ? "week" : "month"), chartInsight("medianClosePrice"), "medianClose")}
@@ -204,8 +205,8 @@ export function renderPulseView(deps) {
             <h3>Where fast sales concentrate ${renderExplainButton("competitionPockets")}</h3>
           </div>
         </div>
-        <p class="note">These rows are clickable neighborhood cross-filters. Fast-sale share is DOM-based; sale/list shows price pressure. Ranked across every neighborhood in your filters, not just the watchlist pockets.</p>
-        ${captionRow(renderUniverseCaption({ count: sliceRows.length, universeLabel: "closed sales grouped by neighborhood, citywide not just the watchlist", windowLabel: "trailing 12 mo" }))}
+        <p class="note">These rows are clickable neighborhood cross-filters. Fast-sale share is DOM-based; sale/list shows price pressure. Ranked across every neighborhood in your filters, not just the watchlist pockets; neighborhoods with fewer than ${MIN_POCKET_READINGS} days-on-market readings are listed after the rest.</p>
+        ${captionRow(renderUniverseCaption({ count: sliceRows.length, universeLabel: "closed sales grouped by neighborhood, citywide not just the watchlist", windowLabel: describeSaleWindow(state.filters, sliceRows) }))}
         <div class="heat-list">
           ${heatListHtml(pockets)}
         </div>
@@ -572,8 +573,13 @@ function barSvg(series, metricKey, options = {}) {
 
 // Exported for tests. Fast-sale share counts only rows with a days-on-market
 // signal (hasHeatSignal): a pocket whose sales all lack one is unknown, not 0%
-// fast, and sorts after every pocket that does have a reading.
+// fast, and sorts after every pocket that does have a reading. A pocket with only
+// a few readings is ranked below the well-sampled ones: one fast sale out of one
+// is "100% fast" and used to top the list above Ballard's 330 sales.
+export const MIN_POCKET_READINGS = 10;
+
 export function competitionPocketEntries(rows, { groupRows, medianValue }) {
+  const rank = (entry) => (entry.hotShare === null ? 2 : entry.thin ? 1 : 0);
   return Object.entries(groupRows(rows, (row) => row.neighborhoodLabel || "Unknown"))
     .map(([name, list]) => {
       const heatRows = list.filter(hasHeatSignal);
@@ -581,12 +587,13 @@ export function competitionPocketEntries(rows, { groupRows, medianValue }) {
         name,
         count: list.length,
         heatCount: heatRows.length,
+        thin: heatRows.length > 0 && heatRows.length < MIN_POCKET_READINGS,
         hotShare: heatRows.length ? heatRows.filter((row) => row.isHotMarket).length / heatRows.length : null,
         medianRatio: medianValue(list.map((row) => row.saleToList).filter((value) => value > 0)),
         medianClose: medianValue(list.map((row) => row.closePrice)),
       };
     })
-    .sort((a, b) => ((b.hotShare ?? -1) - (a.hotShare ?? -1)) || (b.count - a.count))
+    .sort((a, b) => (rank(a) - rank(b)) || ((b.hotShare ?? -1) - (a.hotShare ?? -1)) || (b.count - a.count))
     .slice(0, 30);
 }
 
@@ -594,10 +601,10 @@ function heatListHtml(entries) {
   return entries.map((entry) => {
     const known = entry.hotShare !== null && entry.hotShare !== undefined;
     return `
-    <button class="heat-row" type="button" data-set-interaction="neighborhood" data-set-value="${esc(entry.name)}">
+    <button class="heat-row${entry.thin ? " thin" : ""}" type="button" data-set-interaction="neighborhood" data-set-value="${esc(entry.name)}">
       <span>${esc(entry.name)}</span>
       <strong>${known ? `${formatPct(entry.hotShare)} fast-sale` : "no DOM data"}</strong>
-      <em>${formatWholeNumber(entry.count)} sales · ${formatRatio(entry.medianRatio)} sale/list · ${formatMoneyOrNa(entry.medianClose)}</em>
+      <em>${entry.thin ? `only ${formatWholeNumber(entry.heatCount)} with DOM · ` : ""}${formatWholeNumber(entry.count)} sales · ${formatRatio(entry.medianRatio)} sale/list · ${formatMoneyOrNa(entry.medianClose)}</em>
       ${known ? `<i style="inline-size:${Math.max(3, entry.hotShare * 100).toFixed(1)}%"></i>` : ""}
     </button>`;
   }).join("") || `<div class="empty-state">No rows in this slice.</div>`;

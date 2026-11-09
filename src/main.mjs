@@ -55,6 +55,20 @@ import {
 } from "./domain/buyerProfile.mjs";
 import { computeAffordability } from "./domain/affordability.mjs";
 import {
+  LISTING_LEDGER_FILE,
+  applyDatasetNeighborhoods,
+  buildMarketingPeriods,
+  computeSupplyMonthlySeries,
+  computeSupplySnapshot,
+  computeSupplyWeeklySeries,
+  countClosingsInLens,
+  filterPeriods,
+  ledgerAsOf,
+  ledgerSampleDays,
+  ledgerTrackedTypes,
+  parseListingLedger,
+} from "./domain/listingLedger.mjs";
+import {
   BID_STRATEGIES,
   DESKTOP_PAGE_SIZE,
   MOBILE_PAGE_SIZE,
@@ -195,6 +209,16 @@ const state = {
     ready: false,            // true once a config has loaded
     source: "",
   },
+  // Actives ledger (public/listing_ledger.csv), grouped into marketing periods
+  // once at load. Optional: without it the supply block stays hidden.
+  listingLedger: {
+    periods: [],
+    asOf: "",
+    sampleDays: null,
+    trackedTypes: new Set(),
+    ready: false,
+  },
+  soldMlsNumbers: new Set(),
   bid: {
     strategy: "balanced",
     highConfidenceOnly: false,
@@ -461,7 +485,10 @@ function recomputeDerived() {
   });
   const compPool = buildBidCompPool(filters, state.normalizedRows);
   const bidResult = computeActiveBidSuggestions(filters, state.normalizedRows, state.bid.strategy, { compPool });
-  let bidRows = applyBidViewInteractions(bidResult.rows, state.interactions, state.geo);
+  // Every listing genuinely for sale in the current slice, whatever the Bids
+  // tab's own toggles or the open/projected record flags are set to.
+  const liveListingRows = applyBidViewInteractions(bidResult.rows, state.interactions, state.geo);
+  let bidRows = liveListingRows;
   if (state.bid.highConfidenceOnly) {
     bidRows = bidRows.filter((row) => row.bidStatus === "SCored" && row.bidConfidence >= 75);
   }
@@ -471,9 +498,8 @@ function recomputeDerived() {
     scoredCount: bidScoredView.length,
     highConfidenceCount: bidRows.filter((row) => row.bidConfidence >= 75).length,
     insufficientCount: bidRows.filter((row) => row.bidStatus !== "SCored").length,
-    medianOverAskPct: bidScoredView.length
-      ? bidScoredView.reduce((sum, row) => sum + ((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100, 0) / bidScoredView.length
-      : 0,
+    // A true median, as the tile and its glossary entry say (this was a mean).
+    medianOverAskPct: medianValue(bidScoredView.map((row) => ((row.bidSuggested - row.pendingListPrice) / row.pendingListPrice) * 100)) ?? 0,
   };
   state.bid.activeLookup = new Map(bidRows.map((row) => [row.mapPropertyKey, row]));
   let viewRows = slices.recordGeoRows.map((row) => mergeBidFields(row, bidResult.byKey));
@@ -483,21 +509,83 @@ function recomputeDerived() {
     viewRows = viewRows.filter((row) => !state.geo.filterPropertyKeys.length || state.geo.filterPropertyKeys.includes(row.mapPropertyKey));
   }
 
+  const supply = computeSupply(filters);
+
   state.derived = {
     slices,
+    supply,
+    liveListingRows,
     compPool,
     bidResult,
     bidRows,
     bidStatsView,
     viewRows,
     sliceMonthlySeries: buildSliceMonthlySeries(slices.closedSlice).slice(-12),
-    inventoryMonthlySeries: buildInventoryMonthlySeries(state.normalizedRows, filters),
+    // The tile's headline obeys every filter, so its trend line only switches to
+    // the ledger's true standing inventory when the ledger can obey them too.
+    inventoryMonthlySeries: supply?.coversEveryFilter ? supply.monthly : buildInventoryMonthlySeries(state.normalizedRows, filters),
+    inventorySeriesIsStanding: !!supply?.coversEveryFilter,
     latestSaleDate: slices.closedRows.map((row) => row.saleDate).filter(Boolean).sort().slice(-1)[0] || "",
     pulse: buildPulseSnapshot(state.normalizedRows, filters, {
       selectedGroup: state.pulseSelectedGroup || "primary",
       flags: state.flags,
     }),
   };
+}
+
+// Supply-side read for the current lens, or null when the ledger is missing or
+// describes a different dataset (an uploaded CSV never went through it).
+const SUPPLY_SALES_WINDOW_DAYS = 90;
+
+function computeSupply(filters) {
+  const ledger = state.listingLedger;
+  if (!ledger.ready || state.dataSource.kind === "upload") return null;
+  // Chart and pocket clicks narrow the rest of the Overview to a neighborhood or
+  // type; the ledger can follow those two, so the supply block does.
+  const lens = {
+    ...filters,
+    type: state.interactions.type || filters.type,
+    neighborhoods: state.interactions.neighborhood ? [state.interactions.neighborhood] : filters.neighborhoods,
+  };
+  if (lens.type !== "All" && !ledger.trackedTypes.has(lens.type)) return null;
+  const periods = filterPeriods(ledger.periods, lens);
+  const seriesOptions = { asOf: ledger.asOf, sampleDays: ledger.sampleDays };
+  return {
+    snapshot: computeSupplySnapshot(periods, {
+      asOf: ledger.asOf,
+      recentSales: countClosingsInLens(state.normalizedRows, lens, { asOf: ledger.asOf, windowDays: SUPPLY_SALES_WINDOW_DAYS, trackedTypes: ledger.trackedTypes }),
+      salesWindowDays: SUPPLY_SALES_WINDOW_DAYS,
+      soldMlsNumbers: state.soldMlsNumbers,
+    }),
+    weekly: computeSupplyWeeklySeries(periods, seriesOptions),
+    monthly: computeSupplyMonthlySeries(periods, seriesOptions),
+    salesWindowDays: SUPPLY_SALES_WINDOW_DAYS,
+    allTypes: lens.type === "All",
+    trackedTypes: [...ledger.trackedTypes].sort(),
+    // Type, neighborhood and price are all the ledger can filter on. While
+    // anything else narrows the page, its counts cover more homes than the rest.
+    coversEveryFilter: !hasFilterBeyondLedger(filters),
+  };
+}
+
+function hasFilterBeyondLedger(filters) {
+  const { type, neighborhood, ...otherClicks } = state.interactions;
+  return filters.minLot > 0 || filters.maxLot > 0
+    || filters.affordability !== "all" || filters.specialSale !== "all" || filters.scope !== "all"
+    || filters.mode !== "All" || filters.mlsStatus !== "All" || !!filters.dateFrom || !!filters.dateTo
+    || Object.values(otherClicks).some(Boolean)
+    || state.geo.filterPropertyKeys.length > 0 || (!!state.geo.viewportFilter && !!state.geo.mapBounds);
+}
+
+// The ledger and the dataset load independently; whichever lands second lines
+// the ledger's neighborhood labels up with the dataset's.
+function syncLedgerNeighborhoods() {
+  if (!state.listingLedger.ready || !state.normalizedRows.length || state.dataSource.kind === "upload") return;
+  const labelByMls = new Map();
+  for (const row of state.normalizedRows) {
+    if (row.mlsListingNumber && row.neighborhoodLabel) labelByMls.set(row.mlsListingNumber, row.neighborhoodLabel);
+  }
+  applyDatasetNeighborhoods(state.listingLedger.periods, labelByMls);
 }
 
 function markDirty(view = null) {
@@ -1484,6 +1572,7 @@ function handleCsvUpload(file) {
 
 function applyLoadedRows(message, kind = "default") {
   state.normalizedRows = message.normalizedRows || [];
+  state.soldMlsNumbers = new Set(state.normalizedRows.filter((row) => row.hasActualClose && row.mlsListingNumber).map((row) => row.mlsListingNumber));
   state.options = buildOptions(state.normalizedRows);
   state.filters = createDefaultFilters(state.options.types);
   state.manualBid.typeLabel = state.options.defaultType;
@@ -1497,6 +1586,7 @@ function applyLoadedRows(message, kind = "default") {
     error: "",
   };
   refreshSourceFreshness();
+  syncLedgerNeighborhoods();
   clearCrossFilters(false);
   state.recordsPage = 1;
   state.bidsPage = 1;
@@ -1538,6 +1628,20 @@ async function loadBuyerProfileMemory() {
     state.buyerProfile.memory = normalizeProfileMemory(DEFAULT_PROFILE_MEMORY);
     state.buyerProfile.source = "embedded";
     state.buyerProfile.ready = false;
+  }
+  markDirty("overview");
+}
+
+async function loadListingLedger() {
+  try {
+    const response = await fetch(publicUrl(LISTING_LEDGER_FILE), { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const rows = parseListingLedger(await response.text());
+    if (!rows.length) throw new Error("empty ledger");
+    state.listingLedger = { periods: buildMarketingPeriods(rows), asOf: ledgerAsOf(rows), sampleDays: ledgerSampleDays(rows), trackedTypes: ledgerTrackedTypes(rows), ready: true };
+    syncLedgerNeighborhoods();
+  } catch {
+    state.listingLedger = { periods: [], asOf: "", sampleDays: null, trackedTypes: new Set(), ready: false };
   }
   markDirty("overview");
 }
@@ -1594,6 +1698,7 @@ function init() {
   loadRefreshReport();
   loadBuyerProfileMemory();
   loadAffordabilityConfig();
+  loadListingLedger();
   loadDefaultDataset();
 }
 

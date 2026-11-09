@@ -175,6 +175,21 @@ test("competition pockets rank on rows with a DOM signal and put unknown pockets
   assert.deepEqual(entries.map((entry) => entry.name), ["Ballard", "Fremont", "Magnolia"], "unknown sorts after a known 0%");
 });
 
+test("a pocket with a handful of readings never outranks a well-sampled one", async () => {
+  const { competitionPocketEntries, MIN_POCKET_READINGS } = await importModule("src/views/pulse.mjs");
+  const groupRows = (rows, keyFn) => rows.reduce((acc, row) => { (acc[keyFn(row)] ||= []).push(row); return acc; }, {});
+  const medianValue = () => null;
+  const sale = (neighborhoodLabel, fast) => ({ neighborhoodLabel, closePrice: 1200000, saleToList: 0, dataMode: "MLS_ENRICHED", hasMlsDomValue: true, mlsDOM: fast ? 4 : 40, isHotMarket: fast });
+  const rows = [
+    sale("Fauntleroy", true), // 1 of 1: "100% fast"
+    ...Array.from({ length: MIN_POCKET_READINGS }, (_, i) => sale("Ballard", i < 7)), // 70% of 10
+    { neighborhoodLabel: "Belltown", closePrice: 1200000, saleToList: 0, dataMode: "MLS_ENRICHED", isHotMarket: false, hasMlsDomValue: false, daysToPending: null },
+  ];
+  const entries = competitionPocketEntries(rows, { groupRows, medianValue });
+  assert.deepEqual(entries.map((entry) => entry.name), ["Ballard", "Fauntleroy", "Belltown"]);
+  assert.deepEqual(entries.map((entry) => entry.thin), [false, true, false]);
+});
+
 test("hasHeatSignal treats hot rows and rows with any DOM reading as known", async () => {
   const { hasHeatSignal } = await importModule("src/domain/data.mjs");
   assert.equal(hasHeatSignal({ isHotMarket: true }), true, "tagged hot with no DOM number is still a signal");
