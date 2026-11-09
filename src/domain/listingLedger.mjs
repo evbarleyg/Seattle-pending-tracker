@@ -68,8 +68,29 @@ export function parseListingLedger(text) {
       chainListDate: pick("chainListDate"),
       chainFirstAsk: num(pick("chainFirstAsk")),
       chainPriorDays: num(pick("chainPriorDays")),
+      // First seen within 3 days of listing, so nothing it did earlier went unseen.
+      trackedFromListing: pick("trackedFromListing") === "true",
+      // Every ask with the first morning it was seen, oldest first. A recorded
+      // history always holds at least the opening ask, so blank means the ledger
+      // predates the column (the published copy writes the header regardless):
+      // null, "not recorded", which is different from "never changed".
+      // So is a history with fewer entries than the changes on record (written
+      // where git had no depth to rebuild it from): the cuts in between are missing.
+      asks: completeOrNull(parseAskHistory(pick("askHistory")), num(pick("askChangeCount")), num(pick("lastAsk"))),
     };
   }).filter((row) => row.mlsNumber && row.firstSeen && row.lastSeen);
+}
+
+// Same rule as hasFullAskHistory in scripts/build_active_ledger.js.
+const completeOrNull = (asks, changeCount, lastAsk) => (asks.length > changeCount && asks[asks.length - 1].ask === lastAsk ? asks : null);
+
+// "2026-07-15:1250000|2026-08-02:1199000" -> [{ date, ask }, ...]. Same grammar as
+// parseAskHistory in scripts/build_active_ledger.js: anything else is dropped.
+export function parseAskHistory(text) {
+  return String(text || "").split("|").flatMap((part) => {
+    const match = /^(\d{4}-\d{2}-\d{2}):(\d+)$/.exec(part.trim());
+    return match && Number(match[2]) > 0 ? [{ date: match[1], ask: Number(match[2]) }] : [];
+  });
 }
 
 // The last morning the feed was sampled: a listing seen that day is for sale now.
@@ -99,6 +120,20 @@ export function ledgerTrackedTypes(rows) {
 // snapshots lost the status, so the id identifies them too (as in the pipeline).
 function isTeaser(row) {
   return row.lastStatus.toUpperCase() === "COMING SOON" || /^\d{15,}$/.test(row.mlsNumber);
+}
+
+// One ask at a time. A home is sometimes live under two MLS#s at once (a duplicate
+// entry, or a relist that overlaps the old listing by a day); interleaving both by date
+// would read every difference between them as a cut and a raise. A listing wholly inside
+// another's stretch is ignored, and otherwise each speaks until the next one appears.
+function mergeAsks(group) {
+  const rows = [...group].sort((a, b) => a.firstSeen.localeCompare(b.firstSeen) || b.lastSeen.localeCompare(a.lastSeen));
+  const kept = rows.filter((row, index) => !rows.some((other, at) => at < index && other.lastSeen >= row.lastSeen));
+  const points = kept.flatMap((row, index) => {
+    const next = kept[index + 1];
+    return next ? row.asks.filter((point) => point.date < next.firstSeen) : row.asks;
+  });
+  return points.filter((point, index) => index === 0 || point.ask !== points[index - 1].ask);
 }
 
 // One entry per home per continuous stretch on the market. A ledger written
@@ -140,7 +175,14 @@ export function buildMarketingPeriods(rows) {
       lastForSale: last.lastSeenActive,
       // Each listing's own stretch in the feed. Between relists the home was off
       // the market, and must not count as standing inventory on those days.
-      spans: group.filter((row) => row.lastSeenActive).map((row) => ({ from: row.firstSeen, to: row.lastSeenActive })),
+      // listDate and priorDays give cumulative days on market on any day inside it.
+      spans: group.filter((row) => row.lastSeenActive).map((row) => ({ from: row.firstSeen, to: row.lastSeenActive, listDate: row.listDate || "", priorDays: row.chainPriorDays })),
+      // The whole period's asks in date order, across relists: coming back cheaper
+      // under a new MLS# is a price cut like any other. null = history not recorded.
+      asks: group.every((row) => row.asks) ? mergeAsks(group) : null,
+      // False when the home was already on the market when tracking found it: cuts
+      // it made before then were never seen.
+      trackedFromStart: first.trackedFromListing,
       openingAsk,
       currentAsk: last.lastAsk,
       cutPct: openingAsk > 0 && last.lastAsk > 0 && last.lastAsk < openingAsk ? 1 - last.lastAsk / openingAsk : 0,
@@ -205,7 +247,7 @@ export function countClosingsInLens(rows, filters = {}, { asOf, windowDays, trac
   return count;
 }
 
-function daysOnMarket(period, onDate) {
+export function daysOnMarket(period, onDate) {
   if (period.preMarket) return 0; // matches the 0 days the pipeline writes for a teaser
   if (!period.latestListDate) return null;
   const days = daysBetween(period.latestListDate, onDate);

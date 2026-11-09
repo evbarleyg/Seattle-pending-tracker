@@ -310,3 +310,84 @@ test("a home under contract has left the supply even while it lingers in the fee
   assert.equal(mod.computeSupplySnapshot(neverOpen, { asOf: AS_OF }).activeCount, 1, "first seen already under contract: never supply");
   assert.deepEqual(mod.computeSupplyWeeklySeries(neverOpen, { asOf: AS_OF, weeks: 1 }).map((point) => point.activeCount), [1]);
 });
+
+// --- ask history --------------------------------------------------------------
+
+// A consistent row: its latest ask and change count follow from the history given.
+function withAsks(entries) {
+  return [`${HEADER},askHistory`, ...entries.map((entry) => {
+    const points = (entry.asks || "").split("|").filter(Boolean);
+    const lastAsk = points.length ? Number(points[points.length - 1].split(":")[1]) : entry.lastAsk;
+    const row = line({ ...entry, lastAsk: lastAsk ?? entry.firstAsk }).replace(",,,0,true,", `,,,${Math.max(0, points.length - 1)},true,`);
+    return `${row},${entry.asks || ""}`;
+  })].join("\n");
+}
+
+test("ask history is parsed per listing, and is null (not empty) on a ledger without the column", async () => {
+  const { parseListingLedger, parseAskHistory, buildMarketingPeriods } = await load();
+  assert.deepEqual(parseAskHistory("2026-07-15:1250000|2026-08-02:1199000"), [{ date: "2026-07-15", ask: 1250000 }, { date: "2026-08-02", ask: 1199000 }]);
+  assert.deepEqual(parseAskHistory("junk|2026-08-02:"), []);
+  const [row] = parseListingLedger(withAsks([{ mls: "1", firstSeen: "2026-07-15", listDate: "2026-07-14", asks: "2026-07-15:1250000|2026-08-02:1199000" }]));
+  assert.equal(row.asks.length, 2);
+  const old = parseListingLedger(ledgerText([{ mls: "1", firstSeen: "2026-07-15", listDate: "2026-07-14" }]));
+  assert.equal(old[0].asks, null);
+  assert.equal(buildMarketingPeriods(old)[0].asks, null);
+  // The published copy writes every header even when the source lacks the column.
+  const blank = parseListingLedger(withAsks([{ mls: "1", firstSeen: "2026-07-15", listDate: "2026-07-14", asks: "" }]));
+  assert.equal(blank[0].asks, null, "a blank history is unknown, not 'never cut'");
+  const mixed = buildMarketingPeriods(parseListingLedger(withAsks([
+    { mls: "A1", address: "10 Relist Ave", firstSeen: "2026-08-02", lastSeen: "2026-08-31", listDate: "2026-08-01", chainId: "A1", position: 1, asks: "" },
+    { mls: "A2", address: "10 Relist Ave", firstSeen: "2026-09-10", listDate: "2026-09-09", chainId: "A1", position: 2, asks: "2026-09-10:1150000" },
+  ])));
+  assert.equal(mixed[0].asks, null, "half a history would hide the cuts in the other half");
+  // Three changes on record, two entries: a stub written where git had no depth.
+  const stub = `${line({ mls: "1", firstSeen: "2026-07-15", listDate: "2026-07-14", lastAsk: 1150000 })},2026-07-15:1250000|2026-09-01:1150000`;
+  assert.equal(parseListingLedger([`${HEADER},askHistory`, stub.replace(",,,0,true,", ",2026-09-01,2026-09-01,1,true,")].join("\n"))[0].asks.length, 2);
+  assert.equal(parseListingLedger([`${HEADER},askHistory`, stub.replace(",,,0,true,", ",2026-09-01,2026-08-01,3,true,")].join("\n"))[0].asks, null);
+  // The ask moved but no change was recorded: the history stops short of the latest ask.
+  const short = `${line({ mls: "1", firstSeen: "2026-11-07", listDate: "2026-11-06", firstAsk: 1295500, lastAsk: 998500 })},2026-11-07:1295500`;
+  assert.equal(parseListingLedger([`${HEADER},askHistory`, short].join("\n"))[0].asks, null);
+  assert.deepEqual(parseAskHistory("2026-07-01:1250000x|2026-07-02:12.5|2026-07-03:1200000"), [{ date: "2026-07-03", ask: 1200000 }], "same strict grammar as the pipeline");
+});
+
+test("a marketing period strings its listings' asks together, so a cheaper relist reads as a cut", async () => {
+  const { parseListingLedger, buildMarketingPeriods } = await load();
+  const [period] = buildMarketingPeriods(parseListingLedger(withAsks([
+    { mls: "A2", address: "10 Relist Ave", firstSeen: "2026-09-10", listDate: "2026-09-09", chainId: "A1", position: 2, chainListDate: "2026-08-01", priorDays: 30, asks: "2026-09-10:1150000|2026-10-01:1100000" },
+    { mls: "A1", address: "10 Relist Ave", firstSeen: "2026-08-02", lastSeen: "2026-08-31", listDate: "2026-08-01", chainId: "A1", position: 1, asks: "2026-08-02:1200000|2026-08-20:1150000" },
+  ])));
+  assert.deepEqual(period.asks, [
+    { date: "2026-08-02", ask: 1200000 }, { date: "2026-08-20", ask: 1150000 }, { date: "2026-10-01", ask: 1100000 },
+  ], "relisting at the same ask is not a change");
+  assert.deepEqual(period.spans, [
+    { from: "2026-08-02", to: "2026-08-31", listDate: "2026-08-01", priorDays: 0 },
+    { from: "2026-09-10", to: AS_OF, listDate: "2026-09-09", priorDays: 30 },
+  ]);
+});
+
+test("a duplicate listing live inside another's stretch does not invent cuts", async () => {
+  const { parseListingLedger, buildMarketingPeriods } = await load();
+  const [period] = buildMarketingPeriods(parseListingLedger(withAsks([
+    { mls: "A1", address: "3831 Dup Ave", firstSeen: "2026-08-25", listDate: "2026-08-24", firstAsk: 869000, chainId: "A1", position: 1, asks: "2026-08-25:869000" },
+    { mls: "A2", address: "3831 Dup Ave", firstSeen: "2026-09-19", lastSeen: "2026-10-14", listDate: "2026-09-18", firstAsk: 849000, lastAsk: 775000, chainId: "A1", position: 2, asks: "2026-09-19:849000|2026-10-01:775000" },
+  ])));
+  assert.deepEqual(period.asks, [{ date: "2026-08-25", ask: 869000 }]);
+  assert.equal(period.currentAsk, 869000);
+});
+
+test("a relist that overlaps the old listing by a day takes over when it appears", async () => {
+  const { parseListingLedger, buildMarketingPeriods } = await load();
+  const [period] = buildMarketingPeriods(parseListingLedger(withAsks([
+    { mls: "B1", address: "9 Handoff St", firstSeen: "2026-08-01", lastSeen: "2026-09-02", listDate: "2026-07-31", chainId: "B1", position: 1, asks: "2026-08-01:1200000|2026-09-02:1190000" },
+    { mls: "B2", address: "9 Handoff St", firstSeen: "2026-09-01", listDate: "2026-08-31", chainId: "B1", position: 2, priorDays: 31, asks: "2026-09-01:1150000" },
+  ])));
+  assert.deepEqual(period.asks, [{ date: "2026-08-01", ask: 1200000 }, { date: "2026-09-01", ask: 1150000 }]);
+});
+
+test("a period knows whether it was tracked from the day it listed", async () => {
+  const { parseListingLedger, buildMarketingPeriods } = await load();
+  const tracked = buildMarketingPeriods(parseListingLedger(ledgerText([{ mls: "1", firstSeen: "2026-10-01", listDate: "2026-09-30" }])));
+  assert.equal(tracked[0].trackedFromStart, true);
+  const text = ledgerText([{ mls: "1", firstSeen: "2026-06-08", listDate: "2026-03-01" }]).replace(",true,FEED,", ",false,FEED,");
+  assert.equal(buildMarketingPeriods(parseListingLedger(text))[0].trackedFromStart, false);
+});
