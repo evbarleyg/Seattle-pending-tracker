@@ -189,6 +189,16 @@ test("tab entries stay grounded in the real thresholds and universes", async () 
   assert.match(M.bidConfidence.formulaWords, /75/);
   assert.match(M.bidConfidence.formulaWords, /55/);
 
+  // Price index and outlook: the popovers quote the modules' own constants.
+  const P = await importModule("src/domain/priceIndex.mjs");
+  assert.ok(M.priceIndex.formulaWords.includes(`$${P.INDEX_MIN_PRICE / 1000}K to $${P.INDEX_MAX_PRICE / 1e6}M`));
+  assert.ok(M.priceIndex.caveats.join(" ").includes(`supplies ${P.INDEX_SOURCE_SHARE_FULL * 100}% of sales, and not at all under ${P.INDEX_SOURCE_SHARE_NONE * 100}%`));
+  const O = await importModule("src/domain/listingOutlook.mjs");
+  assert.ok(M.listingSignals.formulaWords.includes(`last ${O.SIGNAL_RECENT_CUT_DAYS} days`));
+  assert.ok(M.listingSignals.formulaWords.includes(`last ${O.SIGNAL_RECENT_RELIST_DAYS} days`));
+  assert.ok(M.listingSignals.formulaWords.includes(`${O.SIGNAL_HOLDING_OUT_DAYS} or more days`));
+  assert.ok(M.listingOutlook.plain.includes(`next ${O.OUTLOOK_HORIZON_DAYS} days`));
+
   // Records: projection needs 6 comps with 25th/75th band; hot tags at 5/10 days.
   assert.match(M.projectedClose.formulaWords, /6 /);
   assert.match(M.projectedClose.formulaWords, /25th/);

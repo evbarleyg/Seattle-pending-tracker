@@ -121,3 +121,36 @@ test("the outlook line leads with which way the odds lean, and is empty without 
   assert.equal(outlookNoteHtml(null), "");
   assert.equal(outlookNoteHtml(undefined), "");
 });
+
+test("the queue narrows to a stage or to a signal", async () => {
+  const { matchesBidFocus } = await importModule("src/views/bids.mjs");
+  const row = { bidStage: "sitting", signals: ["justCut"] };
+  assert.equal(matchesBidFocus(row, ""), true);
+  assert.equal(matchesBidFocus(row, "sitting"), true);
+  assert.equal(matchesBidFocus(row, "stale"), false);
+  assert.equal(matchesBidFocus(row, "justCut"), true);
+  assert.equal(matchesBidFocus(row, "relisted"), false);
+  assert.equal(matchesBidFocus({ bidStage: "" }, "unknown"), true);
+  assert.equal(matchesBidFocus(row, "unknown"), false);
+  assert.equal(matchesBidFocus({ bidStage: "fresh" }, "justCut"), false, "no ledger read, no signals");
+});
+
+test("the latest cut is dated, and sized only when it differs from the total", async () => {
+  const { lastCutWords } = await importModule("src/views/bids.mjs");
+  assert.equal(lastCutWords({ usd: 50_000, daysAgo: 3, count: 1 }, 50_000), ", 3 days ago");
+  assert.equal(lastCutWords({ usd: 25_000, daysAgo: 1, count: 2 }, 75_000), ", most recently $25K yesterday");
+  assert.equal(lastCutWords({ usd: 25_000, daysAgo: 0, count: 1 }, 96_000), ", most recently $25K today", "the rest came off before tracking, or between listings");
+  assert.equal(lastCutWords(null, 50_000), "");
+  assert.equal(lastCutWords({ usd: 0, daysAgo: 3, count: 0 }), "");
+});
+
+test("an empty queue blames the filters, unless its own narrowing emptied it", async () => {
+  const { emptyQueueMessage, bidFocusLabel } = await importModule("src/views/bids.mjs");
+  assert.equal(emptyQueueMessage(0, ""), "No active listings match the current filters.");
+  assert.equal(emptyQueueMessage(0, "justCut"), "No active listings match the current filters.");
+  assert.equal(emptyQueueMessage(4, "justCut"), 'None of the 4 listings here is under "Just cut" right now. Click it again to see them all.');
+  assert.equal(bidFocusLabel("stale"), "Stale");
+  assert.equal(bidFocusLabel("holdingOut"), "No cut yet");
+  assert.equal(bidFocusLabel("unknown"), "Stage unknown");
+  assert.equal(bidFocusLabel("nonsense"), "");
+});

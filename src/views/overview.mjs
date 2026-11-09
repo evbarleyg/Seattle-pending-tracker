@@ -22,6 +22,7 @@ import {
   formatPct,
   formatRatio,
   formatWholeNumber,
+  median,
   monthLabelCompact,
   safeNumber,
   toIso,
@@ -37,6 +38,7 @@ import { describeSalesLag } from "../domain/freshness.mjs";
 import { buildStageVerdict, computeStageLeverage, ratioVsAskPhrase, stageTypicalResult } from "../domain/listingStage.mjs";
 import { LONG_LISTED_DAYS, MIN_EXIT_SAMPLE, buildSupplyVerdict, supplyBalanceLabel } from "../domain/listingLedger.mjs";
 import { OUTLOOK_HORIZON_DAYS, buildOutlookVerdict } from "../domain/listingOutlook.mjs";
+import { INDEX_MAX_PRICE, INDEX_MIN_PRICE, buildPriceIndexVerdict } from "../domain/priceIndex.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
 // Deps injected by main.mjs at the start of every render.
@@ -880,6 +882,77 @@ function outlookSectionHtml(outlook) {
 }
 
 // ---------------------------------------------------------------------------
+// Answer block 2e: "Are prices moving?" The like-for-like index, with the lens's own
+// median close beside it to show what the price band hides.
+
+function priceIndexChartSvg(points, bandMedians) {
+  const w = 640;
+  const h = 210;
+  // Room for the phone-size labels (see .index-tick in styles.css), which are the widest.
+  const pad = { left: 46, right: 58, top: 22, bottom: 30 };
+  // The median's line starts on the index's, at the first month it can be drawn, so the
+  // gap that opens between them is all difference in movement.
+  const anchor = bandMedians.findIndex((value) => value > 0);
+  const band = bandMedians.map((value) => (value > 0 ? (points[anchor].index * value) / bandMedians[anchor] : null));
+  const values = [...points.map((point) => point.index), ...band.filter((value) => value !== null), 100];
+  const min = Math.floor(Math.min(...values) / 2) * 2 - 1;
+  const max = Math.ceil(Math.max(...values) / 2) * 2 + 1;
+  const xAt = (index) => pad.left + (index / (points.length - 1)) * (w - pad.left - pad.right);
+  const yAt = (value) => pad.top + ((max - value) / (max - min)) * (h - pad.top - pad.bottom);
+  const path = (series) => series.map((value, index) => (value === null ? "" : `${index && series[index - 1] !== null ? "L" : "M"}${xAt(index).toFixed(1)},${yAt(value).toFixed(1)}`)).join(" ");
+  const ticks = [];
+  for (let value = Math.ceil(min / 5) * 5; value <= max; value += 5) ticks.push(value);
+  const last = points.length - 1;
+  const peakAt = points.reduce((best, point, index) => (point.index > points[best].index ? index : best), 0);
+  const label = (index, dy = -8) => `<text class="index-label" x="${xAt(index).toFixed(1)}" y="${(yAt(points[index].index) + dy).toFixed(1)}" text-anchor="middle">${points[index].index.toFixed(0)}</text>`;
+  const summary = `Like-for-like price index, ${monthLabelCompact(points[0].month)} = 100: peak ${points[peakAt].index.toFixed(0)} in ${monthLabelCompact(points[peakAt].month)}, ${points[last].index.toFixed(0)} in ${monthLabelCompact(points[last].month)}.`;
+  return `
+    <svg class="index-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(summary)}">
+      ${ticks.map((value) => `<line class="index-grid ${value === 100 ? "base" : ""}" x1="${pad.left}" x2="${w - pad.right}" y1="${yAt(value).toFixed(1)}" y2="${yAt(value).toFixed(1)}" /><text class="index-tick" x="${pad.left - 6}" y="${(yAt(value) + 3).toFixed(1)}" text-anchor="end">${value}</text>`).join("")}
+      ${points.map((point, index) => (index === last || (index % 3 === 0 && last - index >= 2) ? `<text class="index-tick" x="${xAt(index).toFixed(1)}" y="${h - 8}" text-anchor="middle">${esc(monthLabelCompact(point.month))}</text>` : "")).join("")}
+      <path class="index-line band" d="${esc(path(band))}" fill="none" />
+      <path class="index-line" d="${esc(path(points.map((point) => point.index)))}" fill="none" />
+      ${points.map((point, index) => `<circle class="index-dot" cx="${xAt(index).toFixed(1)}" cy="${yAt(point.index).toFixed(1)}" r="3"><title>${esc(`${monthLabelCompact(point.month)}: index ${point.index.toFixed(1)} from ${formatWholeNumber(point.count)} sales`)}</title></circle>`).join("")}
+      ${peakAt !== last && peakAt !== 0 ? label(peakAt) : ""}
+      <text class="index-label" x="${(xAt(last) + 8).toFixed(1)}" y="${(yAt(points[last].index) + 4).toFixed(1)}" text-anchor="start">${points[last].index.toFixed(0)}</text>
+    </svg>`;
+}
+
+function priceIndexSectionHtml(priceIndex, closedSlice) {
+  const verdict = buildPriceIndexVerdict(priceIndex?.summary);
+  if (!verdict) return "";
+  const { index } = priceIndex;
+  const byMonth = new Map(index.points.map((point) => [point.month, []]));
+  for (const row of closedSlice || []) if (row.typeLabel === index.typeLabel) byMonth.get(String(row.saleDate || "").slice(0, 7))?.push(row.closePrice);
+  // Fewer than 5 sales is not a median worth drawing.
+  const bandMedians = index.points.map((point) => (byMonth.get(point.month).length >= 5 ? median(byMonth.get(point.month)) : 0));
+  const caption = renderUniverseCaption({
+    count: index.salesCount,
+    universeLabel: `listed ${String(index.typeLabel).toLowerCase()} sales at any price from ${formatMoneyCompact(INDEX_MIN_PRICE)} to ${formatMoneyCompact(INDEX_MAX_PRICE)}, ${priceIndex.citywide ? "citywide" : "in your neighborhoods"}${priceIndex.citywide && priceIndex.askedLocal ? " (your neighborhoods alone are too few sales to fit)" : ""}`,
+    windowLabel: `${monthLabelCompact(index.points[0].month)} to ${monthLabelCompact(index.points[index.points.length - 1].month)}`,
+  });
+  const rows = index.points.map((point, at) => `<tr><th scope="row">${esc(monthLabelCompact(point.month))}</th><td class="num">${point.index.toFixed(1)}</td><td class="num">${formatWholeNumber(point.count)}</td><td class="num">${bandMedians[at] ? esc(formatMoneyCompact(bandMedians[at])) : "n/a"}</td></tr>`).join("");
+  return `
+    <section class="section-block" id="priceIndex">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Are prices moving?</p>
+          <h3>${esc(verdict.headline)}</h3>
+        </div>
+      </div>
+      ${verdict.detail ? `<p class="note">${esc(verdict.detail)}</p>` : ""}
+      ${captionRow(caption, "priceIndex")}
+      <div class="index-legend"><span><i class="index-key"></i>Same home, month by month (first month = 100)</span><span><i class="index-key band"></i>Median close inside your filters, from the same starting point</span></div>
+      ${priceIndexChartSvg(index.points, bandMedians)}
+      <details class="index-table" ${ctx.qs("#priceIndex details")?.open ? "open" : ""}>
+        <summary>Show the numbers</summary>
+        <div class="stage-table-wrap"><table class="stage-table"><thead><tr><th scope="col">Month</th><th scope="col" class="num">Index</th><th scope="col" class="num">Sales used</th><th scope="col" class="num">Median in your filters</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </details>
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // Answer block 3: "What changed since you last looked?"
 
 function feedItemHtml(entry, extra = "") {
@@ -1000,6 +1073,8 @@ export function renderOverviewView(deps) {
       ${supplySectionHtml(state.derived.supply)}
 
       ${outlookSectionHtml(state.derived.outlook)}
+
+      ${priceIndexSectionHtml(state.derived.priceIndex, slices.closedSlice)}
 
       ${changesSectionHtml(changes.diff)}
 

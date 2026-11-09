@@ -253,6 +253,39 @@ export function periodSituation(period, asOf) {
   };
 }
 
+// Recent events worth a second look, read from the listing's own history rather than
+// from what changed since the buyer's last visit.
+export const SIGNAL_RECENT_CUT_DAYS = OUTLOOK_CUT_STATES[1].maxDays;
+export const SIGNAL_RECENT_RELIST_DAYS = 14;
+export const SIGNAL_HOLDING_OUT_DAYS = 21;
+
+export const LISTING_SIGNALS = [
+  { id: "justCut", label: "Just cut", detail: `price cut in the last ${SIGNAL_RECENT_CUT_DAYS} days` },
+  { id: "relisted", label: "Just relisted", detail: `back under a new MLS number in the last ${SIGNAL_RECENT_RELIST_DAYS} days` },
+  { id: "holdingOut", label: "No cut yet", detail: `${SIGNAL_HOLDING_OUT_DAYS}+ days listed at the opening price` },
+];
+
+// A ledger this many days behind the calendar has no business saying "lately".
+export const SIGNAL_MAX_LEDGER_AGE_DAYS = 3;
+
+// Which signals a live period shows, given its periodSituation. Everything is measured
+// on the ledger's own clock (`asOf`), the same one the odds and their chip use, so a card
+// labelled "Just cut" is always in the "Just cut" count. If the daily job has stalled that
+// clock is wrong about "lately", so there are no signals at all.
+export function listingSignals(period, situation, asOf, today = asOf) {
+  if (!period || !situation) return [];
+  const behind = daysBetween(asOf, today);
+  if (behind === null || behind > SIGNAL_MAX_LEDGER_AGE_DAYS) return [];
+  const signals = [];
+  if (situation.daysSinceCut !== null && situation.daysSinceCut <= SIGNAL_RECENT_CUT_DAYS) signals.push("justCut");
+  const sinceRelist = period.relistCount > 0 ? daysBetween(period.latestListDate, asOf) : null;
+  if (sinceRelist !== null && sinceRelist >= 0 && sinceRelist <= SIGNAL_RECENT_RELIST_DAYS) signals.push("relisted");
+  // Only where the whole history was watched: a home found mid-life may have cut unseen.
+  // One ask ever: a home that raised its price is not "still at its opening price".
+  if (period.asks.length === 1 && situation.cutHistoryKnown && situation.dom >= SIGNAL_HOLDING_OUT_DAYS) signals.push("holdingOut");
+  return signals;
+}
+
 // How the odds lean, for the chip on a listing. Thresholds are on the odds themselves.
 export function outlookLean(outlook) {
   if (!outlook || outlook.saleChance === null || outlook.cutChance === null) return null;

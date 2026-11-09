@@ -38,7 +38,7 @@ import {
 } from "../domain/selectors.mjs";
 import { selectBidComps, topBidComps } from "../domain/bidComps.mjs";
 import { LISTING_STAGES, ratioVsAskPhrase, stageMeta } from "../domain/listingStage.mjs";
-import { OUTLOOK_HORIZON_DAYS } from "../domain/listingOutlook.mjs";
+import { LISTING_SIGNALS, OUTLOOK_HORIZON_DAYS } from "../domain/listingOutlook.mjs";
 import { formatAge } from "../domain/freshness.mjs";
 import { renderExplainButton, renderUniverseCaption } from "../ui/explain.mjs";
 
@@ -156,9 +156,18 @@ export function daysListedText(facts) {
   return facts.relisted ? `${facts.totalDays} (${facts.ownDays} since relist)` : String(facts.totalDays);
 }
 
-function historyNoteHtml(facts) {
+// ", most recently $25K 3 days ago": only worth adding when it says more than the total.
+export function lastCutWords(lastCut, totalCutUsd = 0) {
+  if (!lastCut || !(lastCut.usd > 0) || !Number.isFinite(lastCut.daysAgo)) return "";
+  const when = lastCut.daysAgo <= 0 ? "today" : lastCut.daysAgo === 1 ? "yesterday" : `${lastCut.daysAgo} days ago`;
+  return lastCut.count > 1 || Math.abs(totalCutUsd - lastCut.usd) > 1 ? `, most recently ${formatMoneyCompact(lastCut.usd)} ${when}` : `, ${when}`;
+}
+
+function historyNoteHtml(facts, lastCut = null) {
   const bits = [];
-  if (facts.cutUsd > 0) bits.push(`Cut ${formatMoneyCompact(facts.cutUsd)} (${(facts.cutPct * 100).toFixed(1)}%) from its first ask`);
+  if (facts.cutUsd > 0) bits.push(`Cut ${formatMoneyCompact(facts.cutUsd)} (${(facts.cutPct * 100).toFixed(1)}%) from its first ask${lastCutWords(lastCut, facts.cutUsd)}`);
+  // The dataset does not always know the opening ask; the ledger saw the cut itself.
+  else if (lastCut?.usd > 0) bits.push(`Cut ${formatMoneyCompact(lastCut.usd)}${lastCutWords(lastCut, lastCut.count > 1 ? 0 : lastCut.usd).replace(/^, most recently \S+/, ",")}`);
   if (facts.relisted) bits.push("relisted under a new MLS number");
   if (facts.priorSalePrice > 0) {
     const change = Math.round(facts.askVsPriorPct * 100);
@@ -181,18 +190,35 @@ export function outlookNoteHtml(outlook) {
   return `<p class="bid-outlook">${chip}<span>Next ${OUTLOOK_HORIZON_DAYS} days, listings like this: ${esc(bits.join(" · "))} ${renderExplainButton("listingOutlook")}</span></p>`;
 }
 
-// How the queue splits by stage, so the page opens with where the leverage is.
-function stageSummaryHtml(rows) {
-  const counts = Object.fromEntries(LISTING_STAGES.map((stage) => [stage.id, 0]));
-  let unknown = 0;
-  for (const row of rows) {
-    if (counts[row.bidStage] === undefined) unknown += 1;
-    else counts[row.bidStage] += 1;
-  }
-  if (!rows.length) return "";
-  const chips = LISTING_STAGES.map((stage) => `<span class="stage-count"><span class="stage-pill ${STAGE_TONE[stage.id]}">${esc(stage.label)}</span><b>${formatWholeNumber(counts[stage.id])}</b><span class="stage-range">${esc(stage.range)}</span></span>`);
-  if (unknown) chips.push(`<span class="stage-count"><span class="stage-pill unknown">Stage unknown</span><b>${formatWholeNumber(unknown)}</b></span>`);
-  return `<div class="stage-summary" id="bidStageSummary"><span class="mini-label">By stage ${renderExplainButton("bidStage")}</span>${chips.join("")}</div>`;
+export function bidFocusLabel(focus) {
+  if (focus === "unknown") return "Stage unknown";
+  return stageMeta(focus)?.label || LISTING_SIGNALS.find((signal) => signal.id === focus)?.label || "";
+}
+
+// Does a listing belong to the stage or signal the queue is narrowed to?
+export function matchesBidFocus(row, focus) {
+  if (!focus) return true;
+  if (focus === "unknown") return !row.bidStage;
+  return row.bidStage === focus || (row.signals || []).includes(focus);
+}
+
+// How the queue splits by stage and by what happened lately, so the page opens with
+// where the leverage is. Each count is a button that narrows the queue to it.
+function queueFocusHtml(rows, focus) {
+  if (!rows.length && !focus) return "";
+  const count = (id) => rows.filter((row) => matchesBidFocus(row, id)).length;
+  const button = (id, pillHtml, detail) => {
+    const n = count(id);
+    return `<button type="button" id="bidFocus-${esc(id)}" class="stage-count ${focus === id ? "active" : ""}" data-bid-focus="${esc(id)}" aria-pressed="${focus === id}" ${n || focus === id ? "" : "disabled"} title="${esc(detail)}">${pillHtml}<b>${formatWholeNumber(n)}</b></button>`;
+  };
+  const stages = LISTING_STAGES.map((stage) => button(stage.id, `<span class="stage-pill ${STAGE_TONE[stage.id]}">${esc(stage.label)}</span><span class="stage-range">${esc(stage.range)}</span>`, `${stage.range} on the market`));
+  // A chip that is switched on is always drawn, or there would be no way to switch it off.
+  if (count("unknown") || focus === "unknown") stages.push(button("unknown", `<span class="stage-pill unknown">Stage unknown</span>`, "No days-on-market reading"));
+  // Signals come from the listings ledger; without it there is nothing to count.
+  const signals = rows.some((row) => row.signals) || LISTING_SIGNALS.some((signal) => signal.id === focus)
+    ? `<span class="mini-label">Lately ${renderExplainButton("listingSignals")}</span>${LISTING_SIGNALS.map((signal) => button(signal.id, `<span class="stage-pill plain">${esc(signal.label)}</span>`, signal.detail)).join("")}`
+    : "";
+  return `<div class="stage-summary" id="bidStageSummary"><span class="mini-label">By stage ${renderExplainButton("bidStage")}</span>${stages.join("")}${signals}</div>`;
 }
 
 // Cost-to-win-style wording for how a suggested bid compares with the asking
@@ -205,6 +231,12 @@ export function overAskPhrase(overAskPct) {
   return "at ask";
 }
 
+// An empty queue is the filters' doing, unless the queue's own narrowing emptied it.
+export function emptyQueueMessage(queueCount, focus) {
+  if (!focus || !queueCount) return "No active listings match the current filters.";
+  return `None of the ${formatWholeNumber(queueCount)} listings here is under "${bidFocusLabel(focus)}" right now. Click it again to see them all.`;
+}
+
 export function renderBidsView(deps) {
   ctx = deps;
   const { state, qs, miniMetric, currentPageSize, paginationControls } = ctx;
@@ -214,6 +246,8 @@ export function renderBidsView(deps) {
   if (state.bid.watchedOnly) {
     baseRows = baseRows.filter((row) => state.watched.has(row.id));
   }
+  const queueRows = baseRows;
+  baseRows = baseRows.filter((row) => matchesBidFocus(row, state.bid.focus));
   const sorted = sortRows(baseRows, state.bidSort, getBidSortValue);
   const pageSize = currentPageSize();
   const page = paginateRows(sorted, state.bidsPage, pageSize);
@@ -241,7 +275,7 @@ export function renderBidsView(deps) {
         ${miniMetric("Watched", formatWholeNumber(watchedCount))}
         ${metricWithExplain("Median over ask", stats.scoredCount ? `${(stats.medianOverAskPct || 0).toFixed(1)}%` : "n/a", "bidMedianOverAsk")}
       </div>
-      ${stageSummaryHtml(baseRows)}
+      ${queueFocusHtml(queueRows, state.bid.focus)}
       ${noSuggestionsNoticeHtml(stats, state.dataSource.freshness?.items?.find((item) => item.id === "pricedSales"))}
       <section class="section-block">
         <div class="section-head compact">
@@ -264,7 +298,7 @@ export function renderBidsView(deps) {
       </div>
       ${useCards ? `
         <div class="bid-card-grid" id="bidCards">
-          ${page.rows.map(bidCardHtml).join("") || `<p class="empty-state">No active listings match the current filters.</p>`}
+          ${page.rows.map(bidCardHtml).join("") || `<p class="empty-state">${esc(emptyQueueMessage(queueRows.length, state.bid.focus))}</p>`}
         </div>
       ` : `
         <div class="table-wrap">
@@ -286,7 +320,7 @@ export function renderBidsView(deps) {
                 ${bidTh("compTier", "Comp basis")}
               </tr>
             </thead>
-            <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="13">No active listings match the current filters.</td></tr>`}</tbody>
+            <tbody id="bidRows">${page.rows.map(bidRowHtml).join("") || `<tr><td colspan="13">${esc(emptyQueueMessage(queueRows.length, state.bid.focus))}</td></tr>`}</tbody>
           </table>
         </div>
         <div class="mobile-card-list" id="bidMobileList">${page.rows.map(bidMobileCard).join("")}</div>
@@ -323,7 +357,7 @@ function bidCardHtml(row) {
         <div><span>First listed at</span><strong>${formatMoneyOrNa(row.originalListPrice)}</strong></div>
         <div><span>Days listed</span><strong>${esc(daysListedText(facts))}</strong></div>
       </div>
-      ${historyNoteHtml(facts)}
+      ${historyNoteHtml(facts, row.lastCut)}
       ${outlookNoteHtml(row.outlook)}
       <p class="bid-unscored-note">No suggestion: the comps add up to ${compCount} of the ${BID_MIN_COMPS} needed ${renderExplainButton("bidCompBasis")}</p>
       <footer class="bid-card-footer">
@@ -366,7 +400,7 @@ function bidCardHtml(row) {
         <div><span>Days listed</span><strong>${esc(daysListedText(facts))}</strong></div>
         <div><span>Comps</span><strong>${row.bidCompCount || 0}</strong></div>
       </div>
-      ${historyNoteHtml(facts)}
+      ${historyNoteHtml(facts, row.lastCut)}
       ${outlookNoteHtml(row.outlook)}
       <footer class="bid-card-footer">
         <button type="button" class="mini-btn" data-use-active-bid="${esc(row.mapPropertyKey)}">Use in scenario</button>

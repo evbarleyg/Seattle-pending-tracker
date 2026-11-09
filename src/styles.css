@@ -1997,6 +1997,35 @@ tbody tr:hover td {
   gap: 6px;
 }
 
+button.stage-count {
+  padding: 2px 6px 2px 2px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.stage-count:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+button.stage-count.active {
+  border-color: color-mix(in srgb, var(--brand) 50%, var(--line));
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+}
+
+button.stage-count:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.stage-pill.plain {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .stage-count b {
   font-weight: 650;
 }
@@ -2004,6 +2033,89 @@ tbody tr:hover td {
 .stage-range {
   color: var(--faint);
   font-size: 0.72rem;
+}
+
+/* Like-for-like price index */
+.index-chart {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 760px;
+  block-size: auto;
+  margin-block: 6px 4px;
+}
+
+.index-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.index-grid.base {
+  stroke: var(--line-strong);
+  stroke-dasharray: 3 3;
+}
+
+.index-tick {
+  fill: var(--faint);
+  font-size: 10px;
+}
+
+.index-label {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.index-line {
+  stroke: var(--brand-2);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.index-line.band {
+  stroke: var(--faint);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.index-dot {
+  fill: var(--brand-2);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+/* The drawing scales with the screen; at phone width its text would be 5px. */
+@media (max-width: 560px) {
+  .index-tick { font-size: 17px; }
+  .index-label { font-size: 20px; }
+  .index-line { stroke-width: 3; }
+  .index-dot { r: 4.5; }
+}
+
+.index-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-block-start: 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.index-key {
+  display: inline-block;
+  inline-size: 16px;
+  margin-inline-end: 6px;
+  border-block-start: 2px solid var(--brand-2);
+  vertical-align: middle;
+}
+
+.index-key.band {
+  border-block-start: 2px dashed var(--faint);
+}
+
+.index-table summary {
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
 }
 
 /* What tends to happen next: a line on each bid card, a table on the Overview. */

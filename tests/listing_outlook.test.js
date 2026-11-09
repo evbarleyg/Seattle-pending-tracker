@@ -266,3 +266,24 @@ test("two listings of one home live at once count each day once", async () => {
   }));
   assert.equal(buildOutlookTable(doubled, { asOf: AS_OF }).overall.cutDays, 40 * 20);
 });
+
+test("signals read a listing's own recent history", async () => {
+  const { listingSignals, periodSituation } = await load();
+  const signalsFor = (period) => listingSignals(period, periodSituation(period, AS_OF), AS_OF);
+  assert.deepEqual(signalsFor(home("cut", { listDate: "2026-10-01", asks: [[0, 1_300_000], [33, 1_250_000]] })), ["justCut"], "cut 5 days ago");
+  assert.deepEqual(signalsFor(home("old-cut", { listDate: "2026-10-01", asks: [[0, 1_300_000], [20, 1_250_000]] })), [], "cut 18 days ago");
+  assert.deepEqual(signalsFor(home("firm", { listDate: "2026-10-18" })), ["holdingOut"], "day 21 at the opening price");
+  assert.deepEqual(signalsFor(home("young", { listDate: "2026-10-19" })), [], "day 20");
+  assert.deepEqual(signalsFor(home("found", { listDate: "2026-03-01", tracked: false })), [], "found mid-life: it may have cut unseen");
+  const relisted = { ...home("again", { listDate: "2026-10-30", priorDays: 40, asks: [[-60, 1_300_000], [0, 1_250_000]] }), relistCount: 1 };
+  assert.deepEqual(signalsFor(relisted), ["relisted"], "back 9 days ago; the cheaper relist was a cut, but 9 days is not 'just'");
+  assert.deepEqual(signalsFor({ ...relisted, latestListDate: "2026-11-04", spans: [{ from: "2026-11-04", to: AS_OF, listDate: "2026-11-04", priorDays: 40 }], asks: [{ date: "2026-09-01", ask: 1_300_000 }, { date: "2026-11-04", ask: 1_250_000 }] }), ["justCut", "relisted"]);
+  assert.deepEqual(signalsFor({ ...relisted, latestListDate: "2026-10-01" }), [], "relisted 38 days ago");
+  const cut = home("cut", { listDate: "2026-10-01", asks: [[0, 1_300_000], [33, 1_250_000]] });
+  assert.deepEqual(listingSignals(cut, periodSituation(cut, AS_OF), AS_OF, "2026-11-10"), ["justCut"], "a day or two behind is normal");
+  assert.deepEqual(listingSignals(cut, periodSituation(cut, AS_OF), AS_OF, "2026-11-15"), [], "the feed went quiet for a week: nothing it knows is news");
+  const raised = home("raised", { listDate: "2026-09-01", asks: [[0, 1_680_000], [20, 1_860_000]] });
+  assert.deepEqual(signalsFor(raised), [], "a home that raised its price is not still at its opening price");
+  assert.deepEqual(listingSignals(null, null, AS_OF), []);
+  assert.deepEqual(listingSignals(relisted, null, AS_OF), []);
+});

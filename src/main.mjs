@@ -39,13 +39,15 @@ import {
   zillowUrl,
 } from "./domain/data.mjs";
 import {
+  daysBetween,
+  esc,
   formatDateNoYear,
   formatMoney,
   formatMoneyCompact,
   formatPct,
   formatWholeNumber,
   monthLabelCompact,
-  esc,
+  toIso,
 } from "./domain/format.mjs";
 import { computeSourceFreshness, formatAge } from "./domain/freshness.mjs";
 import {
@@ -68,7 +70,8 @@ import {
   ledgerTrackedTypes,
   parseListingLedger,
 } from "./domain/listingLedger.mjs";
-import { buildOutlookTables, outlookFor, outlookLean, periodSituation, summarizeOutlook } from "./domain/listingOutlook.mjs";
+import { computePriceIndex, summarizePriceIndex } from "./domain/priceIndex.mjs";
+import { buildOutlookTables, listingSignals, outlookFor, outlookLean, periodSituation, summarizeOutlook } from "./domain/listingOutlook.mjs";
 import {
   BID_STRATEGIES,
   DESKTOP_PAGE_SIZE,
@@ -92,7 +95,7 @@ import {
 import { initExplainLayer } from "./ui/explain.mjs";
 import { getExplainEntry, renderOverviewView } from "./views/overview.mjs";
 import { renderPulseView } from "./views/pulse.mjs";
-import { refreshManualBidOutputs, renderBidsView } from "./views/bids.mjs";
+import { bidFocusLabel, refreshManualBidOutputs, renderBidsView } from "./views/bids.mjs";
 import { renderAffordView } from "./views/afford.mjs";
 import { renderRecordsView } from "./views/records.mjs";
 import { renderGeoView } from "./views/geo.mjs";
@@ -225,6 +228,7 @@ const state = {
     strategy: "balanced",
     highConfidenceOnly: false,
     watchedOnly: false,
+    focus: "", // a listing stage or signal id narrowing the queue; "" = all
     viewMode: "cards",
     manualEnabled: false,
     compSearchEnabled: false,
@@ -520,6 +524,7 @@ function recomputeDerived() {
     slices,
     supply,
     outlook: outlook?.summary || null,
+    priceIndex: computePriceIndexForLens(filters),
     liveListingRows,
     compPool,
     bidResult,
@@ -574,6 +579,29 @@ function computeSupply(filters) {
   };
 }
 
+// Like-for-like price index for the lens's home type and neighborhoods (never its price
+// band; see priceIndex.mjs). One regression per combination, kept until the data changes.
+let priceIndexCache = { rows: null, fits: new Map() };
+
+function computePriceIndexForLens(filters) {
+  // One home type at a time. With every type in the lens it reads the default one,
+  // unless that is excluded, in which case there is no single type to speak for.
+  const picked = state.interactions.type || filters.type;
+  const typeLabel = picked === "All" ? state.options.defaultType : picked;
+  if (filters.excludeTypes.includes(typeLabel)) return null;
+  const neighborhoods = state.interactions.neighborhood ? [state.interactions.neighborhood] : filters.neighborhoods;
+  if (priceIndexCache.rows !== state.normalizedRows) priceIndexCache = { rows: state.normalizedRows, fits: new Map() };
+  const fit = (hoods) => {
+    const key = `${typeLabel}|${hoods.join("|")}`;
+    if (!priceIndexCache.fits.has(key)) priceIndexCache.fits.set(key, computePriceIndex(state.normalizedRows, { typeLabel, neighborhoods: hoods }));
+    return priceIndexCache.fits.get(key);
+  };
+  // A few neighborhoods can be too few sales to fit; the city's index is the fallback.
+  const local = neighborhoods.length ? fit(neighborhoods) : null;
+  const index = local || fit([]);
+  return index ? { index, summary: summarizePriceIndex(index), citywide: !local, askedLocal: neighborhoods.length > 0 } : null;
+}
+
 // The comp pool ignores the price band, so dragging a price slider (or sorting, paging,
 // starring) reuses it, and with it the per-comp arrays bidComps.mjs prepares once per
 // pool.
@@ -618,14 +646,18 @@ function computeOutlook(filters) {
 }
 
 function attachOutlook(rows, outlook) {
-  if (!outlook?.tables.size) return;
+  if (!outlook) return;
   const { periodByMls, asOf } = state.listingLedger;
+  const today = toIso(new Date());
   for (const row of rows) {
     const period = periodByMls.get(row.mlsListingNumber);
     const situation = period ? periodSituation(period, asOf) : null;
-    const odds = situation ? outlookFor(outlook.tables.get(row.typeLabel), situation) : null;
-    if (!odds) continue;
-    row.outlook = { cutChance: odds.cutChance, saleChance: odds.saleChance, lean: outlookLean(odds) };
+    if (!situation) continue;
+    // A listing's own history needs no odds table, which a narrow lens may not have.
+    row.signals = listingSignals(period, situation, asOf, today);
+    row.lastCut = situation.lastCut ? { usd: situation.lastCut.usd, daysAgo: daysBetween(situation.lastCut.date, today), count: situation.cutCount } : null;
+    const odds = outlookFor(outlook.tables.get(row.typeLabel), situation);
+    if (odds) row.outlook = { cutChance: odds.cutChance, saleChance: odds.saleChance, lean: outlookLean(odds) };
   }
 }
 
@@ -888,6 +920,7 @@ function renderCrossFilterChips() {
   if (state.filters.specialSale !== "all") chips.push(removableChip(`Special Sale: ${specialSaleFilterLabel(state.filters.specialSale)}`, `data-clear-special-sale="1"`));
   if (state.bid.strategy !== "balanced") chips.push(removableChip(`Bid Strategy: ${BID_STRATEGIES[state.bid.strategy]?.label || state.bid.strategy}`, `data-clear-bid-strategy="1"`));
   if (state.bid.highConfidenceOnly) chips.push(removableChip("Bids: High Confidence Only", `data-clear-bid-highconf="1"`));
+  if (state.bid.focus) chips.push(removableChip(`Bids: ${bidFocusLabel(state.bid.focus)}`, `data-clear-bid-focus="1"`));
   // Nothing applied means nothing to show: the lens bar stays one quiet row.
   wrap.innerHTML = chips.join("");
 }
@@ -1521,6 +1554,13 @@ function bindEvents() {
       state.bid.strategy = bidStrategy.dataset.bidStrategy;
       return markDirty();
     }
+    const bidFocus = target.closest("[data-bid-focus]");
+    if (bidFocus) {
+      const next = bidFocus.dataset.bidFocus;
+      state.bid.focus = state.bid.focus === next ? "" : next;
+      state.bidsPage = 1;
+      return markDirty(); // the lens bar names the focus too
+    }
     const bidViewMode = target.closest("[data-bid-view-mode]");
     if (bidViewMode) {
       state.bid.viewMode = bidViewMode.dataset.bidViewMode === "table" ? "table" : "cards";
@@ -1616,6 +1656,11 @@ function bindEvents() {
       state.bid.strategy = "balanced";
       return markDirty();
     }
+    if (target.closest("[data-clear-bid-focus]")) {
+      state.bid.focus = "";
+      state.bidsPage = 1;
+      return markDirty();
+    }
     if (target.closest("[data-clear-bid-highconf]")) {
       state.bid.highConfidenceOnly = false;
       return markDirty();
@@ -1667,6 +1712,7 @@ function resetFilters() {
     excludeLikelyPresoldNewBuild: false,
     includeOpenMls: true,
   };
+  state.bid.focus = "";
   clearCrossFilters(false);
   markDirty();
 }
@@ -1713,6 +1759,7 @@ function applyLoadedRows(message, kind = "default") {
   state.options = buildOptions(state.normalizedRows);
   state.filters = createDefaultFilters(state.options.types);
   state.manualBid.typeLabel = state.options.defaultType;
+  state.bid.focus = "";
   state.dataSource = {
     ...state.dataSource,
     datasetName: message.datasetName || DEFAULT_DATASET,

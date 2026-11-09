@@ -522,6 +522,40 @@ export const METRICS = {
     universeId: "actives",
   },
 
+  priceIndex: {
+    id: "priceIndex",
+    label: "Like-for-like price index",
+    plain: "What the same home would have sold for in each month, with the first month set to 100. A median cannot show this: your price band pins it, and the mix of homes sold shifts with the season.",
+    formulaWords:
+      "One regression over listed sales of the home type from $400K to $4M: log price against size, lot, age, newer build, beds, baths, neighborhood and whose square footage it is, plus a term per month. The month terms are the index. The current month is left out.",
+    source: { id: "mls-manual", label: "Manual MLS exports and Redfin sales (county-only rows are left out)" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "A change is called only when it clears its margin of error: roughly 3% within a few months, 4% across a year.",
+      "County and Redfin rows measure size differently; each counts fully only in months where it supplies 40% of sales, and not at all under 25%. Comparisons across their switch (spring 2026) are least certain.",
+      "It cannot see condition or remodels.",
+    ],
+    buyerDirection: "higherIsWorse",
+    universeId: "allRows",
+  },
+
+  listingSignals: {
+    id: "listingSignals",
+    label: "What happened lately",
+    plain: "Listings where something just changed, or conspicuously has not. Click a count to narrow the queue to it.",
+    formulaWords:
+      "Read from each listing's own daily history. Just cut: the ask came down in the last 7 days. Just relisted: it came back under a new MLS number in the last 14 days. No cut yet: 21 or more days listed, still at its opening price.",
+    source: { id: "redfin", label: "Daily ledger of the Redfin listings feed" },
+    cadence: CADENCE.derived,
+    caveats: [
+      "Past day 14, 15% of just-cut homes went under contract within two weeks, against 10 to 11% of the rest.",
+      "Homes that had not cut by then were the likeliest to: 31% did within two weeks.",
+      "A home already on the market when daily tracking began is never counted as No cut yet, because earlier cuts went unseen.",
+    ],
+    buyerDirection: "neutral",
+    universeId: "actives",
+  },
+
   bidStage: {
     id: "bidStage",
     label: "Listing stage",
