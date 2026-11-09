@@ -88,6 +88,39 @@ test("find: exact MLS# + sale date, then same MLS# within 14 days, then address 
   assert.strictEqual(ledger.find(soldRow({ mlsListingNumber: "9999999", address: "1 Other St", zip: "98103" })), null);
 });
 
+test("find: the address fallback works for an address with no ZIP in its text", () => {
+  // The case above only ever passed because its five-digit house number was read as a ZIP.
+  const home = { address: "7035 Jones Ave NW", zip: "98117" };
+  const ledger = new Ledger([entry(home)]);
+  assert.ok(ledger.find(soldRow({ ...home, mlsListingNumber: "", saleDate: "2026-04-21" })));
+  assert.ok(ledger.find(soldRow({ mlsListingNumber: "", address: "7035 Jones Avenue NW, Seattle WA 98117", zip: "98117" })), "either spelling");
+  assert.strictEqual(ledger.find(soldRow({ ...home, mlsListingNumber: "", zip: "98107" })), null, "same street name, another ZIP");
+  assert.strictEqual(ledger.find(soldRow({ ...home, mlsListingNumber: "", zip: "" })), null);
+});
+
+test("find: the address fallback never crosses from one MLS number to another", () => {
+  const home = { address: "3421 Albion Pl N", zip: "98103" };
+  const ledger = new Ledger([entry({ ...home, mlsNumber: "2463558", saleDate: "2026-03-20", closePrice: "1280000", listPriceAtPending: "930000" })]);
+  assert.strictEqual(ledger.find(soldRow({ ...home, mlsListingNumber: "2442400", saleDate: "2026-03-31", closePrice: "1280000" })), null);
+  assert.ok(ledger.find(soldRow({ ...home, mlsListingNumber: "", saleDate: "2026-03-31" })), "a row with no MLS number of its own may still use it");
+});
+
+test("find: a townhouse never takes its neighbour's entry, however alike the sale", () => {
+  const unitB = entry({ mlsNumber: "2400002", address: "2626 58th Ave SW Unit B", zip: "98116", saleDate: "2026-07-31", closePrice: "825000" });
+  const ledger = new Ledger([unitB]);
+  const unitA = soldRow({ mlsListingNumber: "", address: "2626 58th Ave SW Unit A", zip: "98116", saleDate: "2026-07-24", closePrice: "825000" });
+  assert.strictEqual(ledger.find(unitA), null);
+  assert.ok(ledger.find({ ...unitA, address: "2626 58th Ave SW Unit B" }));
+  assert.ok(ledger.find({ ...unitA, address: "2626 B 58th Ave SW" }), "the county's spelling of the same unit");
+  // Two units closing the same day each keep their own entry.
+  const both = new Ledger([
+    entry({ mlsNumber: "", address: "926 NW 57th St Unit A", zip: "98107", saleDate: "2026-04-07", closePrice: "1064000" }),
+    entry({ mlsNumber: "", address: "926 NW 57th St Unit B", zip: "98107", saleDate: "2026-04-07", closePrice: "893000" }),
+  ]);
+  assert.strictEqual(both.rows().length, 2);
+  assert.strictEqual(both.find(soldRow({ mlsListingNumber: "", address: "926 NW 57th St Unit A", zip: "98107", saleDate: "2026-04-07" })).closePrice, "1064000");
+});
+
 test("applyEntryToRow fills list, dates, DOM, ratios and lineage but keeps mlsJoinMethod = REDFIN_SOLD", () => {
   const row = soldRow();
   assert.strictEqual(applyEntryToRow(row, entry()), true);

@@ -31,7 +31,7 @@ const fs = require("fs");
 const path = require("path");
 const { readCsvText, writeCsv, num } = require("./csv_util.js");
 const { readSnapshotsFromGit } = require("./backfill_list_from_active_snapshots.js");
-const { streetKeyFromAddress, zip5 } = require("./redfin_address_key.js");
+const { streetKeyFromAddress, extractUnitFromAddress, zip5 } = require("./redfin_address_key.js");
 
 const PROJECT_DIR = path.resolve(__dirname, "..");
 const DEFAULT_LEDGER = path.join(PROJECT_DIR, "redfin_sold_enrichment_ledger.csv");
@@ -67,10 +67,14 @@ function daysBetween(a, b) {
   return Math.round((tb - ta) / 86400000);
 }
 
+// "STREET|ZIP|UNIT". The ZIP has to be handed over: Redfin's addresses ("7035 Jones Ave
+// NW") do not contain one, and without it the key came back empty, so no Redfin row was
+// ever matched by address. The unit has to be in the key because the street key drops it:
+// townhouse neighbours list at the same price and close the same week, which is enough to
+// pass the date and price guards and hand Unit A the list price and dates of Unit B.
 function addressKey(address, zip) {
-  const street = streetKeyFromAddress(address || "");
-  const z = zip5(zip || "");
-  return street && z ? `${street}|${z}` : "";
+  const street = zip5(zip || "") ? streetKeyFromAddress(address || "", zip) : "";
+  return street ? `${street}|${extractUnitFromAddress(address || "")}` : "";
 }
 
 function mlsKey(mls, saleDate) {
@@ -169,6 +173,9 @@ class Ledger {
     const list = this.byAddr.get(ak) || [];
     let best = null;
     for (const e of list) {
+      // Two MLS numbers are two listings, whatever the address says: a stub left by an
+      // earlier listing of the same home once lent its $930K ask to a $1.28M sale.
+      if (mls && String(e.mlsNumber || "").trim() && String(e.mlsNumber).trim() !== mls) continue;
       const gap = Math.abs(daysBetween(e.saleDate, sale));
       if (gap <= SALE_DATE_MATCH_DAYS && (!best || gap < Math.abs(daysBetween(best.saleDate, sale)))) best = e;
     }
