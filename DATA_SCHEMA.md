@@ -28,8 +28,11 @@ Recommended extra MLS columns:
 - `bidUpPct`
 - `isLikelyPresoldNewBuild` (derived boolean for likely pre-sold new-build behavior)
 - `presoldRuleReason` (machine-readable reason tokens, e.g. `dom_le_0|sale_eq_list|year_built_gte_2023`)
+- `REDFIN_SOLD` rows and county twins (2026-11-09): when a Redfin sold row is the same sale as a bare county row (`PUBLIC_PROXY`, no MLS#, no asking price), matched on street + ZIP + unit within 14 days or on house number + ZIP + exact price within 60, the Redfin row REPLACES the county row and inherits `major`, `minor`, `parcelNbr`, `assessedValue`. Such a row is carried over even after the sold feed stops supplying it. A county rebuild restores the county row and the next merge replaces it again.
 - `mlsJoinMethod` (`APN_PRICE_DATE_WINDOW` for county-matched rows, `MLS_SOLD_NOT_IN_COUNTY` for MLS sold rows not yet in county close exports)
 - `listPriceSource` (additive, 2026-09-19): `ACTIVE_SNAPSHOT` when `listPriceAtPending`, `pendingDate`, list date and DOM were recovered by `scripts/backfill_list_from_active_snapshots.js` from the daily active-listing snapshots (the last day the MLS# was seen for sale; that day is written as `pendingDate`, so the true pending date is a lower bound, up to one snapshot interval later). `REDFIN_HISTORY` when it was restored from the tracked sold-enrichment ledger (`redfin_sold_enrichment_ledger.csv`, built by `scripts/sold_enrichment_ledger.js` from past snapshots and the Redfin history scrape) or written by `backfill_redfin_history.js`; `MLS_EXPORT` when the ledger restored a realtor-export list price. Blank on rows enriched before the column existed. `addressSource` is not touched by any of these.
+- `mlsDOM` / `mlsCDOM` / `mlsListDate` / `mlsOriginalPrice` on `REDFIN_ACTIVE` rows (semantics changed 2026-11-09): Redfin stopped returning days on market for ~99% of actives on 2026-09-21. A blank feed value is now "unknown", never 0. Order of trust: the feed's DOM, then the actives ledger's `listDate`, then blank. `mlsCDOM` is `mlsDOM` plus the ledger's `chainPriorDays` and `mlsOriginalPrice` is the ledger's `chainFirstAsk`, so a cancel-and-relist under a new MLS# resets neither. A "Coming Soon" teaser reads 0 days. A listing the feed reports as under contract is written with `mlsStatus = Active Under Contract`, not `Active`. `REDFIN_SOLD` rows filled from the ledger follow the same rules.
+- `priorSaleDate`, `priorSalePrice` (additive, 2026-11-09): on `REDFIN_ACTIVE` rows only, the home's most recent closing already in the dataset (matched on street + ZIP + unit), written by `merge_redfin_actives.js`. Blank when there is none, or when the ask is under 0.5x or over 3.5x that price (a builder's multi-lot purchase, a partial-interest deed).
 - `mlsStatus` canonicalized to: `Active`, `Pending`, `Pending Inspection`, `Pending BU Requested`, `Contingent`, `Sold`
 
 Normalization behavior in app:
@@ -53,13 +56,17 @@ Bid guidance is produced for rows where:
 - `pendingListPrice > 0`
 
 Default model behavior:
-- comp window: 90 days (sold MLS only)
+- listing stage first (`src/domain/listingStage.mjs`): cumulative days on market 0-7 `fresh`, 8-14 `past`, 15-45 `sitting`, 46+ `stale`. Comps must have gone pending in the same stage.
+- comp window: 90 days (sold MLS only); 180 days citywide as a last resort for a thin stage
+- price band applied to each comp's ASKING price (it used to be the close price, which skews ratios at the band edges)
 - bid anchor: `pendingListPrice`
-- comp hierarchy:
+- comp hierarchy, within the stage:
   - `T1_NEIGHBORHOOD_TYPE`
   - `T2_ZIP_TYPE`
   - `T3_CITY_TYPE`
 - minimum comps: 6
+- no days-on-market reading, or no stage with 6 comps: every recent comp regardless of stage, `bidStageMatched = false`, 25 confidence points off
+- ratio clamp 0.85x to 1.25x
 - likely pre-sold new-build comps excluded by default
 
 Output fields:
@@ -73,6 +80,15 @@ Output fields:
 - `bidCompCount`
 - `bidCompTier` (`T1_NEIGHBORHOOD_TYPE` | `T2_ZIP_TYPE` | `T3_CITY_TYPE` | `NONE`)
 - `bidStatus` (`SCored` | `InsufficientComps`)
+- `bidStage` (`fresh` | `past` | `sitting` | `stale` | blank), `bidStageLabel`, `bidStageMatched`, `bidCompWindowDays`
+
+## Actives ledger (`redfin_active_ledger.csv`, published slim as `public/listing_ledger.csv`)
+
+One row per MLS# ever seen in the Redfin actives feed. Columns derived on every write (2026-11-09):
+- `listDateSource`: `FEED` (fetch date minus the feed's DOM) or `FIRST_SEEN` (estimated as the day before the first snapshot that held the listing, only when the feed was also sampled within the 3 days before). On the 1,749 listings first seen Jul 23 to Sep 19, which have both readings, the first sighting was within 1 day of the list date 94.5% of the time and within 2 days 98.3%.
+- `chainId`, `chainPosition`, `chainListDate`, `chainFirstAsk`, `chainPriorDays`: relist chain. Consecutive MLS#s at one street + ZIP + unit are one marketing period when the next appears within 90 days of the last, asks no more than 10% above and no more than 30% below it, and (if the two overlap by more than a day) asks within 10% of it. `chainId` is the first MLS# in the chain; `chainPriorDays` is the days the earlier listings spent on the market, so cumulative days exclude time off the market. A "Coming Soon" teaser id never joins a chain.
+
+The app groups the ledger by `chainId` (`src/domain/listingLedger.mjs`) for standing inventory, months of supply, price cuts, relists and withdrawals.
 
 # Build and Run
 

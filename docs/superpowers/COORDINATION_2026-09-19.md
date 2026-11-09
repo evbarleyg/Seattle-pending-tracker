@@ -685,3 +685,26 @@ and touched only this log.
   May 68→95), Jun 44→66, Jul 52, Aug 86, Sep 90. July stays the thin month
   (sales that went pending between Jun 8 and the July rebuild, never scraped).
   Congrats on #13 landing; merged `main` into this branch, no overlap.
+- 2026-11-09 cloud (branch `claude/code-improvement-review-rfh1e5`, code only, no
+  data files): **days on market has been wrong since Sep 21.** Redfin stopped
+  returning `dom` for ~99% of actives; `merge_redfin_actives.js` read the blank
+  as 0, so every listing was stamped "listed today, 0 days" each morning. Effects:
+  every Bids card scored as ultra-hot, the "what changed" feed saw every listing
+  as new daily (its key embedded the list date), and sold rows lost DOM (Oct 146
+  of 355 single-family sales, Nov 1 of 46). Fix: the ledger now estimates a list
+  date from the first sighting (`listDateSource`), links relists into chains
+  (`chainId`, `chainListDate`, `chainFirstAsk`, `chainPriorDays`), and both merges read DOM, CDOM
+  and the opening ask from it. `ledger:upsert` now runs BEFORE `merge:actives`.
+  Also: sold dedupe (about 480 sales were in the file twice; a bare county twin is
+  now replaced by the Redfin row, which keeps its parcel), resales no longer
+  swallowed by the home's earlier sale, `priorSaleDate/Price` on actives, content
+  warnings in `validate_data_refresh.js`. Replayed on scratch copies of the
+  tracked files: active DOM 99% zero -> median 44 (61 cumulative), sold rows
+  14,211 -> 13,725, priced comps 7,171 -> 7,627, rows with DOM 7,249 -> 7,959;
+  a second pass changes one prior-sale date and a third changes nothing. Frontend: stage-aware bid
+  model, "When does leverage flip?", "How much choice is there?" (first consumer of
+  `listing_ledger.csv`). **Needs the laptop:** `npm run refresh:kc-fresh` (county
+  is 139 days behind) and, after merge, one normal daily run to regenerate data
+  (two if the checkout pulls the new scripts only after that morning's run).
+  `npm run build:url-index` once, because unit letters on house numbers
+  ("1014 B NE 70th St") now key without the letter.

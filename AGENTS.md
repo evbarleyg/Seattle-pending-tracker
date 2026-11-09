@@ -47,8 +47,10 @@ If I say “Switch to Review mode”:
 - If needed, ask for the single most diagnostic datapoint next.
 
 ## Repo command defaults
-- Test command: `node --check scripts/*.js`
-- Lint command: `Not configured in this repo`
-- Typecheck command: `Not configured in this repo (JavaScript-only scripts, no TypeScript config)`
-- Build command: `node scripts/build_public_proxy_csv.js && node scripts/build_mls_enriched_dataset.js`
-- Run/dev command: `node scripts/serve.js`
+- Everything CI runs: `npm run check` (lint, typecheck, tests, data validation, Vite build)
+- Test command: `npm test` (`node --test tests/*.test.js`)
+- Lint command: `npm run lint` (syntax + UI contract checks in `scripts/run_checks.js`)
+- Typecheck command: `npm run typecheck` (same runner; JavaScript only, no TypeScript config)
+- Build command: `npm run build` (validates data, syncs `public/`, Vite build). It rewrites the timestamp in `data_refresh_report.json`; do not commit that from a feature branch.
+- Run/dev command: `npm run dev` (http://127.0.0.1:4173)
+- Data rebuilds (`build_*`, `fetch_*`, `refresh_*`) need gitignored inputs and network access; they run on the laptop, not in a cloud session. Feature branches do not commit data files.
