@@ -51,6 +51,12 @@ export const BID_COMP_WINDOW_DAYS = 90;
 export const BID_COMP_WINDOW_EXTENDED_DAYS = 180;
 export const BID_HALFLIFE_DAYS = 30;
 export const BID_MIN_COMPS = 6;
+// Within one stage a neighborhood or ZIP rarely has many sales, and six of them
+// can say almost anything (a day-11 listing was once told to bid 10% over). In the
+// backtest local comps never beat citywide same-stage comps (mean error 4.7% at a
+// floor of 6, 4.6% at 10, 4.5% citywide only): stage carries the signal, location
+// adds little. So a local tier has to earn its place with a fuller sample.
+export const BID_MIN_LOCAL_STAGE_COMPS = 10;
 export const BID_RATIO_MIN = 0.85;
 export const BID_RATIO_MAX = 1.25;
 // Confidence points lost when the comps could not be matched to the listing's
@@ -509,13 +515,13 @@ export function bidTierLabel(value) {
   return "Insufficient comps";
 }
 
-export function computeBidCompTiers(targetRow, compPool) {
+export function computeBidCompTiers(targetRow, compPool, minLocalComps = BID_MIN_COMPS) {
   const zip = zip5(targetRow.zip);
   const byType = (compPool || []).filter((row) => row.typeLabel === targetRow.typeLabel);
   const tier1 = byType.filter((row) => row.neighborhoodLabel === targetRow.neighborhoodLabel);
-  if (tier1.length >= BID_MIN_COMPS) return { tier: "T1_NEIGHBORHOOD_TYPE", rows: tier1 };
+  if (tier1.length >= minLocalComps) return { tier: "T1_NEIGHBORHOOD_TYPE", rows: tier1 };
   const tier2 = byType.filter((row) => zip && zip5(row.zip) === zip);
-  if (tier2.length >= BID_MIN_COMPS) return { tier: "T2_ZIP_TYPE", rows: tier2 };
+  if (tier2.length >= minLocalComps) return { tier: "T2_ZIP_TYPE", rows: tier2 };
   if (byType.length >= BID_MIN_COMPS) return { tier: "T3_CITY_TYPE", rows: byType };
   return { tier: "NONE", rows: byType };
 }
@@ -576,7 +582,7 @@ export function selectBidComps(targetRow, compPool, { nowValue = new Date() } = 
   const prepared = prepareCompPool(compPool || [], nowValue);
   const stage = stageForRow(targetRow);
   if (stage) {
-    const staged = computeBidCompTiers(targetRow, prepared.recentByStage.get(stage) || []);
+    const staged = computeBidCompTiers(targetRow, prepared.recentByStage.get(stage) || [], BID_MIN_LOCAL_STAGE_COMPS);
     if (staged.tier !== "NONE") return { ...staged, stage, stageMatched: true, windowDays: BID_COMP_WINDOW_DAYS, ages: prepared.ages };
     const extended = (prepared.allByStage.get(stage) || []).filter((comp) => comp.typeLabel === targetRow.typeLabel);
     if (extended.length >= BID_MIN_COMPS) {

@@ -537,7 +537,7 @@ export const METRICS = {
     cadence: CADENCE.derived,
     caveats: [
       "A model starting point, not an appraisal; pair it with a walkthrough and your agent's read.",
-      "Replayed on about 1,100 past sales, the three strategies met or beat the winning price 54%, 64% and 72% of the time.",
+      "Replayed on about 1,100 past sales, the three strategies met or beat the winning price 52%, 65% and 74% of the time.",
       "First-week outcomes are wide: a quarter sell at ask or less, a quarter about 10% over.",
       "Comp ratios are clamped between 0.85x and 1.25x of ask.",
     ],
@@ -576,7 +576,7 @@ export const METRICS = {
     label: "Comp basis",
     plain: "Which pool of comparable sales backs a suggested bid, and how local it is.",
     formulaWords:
-      "Needs at least 6 closed sales from the last 90 days with a real list price, the same home type and the same listing stage: first tried in the same neighborhood, then the same zip code, then citywide, then citywide over 180 days. If no stage match reaches 6, or the listing has no days-on-market reading, it uses all recent comps regardless of stage. Fewer than 6 anywhere shows as insufficient comps.",
+      "Needs closed sales from the last 90 days with a real list price, the same home type and the same listing stage: 10 in the same neighborhood, else 10 in the same zip code, else 6 citywide, else 6 citywide over 180 days. If no stage match reaches 6, or the listing has no days-on-market reading, it uses all recent comps regardless of stage. Fewer than 6 anywhere shows as insufficient comps.",
     source: { id: "derived", label: "Computed in your browser from recent closed sales" },
     cadence: CADENCE.derived,
     caveats: [

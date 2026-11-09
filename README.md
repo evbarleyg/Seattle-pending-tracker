@@ -163,9 +163,9 @@ Use `npm run scrape:pending2026` as an alias when the workflow is focused on col
 - Comp model defaults:
   - comps come from the listing's own stage (0-7, 8-14, 15-45 or 46+ cumulative days on market), because homes that sell in week one and homes that miss their offer review are different negotiations
   - sold MLS comps in the last 90 days (180 citywide as a last resort), price-banded on asking price
-  - hierarchical tiers: neighborhood+type, zip+type, city+type
+  - hierarchical tiers: neighborhood+type, zip+type (10 same-stage comps each), then city+type (6)
   - likely pre-sold new-build comps excluded by default
-- Backtest (about 1,100 single-family sales listed at $1.1M to $1.6M since Oct 2025, each scored with only the sales closed before it went pending): Conservative / Balanced / Aggressive met or beat the winning price 54% / 64% / 72% of the time against targets of 50 / 60 / 70. On listings past day 14 the previous stage-blind model overbid 9 times in 10, by a median of about $55K.
+- Backtest (about 1,100 single-family sales listed at $1.1M to $1.6M since Oct 2025, each scored with only the sales closed before it went pending): Conservative / Balanced / Aggressive met or beat the winning price 52% / 65% / 74% of the time against targets of 50 / 60 / 70. On listings past day 14 the previous stage-blind model overbid 9 times in 10, by a median of about $55K.
 
 ## Supply And Leverage (Overview)
 

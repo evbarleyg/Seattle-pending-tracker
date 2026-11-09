@@ -64,7 +64,7 @@ Default model behavior:
   - `T1_NEIGHBORHOOD_TYPE`
   - `T2_ZIP_TYPE`
   - `T3_CITY_TYPE`
-- minimum comps: 6
+- minimum comps: 10 for a neighborhood or ZIP tier within a stage, 6 citywide (in the backtest local comps never beat citywide same-stage comps, so a thin local sample does not outrank them)
 - no days-on-market reading, or no stage with 6 comps: every recent comp regardless of stage, `bidStageMatched = false`, 25 confidence points off
 - ratio clamp 0.85x to 1.25x
 - likely pre-sold new-build comps excluded by default

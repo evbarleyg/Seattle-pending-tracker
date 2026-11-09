@@ -114,8 +114,8 @@ function listing(dom, overrides = {}) {
   };
 }
 
-const WEEK_ONE = Array.from({ length: 8 }, (_, i) => comp(i, 5, 1.06));
-const SITTING = Array.from({ length: 8 }, (_, i) => comp(100 + i, 30, 0.96));
+const WEEK_ONE = Array.from({ length: 10 }, (_, i) => comp(i, 5, 1.06));
+const SITTING = Array.from({ length: 10 }, (_, i) => comp(100 + i, 30, 0.96));
 
 test("a listing is priced against sales from its own stage", async () => {
   const { scoreBidForRow } = await importModule("src/domain/selectors.mjs");
@@ -123,11 +123,11 @@ test("a listing is priced against sales from its own stage", async () => {
   const fresh = scoreBidForRow(listing(3), pool, "balanced", false, { nowValue: NOW });
   const sitting = scoreBidForRow(listing(33), pool, "balanced", false, { nowValue: NOW });
   assert.equal(fresh.bidStage, "fresh");
-  assert.equal(fresh.bidCompCount, 8);
+  assert.equal(fresh.bidCompCount, 10);
   assert.equal(fresh.bidRatio.toFixed(2), "1.06");
   assert.equal(sitting.bidStage, "sitting");
   assert.equal(sitting.bidStageLabel, "Sitting");
-  assert.equal(sitting.bidCompCount, 8);
+  assert.equal(sitting.bidCompCount, 10);
   assert.equal(sitting.bidRatio.toFixed(2), "0.96", "five weeks in, the comps say under ask");
   assert.ok(sitting.bidSuggested < sitting.pendingListPrice);
   assert.equal(sitting.bidStageMatched, true);
@@ -140,9 +140,9 @@ test("an unknown days-on-market reading uses every recent comp, says so, and cos
   assert.equal(unknown.bidStatus, "SCored");
   assert.equal(unknown.bidStage, "");
   assert.equal(unknown.bidStageMatched, false);
-  assert.equal(unknown.bidCompCount, 16);
+  assert.equal(unknown.bidCompCount, 20);
   const staged = scoreBidForRow(listing(3), [...WEEK_ONE, ...WEEK_ONE.map((c, i) => ({ ...c, mapPropertyKey: `x-${i}` }))], "balanced", false, { nowValue: NOW });
-  assert.equal(staged.bidCompCount, 16);
+  assert.equal(staged.bidCompCount, 20);
   assert.equal(staged.bidConfidence - unknown.bidConfidence, BID_UNSTAGED_CONFIDENCE_PENALTY);
 });
 
@@ -152,8 +152,11 @@ test("same-stage comps widen from neighborhood to ZIP to city, then to 180 days,
   const target = listing(60);
   const stale = (count, overrides = {}) => Array.from({ length: count }, (_, i) => comp(200 + i, 70, 0.95, overrides));
 
-  assert.equal(selectBidComps(target, [...WEEK_ONE, ...stale(6)], { nowValue: NOW }).tier, "T1_NEIGHBORHOOD_TYPE");
-  assert.equal(selectBidComps(target, [...WEEK_ONE, ...stale(6, { neighborhoodLabel: "Crown Hill" })], { nowValue: NOW }).tier, "T2_ZIP_TYPE");
+  assert.equal(selectBidComps(target, [...WEEK_ONE, ...stale(10)], { nowValue: NOW }).tier, "T1_NEIGHBORHOOD_TYPE");
+  assert.equal(selectBidComps(target, [...WEEK_ONE, ...stale(10, { neighborhoodLabel: "Crown Hill" })], { nowValue: NOW }).tier, "T2_ZIP_TYPE");
+  const thinLocal = selectBidComps(target, [...WEEK_ONE, ...stale(7), ...stale(5).map((c, i) => elsewhere({ ...c, mapPropertyKey: `far-${i}` }))], { nowValue: NOW });
+  assert.equal(thinLocal.tier, "T3_CITY_TYPE", "seven same-stage sales nearby are too few to outrank the citywide dozen");
+  assert.equal(thinLocal.rows.length, 12);
 
   const city = selectBidComps(target, [...WEEK_ONE, ...stale(6).map(elsewhere)], { nowValue: NOW });
   assert.equal(city.tier, "T3_CITY_TYPE");
@@ -167,14 +170,14 @@ test("same-stage comps widen from neighborhood to ZIP to city, then to 180 days,
 
   const none = selectBidComps(target, [...WEEK_ONE, ...stale(3)], { nowValue: NOW });
   assert.equal(none.stageMatched, false, "three stale sales anywhere is not a basis");
-  assert.equal(none.rows.length, 11, "falls back to all recent comps in the neighborhood");
+  assert.equal(none.rows.length, 13, "falls back to all recent comps in the neighborhood");
 });
 
 test("comps older than 90 days never leak into a 90-day basis", async () => {
   const { selectBidComps } = await importModule("src/domain/selectors.mjs");
   const oldWeekOne = Array.from({ length: 5 }, (_, i) => comp(300 + i, 4, 1.2, { saleDate: "2026-06-01" }));
   const picked = selectBidComps(listing(2), [...WEEK_ONE, ...oldWeekOne], { nowValue: NOW });
-  assert.equal(picked.rows.length, 8);
+  assert.equal(picked.rows.length, 10);
   assert.ok(picked.rows.every((row) => row.saleDate === "2026-10-15"));
 });
 
