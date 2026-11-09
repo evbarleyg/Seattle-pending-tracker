@@ -32,6 +32,13 @@
 //                active day, not its last day in the feed.
 //   identifiers (propertyId, listingId, url, address, zip, type, listDate)
 //                are filled when blank and otherwise left alone.
+//   askHistory   every asking price with the first morning it was seen, oldest
+//                first ("2026-07-15:1250000|2026-08-02:1199000"). The app reads it
+//                to say how often listings in a given situation cut their price
+//                or sell. A ledger written before the column existed gets its past
+//                filled in once from the daily snapshots in git (history only; no
+//                other column is touched), or, where git has no depth, from the
+//                first and last asks it already holds.
 //
 // Derived on every write (see deriveListDates / deriveRelistChains):
 //   listDate from firstSeen  Redfin stopped returning days-on-market for ~99% of
@@ -49,7 +56,7 @@
 const fs = require("fs");
 const path = require("path");
 const { readCsvText, writeCsv, num } = require("./csv_util.js");
-const { readSnapshotsFromGit, readSnapshotTimeline } = require("./backfill_list_from_active_snapshots.js");
+const { snapshotsFromGit, readSnapshotTimeline } = require("./backfill_list_from_active_snapshots.js");
 const { streetKeyFromAddress, extractUnitFromAddress } = require("./redfin_address_key.js");
 
 const PROJECT_DIR = path.resolve(__dirname, "..");
@@ -59,6 +66,8 @@ const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_active_ledger_report.json"
 const DEFAULT_ENRICHED_REL = "public_sales_proxy_mls_enriched_last12mo.csv";
 const DEFAULT_REF = "main";
 const DEFAULT_SNAPSHOT_SINCE = "2026-06-01";
+
+const MAX_INCOMPLETE_ASK_HISTORY_SHARE = 0.02;
 
 const LEDGER_COLUMNS = [
   "mlsNumber", "redfinPropertyId", "redfinListingId", "url", "address", "zip", "propertyType",
@@ -81,6 +90,8 @@ const LEDGER_COLUMNS = [
   // on market = this + the listing's own days, so time off the market between
   // listings is not counted (which is how the MLS counts CDOM).
   "chainPriorDays",
+  // Every ask with the first morning it was seen: "date:ask|date:ask", oldest first.
+  "askHistory",
 ];
 
 // The actives fetch used to append the unit to a street line that already
@@ -348,6 +359,90 @@ function observationsFromEnrichedSnapshot(text, date) {
   return out;
 }
 
+// --- ask history -------------------------------------------------------------
+
+// Same grammar as parseAskHistory in src/domain/listingLedger.mjs: anything else is dropped.
+function parseAskHistory(text) {
+  return String(text || "").split("|").flatMap((part) => {
+    const match = /^(\d{4}-\d{2}-\d{2}):(\d+)$/.exec(part.trim());
+    return match && Number(match[2]) > 0 ? [{ date: match[1], ask: Number(match[2]) }] : [];
+  });
+}
+
+// A complete history has one entry per recorded change plus the opening ask, and ends at
+// the latest ask. (Same rule as completeOrNull in src/domain/listingLedger.mjs.)
+function hasFullAskHistory(row) {
+  const points = parseAskHistory(row.askHistory);
+  return points.length > num(row.askChangeCount) && points[points.length - 1].ask === num(row.lastAsk);
+}
+
+// Share of the listings that ever changed price whose history is missing changes.
+function incompleteAskHistoryShare(rows) {
+  const changed = rows.filter((row) => num(row.askChangeCount) > 0);
+  return changed.length ? changed.filter((row) => !hasFullAskHistory(row)).length / changed.length : 0;
+}
+
+function formatAskHistory(points) {
+  return points.map((point) => `${point.date}:${point.ask}`).join("|");
+}
+
+// Merges what a row already records with other sightings of it, in date order, keeping
+// only the first morning of each run of one ask. The record wins any day both cover (it
+// came from the raw fetch), and keeps its own order within a day: two prices seen on one
+// date are two changes.
+function compressAskPoints(recorded, sightings = []) {
+  const covered = new Set(recorded.map((point) => point.date));
+  const points = [...sightings.filter((point) => !covered.has(point.date)), ...recorded];
+  points.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)); // stable
+  return points.filter((point, index) => index === 0 || point.ask !== points[index - 1].ask);
+}
+
+// What a ledger row from before the column existed can still say for certain: its
+// first ask, and its latest ask with the day that took effect. Changes in between
+// (a third of the listings that changed price at all) are not recoverable here.
+function askHistoryFromSummary(row) {
+  const points = [];
+  if (row.firstSeen && num(row.firstAsk) > 0) points.push({ date: row.firstSeen, ask: num(row.firstAsk) });
+  if (row.lastAskChangeDate && num(row.lastAsk) > 0) points.push({ date: row.lastAskChangeDate, ask: num(row.lastAsk) });
+  return formatAskHistory(compressAskPoints(points));
+}
+
+// A stored history should end at the row's latest ask. Where it stops short and the row
+// records when the ask last moved, the missing step is added. Where it does not (rows
+// written while a same-day change went unrecorded), no date is invented: the history
+// stays visibly incomplete until the snapshots in git supply one.
+function reconciledAskHistory(row) {
+  const points = parseAskHistory(row.askHistory || askHistoryFromSummary(row));
+  const lastAsk = num(row.lastAsk);
+  const tail = points[points.length - 1];
+  if (!(lastAsk > 0) || !tail || tail.ask === lastAsk || !(row.lastAskChangeDate > tail.date)) return formatAskHistory(points);
+  return formatAskHistory([...points, { date: row.lastAskChangeDate, ask: lastAsk }]);
+}
+
+// Folds daily sightings (MLS# -> [{date, ask}]) into the rows' ask histories. Only
+// askHistory is written. What the row already records wins on any shared day,
+// because it came from the raw fetch rather than a replayed snapshot.
+function backfillAskHistory(map, sightingsByMls) {
+  let changed = 0;
+  for (const [mls, sightings] of sightingsByMls) {
+    const row = map.get(mls);
+    if (!row) continue;
+    const merged = formatAskHistory(compressAskPoints(parseAskHistory(row.askHistory), sightings));
+    if (merged !== row.askHistory) { row.askHistory = merged; changed += 1; }
+  }
+  return changed;
+}
+
+function addSightings(sightingsByMls, observations) {
+  for (const o of observations) {
+    const list = sightingsByMls.get(o.mlsNumber);
+    const point = { date: o.date, ask: o.ask };
+    if (!list) sightingsByMls.set(o.mlsNumber, [point]);
+    // Only the turning points are kept, so 120 snapshots stay small in memory.
+    else if (list[list.length - 1].ask !== o.ask) list.push(point);
+  }
+}
+
 function ledgerRowsToMap(rows) {
   const map = new Map();
   for (const r of rows) {
@@ -361,6 +456,7 @@ function ledgerRowsToMap(rows) {
       lastAskChangeDate: r.lastAskChangeDate || "",
       firstAskChangeDate: r.firstAskChangeDate || "",
       askChangeCount: String(num(r.askChangeCount) || 0),
+      askHistory: reconciledAskHistory(r),
     });
   }
   return map;
@@ -398,6 +494,7 @@ function upsertObservations(map, observations) {
         lastAskChangeDate: "",
         firstAskChangeDate: "",
         askChangeCount: "0",
+        askHistory: `${o.date}:${ask}`,
       });
       counts.inserted += 1;
       continue;
@@ -405,19 +502,23 @@ function upsertObservations(map, observations) {
     if (!existing.firstSeen || o.date < existing.firstSeen) {
       existing.firstSeen = o.date;
       existing.firstAsk = ask;
+      existing.askHistory = formatAskHistory(compressAskPoints(parseAskHistory(existing.askHistory), [{ date: o.date, ask: o.ask }]));
     }
     // A replayed snapshot knows less than the raw fetch did (no true status, a
     // derived timeline), so it may extend a listing's history but not restate
     // the day the ledger already holds.
     const restates = !!o.fromSnapshot && !!existing.lastSeen && o.date <= existing.lastSeen;
     if (!restates && (!existing.lastSeen || o.date >= existing.lastSeen)) {
-      // A different ask on a later day is a price change (cut or raise);
-      // record when it first and last happened and how often. Same-day
-      // replays never count.
-      if (o.date > existing.lastSeen && String(existing.lastAsk) !== ask) {
+      // A different ask is a price change (cut or raise); record when it first
+      // and last happened and how often. That includes a second run on the same
+      // day that finds a new price: skipping it left lastAsk moved with no change
+      // on record, and the next morning had nothing left to notice. Replaying
+      // the same ask never counts.
+      if (existing.lastSeen && String(existing.lastAsk) !== ask) {
         existing.lastAskChangeDate = o.date;
         if (!existing.firstAskChangeDate) existing.firstAskChangeDate = o.date;
         existing.askChangeCount = String(num(existing.askChangeCount) + 1);
+        existing.askHistory = `${existing.askHistory ? `${existing.askHistory}|` : ""}${o.date}:${ask}`;
       }
       existing.lastSeen = o.date;
       existing.lastAsk = ask;
@@ -496,22 +597,44 @@ function main() {
   if (opts.help) { printHelp(); return; }
   const ledgerPath = path.resolve(opts.ledger);
   const existed = fs.existsSync(ledgerPath);
-  const map = existed ? ledgerRowsToMap(readCsvText(fs.readFileSync(ledgerPath, "utf8")).rows) : new Map();
+  const stored = existed ? readCsvText(fs.readFileSync(ledgerPath, "utf8")) : { headers: [], rows: [] };
+  const map = ledgerRowsToMap(stored.rows);
   const before = map.size;
   const report = { generatedAt: new Date().toISOString(), ledger: path.relative(PROJECT_DIR, ledgerPath), rowsBefore: before, dryRun: opts.dryRun };
 
-  if (opts.seedFromGit) {
-    const snapshots = readSnapshotsFromGit(opts.ref, DEFAULT_ENRICHED_REL, opts.since);
+  // A ledger from before askHistory existed has its past filled in here. So does one whose
+  // first attempt ran where git had no depth (a shallow clone, a missing ref) and could
+  // only write first-and-last stubs: it keeps trying until the histories are whole. A
+  // handful never reconcile (6 of 5,051), hence a share rather than "any".
+  const historyOnly = !opts.seedFromGit && existed
+    && (!stored.headers.includes("askHistory") || incompleteAskHistoryShare([...map.values()]) > MAX_INCOMPLETE_ASK_HISTORY_SHARE);
+  if (opts.seedFromGit || historyOnly) {
+    const sightings = new Map();
+    const dates = [];
     let observations = 0;
     let counts = { inserted: 0, updated: 0 };
-    for (const snap of snapshots) {
-      const obs = observationsFromEnrichedSnapshot(snap.text, snap.date);
-      observations += obs.length;
-      const c = upsertObservations(map, obs);
-      counts = { inserted: counts.inserted + c.inserted, updated: counts.updated + c.updated };
+    try {
+      for (const snap of snapshotsFromGit(opts.ref, DEFAULT_ENRICHED_REL, opts.since)) {
+        const obs = observationsFromEnrichedSnapshot(snap.text, snap.date);
+        observations += obs.length;
+        dates.push(snap.date);
+        addSightings(sightings, obs);
+        if (historyOnly) continue;
+        const c = upsertObservations(map, obs);
+        counts = { inserted: counts.inserted + c.inserted, updated: counts.updated + c.updated };
+      }
+    } catch (error) {
+      // The daily job must not fail because history could not be read (no git, a
+      // missing ref). An explicit --seed-from-git asked for it, so that still throws.
+      if (!historyOnly) throw error;
+      console.log(`Ask history: stopped after ${dates.length} snapshots (${String(error.message || error).split("\n")[0]}). What was read is kept; the rest is tried again next run.`);
     }
-    report.seed = { ref: opts.ref, snapshots: snapshots.length, range: snapshots.length ? { min: snapshots[0].date, max: snapshots[snapshots.length - 1].date } : null, observations, ...counts };
-    console.log(`Seeded from git: ${snapshots.length} snapshots, ${observations} observations, ${counts.inserted} new MLS#, ${counts.updated} updates.`);
+    const askHistoriesFilled = backfillAskHistory(map, sightings);
+    report.askHistoryIncompleteShare = Number(incompleteAskHistoryShare([...map.values()]).toFixed(4));
+    report.seed = { ref: opts.ref, historyOnly, snapshots: dates.length, range: dates.length ? { min: dates[0], max: dates[dates.length - 1] } : null, observations, ...counts, askHistoriesFilled };
+    console.log(historyOnly
+      ? `Ask history filled from git: ${dates.length} snapshots, ${askHistoriesFilled} listings gained price changes.`
+      : `Seeded from git: ${dates.length} snapshots, ${observations} observations, ${counts.inserted} new MLS#, ${counts.updated} updates, ${askHistoriesFilled} ask histories filled.`);
   }
 
   const activesPath = path.resolve(opts.actives);
@@ -541,6 +664,7 @@ module.exports = {
   observationsFromActives, observationsFromEnrichedSnapshot,
   ledgerRowsToMap, upsertObservations, ledgerMapToRows,
   deriveListDates, deriveRelistChains, chainAddressKey, shiftDate,
+  parseAskHistory, formatAskHistory, hasFullAskHistory, incompleteAskHistoryShare, compressAskPoints, askHistoryFromSummary, backfillAskHistory, addSightings,
   LIST_DATE_FEED, LIST_DATE_FIRST_SEEN, MAX_SNAPSHOT_GAP_DAYS, RELIST_MAX_GAP_DAYS,
 };
 

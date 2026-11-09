@@ -43,6 +43,7 @@ const LISTING_LEDGER_COLUMNS = [
   "trackedFromListing", // "true" = first seen within 3 days of listing, so the first change is the first cut
   "listDateSource", // FEED = from the feed's DOM, FIRST_SEEN = estimated from the first snapshot
   "chainId", "chainPosition", "chainListDate", "chainFirstAsk", "chainPriorDays", // relist chain (same address, new MLS#)
+  "askHistory", // every ask with the first morning it was seen: "date:ask|date:ask"
 ];
 
 function parseCsvLine(line) {

@@ -364,11 +364,19 @@ function listSnapshotCommits(ref, relFile, sinceDate) {
     .reverse(); // oldest -> newest so later snapshots overwrite earlier ones
 }
 
+// One snapshot at a time, oldest first: holding every day's 6 MB file at once is most
+// of a gigabyte.
+function* snapshotsFromGit(ref, relFile, sinceDate) {
+  for (const c of listSnapshotCommits(ref, relFile, sinceDate)) {
+    yield {
+      date: c.date,
+      text: execFileSync("git", ["show", `${c.sha}:${relFile}`], { cwd: PROJECT_DIR, encoding: "utf8", maxBuffer: 1 << 28 }),
+    };
+  }
+}
+
 function readSnapshotsFromGit(ref, relFile, sinceDate) {
-  return listSnapshotCommits(ref, relFile, sinceDate).map((c) => ({
-    date: c.date,
-    text: execFileSync("git", ["show", `${c.sha}:${relFile}`], { cwd: PROJECT_DIR, encoding: "utf8", maxBuffer: 1 << 28 }),
-  }));
+  return [...snapshotsFromGit(ref, relFile, sinceDate)];
 }
 
 function parseArgs(argv) {
@@ -456,7 +464,7 @@ function main() {
 
 module.exports = {
   collectActiveSnapshots, loadLedgerMap, applySnapshotToRow, applyChainToFilledRow, backfillFromSnapshots, rejectReason, daysBetween, validateOverlap,
-  listSnapshotCommits, readSnapshotsFromGit, readSnapshotTimeline,
+  listSnapshotCommits, snapshotsFromGit, readSnapshotsFromGit, readSnapshotTimeline,
   LIST_PRICE_SOURCE, LIST_PRICE_SOURCE_COLUMN, MAX_RATIO_DEVIATION,
 };
 

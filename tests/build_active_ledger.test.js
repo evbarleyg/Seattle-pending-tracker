@@ -425,3 +425,138 @@ test("a replayed snapshot extends a listing's history but does not restate the d
   assert.strictEqual(map.get("2400001").lastStatus, "Active Under Contract", "the status the merge now writes is read back");
   assert.strictEqual(map.get("2400001").lastSeenActive, "", "never seen genuinely for sale");
 });
+
+// --- ask history --------------------------------------------------------------
+
+const {
+  parseAskHistory, formatAskHistory, compressAskPoints, askHistoryFromSummary, backfillAskHistory, addSightings,
+} = require("../scripts/build_active_ledger.js");
+
+test("askHistory records each ask with the first morning it was seen", () => {
+  const map = new Map();
+  upsertObservations(map, [
+    obs({ date: "2026-07-17", ask: 1150000 }),
+    obs({ date: "2026-07-18", ask: 1150000 }),
+    obs({ date: "2026-07-30", ask: 1100000 }),
+    obs({ date: "2026-07-31", ask: 1100000 }),
+    obs({ date: "2026-08-20", ask: 1075000 }),
+  ]);
+  const e = map.get("2400001");
+  assert.strictEqual(e.askHistory, "2026-07-17:1150000|2026-07-30:1100000|2026-08-20:1075000");
+  assert.strictEqual(e.askChangeCount, "2", "one entry per change, plus the opening ask");
+  assert.ok(LEDGER_COLUMNS.includes("askHistory"));
+});
+
+test("replaying the same day, or an old snapshot, adds nothing to askHistory", () => {
+  const map = new Map();
+  upsertObservations(map, [obs({ date: "2026-07-17", ask: 1150000 }), obs({ date: "2026-07-30", ask: 1100000 })]);
+  const before = map.get("2400001").askHistory;
+  upsertObservations(map, [obs({ date: "2026-07-30", ask: 1100000 })]);
+  upsertObservations(map, [obs({ date: "2026-07-20", ask: 1125000, fromSnapshot: true })]);
+  assert.strictEqual(map.get("2400001").askHistory, before);
+});
+
+test("an earlier first sighting goes on the front of askHistory", () => {
+  const map = new Map();
+  upsertObservations(map, [obs({ date: "2026-07-17", ask: 1150000 })]);
+  upsertObservations(map, [obs({ date: "2026-07-10", ask: 1200000, fromSnapshot: true })]);
+  assert.strictEqual(map.get("2400001").askHistory, "2026-07-10:1200000|2026-07-17:1150000");
+  upsertObservations(map, [obs({ date: "2026-07-05", ask: 1200000, fromSnapshot: true })]);
+  assert.strictEqual(map.get("2400001").askHistory, "2026-07-05:1200000|2026-07-17:1150000", "same ask seen earlier moves the date, not the count");
+});
+
+test("askHistory round-trips and ignores junk", () => {
+  const points = [{ date: "2026-07-17", ask: 1150000 }, { date: "2026-07-30", ask: 1100000 }];
+  assert.deepStrictEqual(parseAskHistory(formatAskHistory(points)), points);
+  assert.deepStrictEqual(parseAskHistory(""), []);
+  assert.deepStrictEqual(parseAskHistory("nonsense|2026-07-17:|:5|2026-07-30:1100000"), [points[1]]);
+});
+
+test("compressAskPoints sorts, keeps turning points, and lets the record win a shared day", () => {
+  assert.deepStrictEqual(compressAskPoints(
+    [{ date: "2026-07-20", ask: 100 }, { date: "2026-07-25", ask: 95 }],
+    [{ date: "2026-07-10", ask: 100 }, { date: "2026-07-25", ask: 90 }, { date: "2026-07-30", ask: 100 }],
+  ), [{ date: "2026-07-10", ask: 100 }, { date: "2026-07-25", ask: 95 }, { date: "2026-07-30", ask: 100 }]);
+});
+
+test("two prices recorded on one day survive a later backfill", () => {
+  const map = new Map();
+  upsertObservations(map, [obs({ date: "2026-11-01", ask: 1000000 }), obs({ date: "2026-11-05", ask: 950000 })]);
+  upsertObservations(map, [obs({ date: "2026-11-05", ask: 900000 })]);
+  const e = map.get("2400001");
+  assert.strictEqual(e.askHistory, "2026-11-01:1000000|2026-11-05:950000|2026-11-05:900000");
+  assert.strictEqual(e.askChangeCount, "2");
+  const sightings = new Map();
+  addSightings(sightings, [{ mlsNumber: "2400001", date: "2026-11-01", ask: 1000000 }, { mlsNumber: "2400001", date: "2026-11-05", ask: 900000 }]);
+  assert.strictEqual(backfillAskHistory(map, sightings), 0, "the snapshot only saw the day's last price");
+  assert.strictEqual(e.askHistory, "2026-11-01:1000000|2026-11-05:950000|2026-11-05:900000");
+  assert.strictEqual(require("../scripts/build_active_ledger.js").hasFullAskHistory(e), true);
+});
+
+test("a ledger from before the column starts from the first and last asks it knows", () => {
+  assert.strictEqual(askHistoryFromSummary({ firstSeen: "2026-07-01", firstAsk: "1200000", lastAsk: "1200000", lastAskChangeDate: "" }), "2026-07-01:1200000");
+  assert.strictEqual(askHistoryFromSummary({ firstSeen: "2026-07-01", firstAsk: "1200000", lastAsk: "1100000", lastAskChangeDate: "2026-08-15", askChangeCount: "3" }), "2026-07-01:1200000|2026-08-15:1100000");
+  const map = ledgerRowsToMap([{ mlsNumber: "1", firstSeen: "2026-07-01", lastSeen: "2026-09-01", firstAsk: "1200000", lastAsk: "1100000", lastAskChangeDate: "2026-08-15", askChangeCount: "1" }]);
+  assert.strictEqual(map.get("1").askHistory, "2026-07-01:1200000|2026-08-15:1100000");
+  const kept = ledgerRowsToMap([{ mlsNumber: "1", firstSeen: "2026-07-01", firstAsk: "1200000", askHistory: "2026-07-01:1200000|2026-07-20:1150000" }]);
+  assert.strictEqual(kept.get("1").askHistory, "2026-07-01:1200000|2026-07-20:1150000", "a recorded history is never rebuilt from the summary");
+});
+
+test("backfillAskHistory restores the changes in between and touches nothing else", () => {
+  const row = { mlsNumber: "1", firstSeen: "2026-07-01", lastSeen: "2026-09-01", firstAsk: "1200000", lastAsk: "1100000", lastAskChangeDate: "2026-08-15", firstAskChangeDate: "2026-07-20", askChangeCount: "3" };
+  const map = ledgerRowsToMap([row]);
+  const sightings = new Map();
+  for (const [date, ask] of [["2026-07-01", 1200000], ["2026-07-02", 1200000], ["2026-07-20", 1175000], ["2026-08-01", 1150000], ["2026-08-15", 1100000], ["2026-09-01", 1100000]]) {
+    addSightings(sightings, [{ mlsNumber: "1", date, ask }, { mlsNumber: "not-in-ledger", date, ask }]);
+  }
+  assert.strictEqual(sightings.get("1").length, 4, "only turning points are held");
+  const before = { ...map.get("1") };
+  assert.strictEqual(backfillAskHistory(map, sightings), 1);
+  const after = map.get("1");
+  assert.strictEqual(after.askHistory, "2026-07-01:1200000|2026-07-20:1175000|2026-08-01:1150000|2026-08-15:1100000");
+  assert.deepStrictEqual({ ...after, askHistory: "" }, { ...before, askHistory: "" });
+  assert.strictEqual(map.has("not-in-ledger"), false);
+  assert.strictEqual(backfillAskHistory(map, sightings), 0, "idempotent");
+});
+
+test("a second run on the same day that finds a new price records the change", () => {
+  const map = new Map();
+  upsertObservations(map, [obs({ date: "2026-11-07", ask: 1295500 }), obs({ date: "2026-11-08", ask: 1295500 })]);
+  upsertObservations(map, [obs({ date: "2026-11-08", ask: 998500 })]);
+  upsertObservations(map, [obs({ date: "2026-11-09", ask: 998500 })]);
+  const e = map.get("2400001");
+  assert.strictEqual(e.lastAsk, "998500");
+  assert.strictEqual(e.askHistory, "2026-11-07:1295500|2026-11-08:998500");
+  assert.strictEqual(e.askChangeCount, "1");
+  assert.strictEqual(e.lastAskChangeDate, "2026-11-08");
+});
+
+test("a history that stops short of the latest ask is completed from a recorded date, never a guessed one", () => {
+  const { hasFullAskHistory } = require("../scripts/build_active_ledger.js");
+  const stuck = { mlsNumber: "1", firstSeen: "2026-09-01", lastSeen: "2026-11-08", firstAsk: "1295500", lastAsk: "998500", lastAskChangeDate: "", askChangeCount: "0" };
+  const loaded = ledgerRowsToMap([stuck]).get("1");
+  assert.strictEqual(loaded.askHistory, "2026-09-01:1295500", "dating the change to the last sighting would read as a cut made today");
+  assert.strictEqual(hasFullAskHistory(loaded), false, "so it stays visibly incomplete");
+  const sightings = new Map([["1", [{ date: "2026-09-01", ask: 1295500 }, { date: "2026-09-15", ask: 998500 }]]]);
+  const map = ledgerRowsToMap([stuck]);
+  backfillAskHistory(map, sightings);
+  assert.strictEqual(map.get("1").askHistory, "2026-09-01:1295500|2026-09-15:998500", "the snapshots know the day");
+  assert.strictEqual(hasFullAskHistory(map.get("1")), true);
+  const dated = { ...stuck, lastAskChangeDate: "2026-11-12", lastSeen: "2026-11-20", askHistory: "2026-09-01:1295500" };
+  assert.strictEqual(ledgerRowsToMap([dated]).get("1").askHistory, "2026-09-01:1295500|2026-11-12:998500");
+  const fine = { ...stuck, askHistory: "2026-09-01:1295500|2026-11-08:998500" };
+  assert.strictEqual(ledgerRowsToMap([fine]).get("1").askHistory, fine.askHistory);
+});
+
+test("a ledger of first-and-last stubs is recognised as incomplete, so the backfill is retried", () => {
+  const { hasFullAskHistory, incompleteAskHistoryShare } = require("../scripts/build_active_ledger.js");
+  const whole = { askChangeCount: "2", lastAsk: "1100000", askHistory: "2026-07-01:1200000|2026-07-20:1150000|2026-08-10:1100000" };
+  const stub = { askChangeCount: "2", lastAsk: "1100000", askHistory: "2026-07-01:1200000|2026-08-10:1100000" };
+  const unchanged = { askChangeCount: "0", lastAsk: "1200000", askHistory: "2026-07-01:1200000" };
+  assert.strictEqual(hasFullAskHistory(whole), true);
+  assert.strictEqual(hasFullAskHistory(stub), false);
+  assert.strictEqual(hasFullAskHistory(unchanged), true);
+  assert.strictEqual(incompleteAskHistoryShare([whole, stub, unchanged, unchanged]), 0.5, "of the listings that changed price");
+  assert.strictEqual(incompleteAskHistoryShare([unchanged]), 0);
+  assert.deepStrictEqual(parseAskHistory("2026-07-01:1250000x|2026-07-02:12.5|2026-07-03:1200000"), [{ date: "2026-07-03", ask: 1200000 }]);
+});
