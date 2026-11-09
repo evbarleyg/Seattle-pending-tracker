@@ -595,8 +595,42 @@ function markDirty(view = null) {
   state.renderQueued = true;
   requestAnimationFrame(() => {
     state.renderQueued = false;
-    renderDashboard();
+    keepingFocus(renderDashboard);
   });
+}
+
+// Every render rebuilds the filter form and the active view from strings, which
+// replaces the element the buyer is in. A change event fires as focus moves on, so
+// tabbing from one field to the next dropped focus to <body> and the next
+// keystrokes went nowhere. Put focus (plus anything typed but not yet committed,
+// and the caret) back on the element that took the old one's id.
+function keepingFocus(render) {
+  const before = document.activeElement;
+  const id = before && before !== document.body && app.contains(before) ? before.id : "";
+  if (!id) return render();
+  // Sliders commit on every input event, so the fresh render already holds their
+  // (possibly clamped) value; only typed fields can carry uncommitted text.
+  const isText = before.matches(
+    "input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']), textarea",
+  );
+  const typed = isText ? before.value : null;
+  let caret = null;
+  try {
+    if (isText && before.selectionStart !== null) caret = [before.selectionStart, before.selectionEnd];
+  } catch {
+    // number and date inputs have no caret API.
+  }
+  render();
+  const after = document.getElementById(id);
+  if (!after || after === before || after.disabled) return undefined;
+  if (typed !== null && after.value !== typed) after.value = typed;
+  after.focus({ preventScroll: true });
+  try {
+    if (caret) after.setSelectionRange(caret[0], caret[1]);
+  } catch {
+    // Same inputs as above.
+  }
+  return undefined;
 }
 
 function renderDashboard() {
