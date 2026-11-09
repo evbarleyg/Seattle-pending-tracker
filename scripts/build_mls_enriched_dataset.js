@@ -83,7 +83,7 @@ const ZIP_NEIGHBORHOOD = {
   "98104": "Pioneer Square / International District",
   "98105": "University District / Laurelhurst",
   "98106": "Delridge / South Park",
-  "98107": "Ballard / Crown Hill",
+  "98107": "Ballard", // matches src/domain/data.mjs and build_public_proxy_csv.js
   "98108": "Georgetown / South Park",
   "98109": "South Lake Union / Queen Anne",
   "98112": "Capitol Hill / Madison Park",

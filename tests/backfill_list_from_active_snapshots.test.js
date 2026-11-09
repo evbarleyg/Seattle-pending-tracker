@@ -215,3 +215,71 @@ test("backfillFromSnapshots only touches REDFIN_SOLD rows, reports per month, an
     ratio: 2.167,
   });
 });
+
+test("loadLedgerMap derives DOM from the ledger's dates when the feed reported none", () => {
+  const text = [
+    "mlsNumber,zip,firstSeen,lastSeen,lastSeenActive,firstAsk,lastAsk,lastActiveAsk,listDate,lastDom,lastCdom,lastStatus,listDateSource,chainId,chainPosition,chainListDate,chainFirstAsk",
+    "2600001,98117,2026-10-02,2026-10-09,2026-10-07,1250000,1250000,1250000,2026-10-01,,,Active Under Contract,FIRST_SEEN,2600001,1,2026-10-01,1250000",
+    "2600002,98117,2026-10-02,2026-10-09,2026-10-07,1250000,1250000,1250000,,,,Active,,2600002,1,,1250000",
+  ].join("\n");
+  const map = loadLedgerMap(text);
+  assert.strictEqual(map.get("2600001").dom, "6", "Oct 1 list date to Oct 7, the last day seen for sale");
+  assert.strictEqual(map.get("2600001").cdom, "6");
+  assert.strictEqual(map.get("2600002").dom, "", "no list date and no feed DOM stays unknown, never zero");
+  assert.strictEqual(map.get("2600002").cdom, "");
+});
+
+test("loadLedgerMap carries a relisted home's cumulative days and opening ask from its chain", () => {
+  const text = [
+    "mlsNumber,zip,firstSeen,lastSeen,lastSeenActive,firstAsk,lastAsk,lastActiveAsk,listDate,lastDom,lastCdom,lastStatus,listDateSource,chainId,chainPosition,chainListDate,chainFirstAsk,chainPriorDays",
+    "2600010,98146,2026-09-18,2026-09-24,2026-09-24,1083000,1083000,1083000,2026-09-17,7,7,Active,FEED,2600008,3,2026-08-11,1200000,30",
+  ].join("\n");
+  const rec = loadLedgerMap(text).get("2600010");
+  assert.strictEqual(rec.dom, "7", "this MLS#'s own clock");
+  assert.strictEqual(rec.cdom, "37", "7 days on this listing plus 30 on the two before it; days off the market do not count");
+  assert.strictEqual(rec.originalList, 1200000);
+  const row = { mlsJoinMethod: "REDFIN_SOLD", mlsListingNumber: "2600010", closePrice: "1070000", saleDate: "2026-10-20", listPriceAtPending: "" };
+  assert.strictEqual(applySnapshotToRow(row, rec), true);
+  assert.strictEqual(row.mlsDOM, "7");
+  assert.strictEqual(row.mlsCDOM, "37");
+  assert.strictEqual(row.mlsOriginalPrice, "1200000");
+  assert.strictEqual(Number(row.saleToOriginalListRatio).toFixed(3), "0.892");
+});
+
+test("a row filled earlier by the enrichment ledger still gets its relist chain's cumulative days and opening ask", () => {
+  const rec = { date: "2026-08-20", list: 1140000, originalList: 1200000, listDate: "2026-08-10", dom: "10", cdom: "52", priorDays: 42, zip: "98146" };
+  const filled = () => ({
+    mlsJoinMethod: "REDFIN_SOLD", mlsListingNumber: "9", closePrice: "1120000", saleDate: "2026-09-15", listPriceAtPending: "1140000",
+    mlsListingPrice: "1140000", mlsOriginalPrice: "1140000", mlsDOM: "10", mlsCDOM: "10", saleToListRatio: "0.982", listPriceSource: "ACTIVE_SNAPSHOT",
+  });
+  const rows = [filled()];
+  const report = backfillFromSnapshots(rows, new Map([["9", rec]]));
+  assert.strictEqual(report.applied, 0);
+  assert.strictEqual(report.chainUpgraded, 1);
+  assert.strictEqual(rows[0].mlsCDOM, "52");
+  assert.strictEqual(rows[0].mlsDOM, "10");
+  assert.strictEqual(rows[0].mlsOriginalPrice, "1200000");
+  assert.strictEqual(Number(rows[0].saleToOriginalListRatio).toFixed(3), "0.933");
+  assert.strictEqual(rows[0].mlsListingPrice, "1140000", "list-at-pending and its ratio are left alone");
+  assert.strictEqual(rows[0].saleToListRatio, "0.982");
+  const relistedAfterSale = [filled()];
+  const later = backfillFromSnapshots(relistedAfterSale, new Map([["9", { ...rec, date: "2026-10-01" }]]));
+  assert.strictEqual(later.chainUpgraded, 0, "seen for sale after this closing: a different marketing period");
+  assert.strictEqual(relistedAfterSale[0].mlsCDOM, "10");
+  const neverRelisted = [{ ...filled(), mlsOriginalPrice: "1200000" }];
+  backfillFromSnapshots(neverRelisted, new Map([["9", { ...rec, cdom: "30", priorDays: 0 }]]));
+  assert.strictEqual(neverRelisted[0].mlsCDOM, "10", "a larger ledger figure without a chain is the under-contract tail, not market time");
+});
+
+test("snapshots from the weeks DOM was misread as zero are not trusted for a timeline", () => {
+  const header = "id,zip,mlsListingNumber,mlsListingPrice,listPriceAtPending,mlsOriginalPrice,mlsListDate,listDate,mlsDOM,mlsCDOM,mlsJoinMethod";
+  const snapshots = [
+    { date: "2026-10-10", text: [header, "a,98117,1,1200000,,1200000,2026-10-10,2026-10-10,0,0,REDFIN_ACTIVE", "b,98117,2,900000,,900000,2026-09-30,2026-09-30,10,10,REDFIN_ACTIVE"].join("\n") },
+  ];
+  const map = collectActiveSnapshots(snapshots);
+  assert.strictEqual(map.get("1").dom, "", "0 days, listed the day of the snapshot: indistinguishable from the bug");
+  assert.strictEqual(map.get("1").listDate, "");
+  assert.strictEqual(map.get("1").list, 1200000, "the ask is still good");
+  assert.strictEqual(map.get("2").dom, "10");
+  assert.strictEqual(map.get("2").listDate, "2026-09-30");
+});

@@ -106,6 +106,18 @@ function daysBetween(a, b) {
   return Math.round((tb - ta) / 86400000);
 }
 
+// Snapshots committed from 2026-09-21 to the fix in November hold "0 days, listed
+// today" on nearly every active row (a blank feed DOM misread as zero). Such a row
+// cannot be told from a genuine day-zero listing, so it is read as "no timeline";
+// a truly new listing gets the same date back from its first sighting. Shared with
+// build_active_ledger.js --seed-from-git, which replays the same snapshots.
+function readSnapshotTimeline({ dom, cdom, listDate }, snapshotDate) {
+  const d = String(dom ?? "").trim();
+  const listed = String(listDate || "").trim();
+  if (num(d) === 0 && (!listed || listed >= snapshotDate)) return { listDate: "", dom: "", cdom: "" };
+  return { listDate: listed, dom: d, cdom: String(cdom ?? "").trim() };
+}
+
 // Build MLS# -> last-seen active record from a chronologically ordered list of
 // snapshots. Each snapshot is { date, text } where text is the enriched CSV at
 // that commit. Later snapshots overwrite earlier ones, so the map ends holding
@@ -131,9 +143,7 @@ function collectActiveSnapshots(snapshots) {
         date: snap.date,
         list,
         originalList: num(cols[ix.mlsOriginalPrice]) || list,
-        listDate: String(cols[ix.mlsListDate] || cols[ix.listDate] || "").trim(),
-        dom: String(cols[ix.mlsDOM] ?? "").trim(),
-        cdom: String(cols[ix.mlsCDOM] ?? "").trim(),
+        ...readSnapshotTimeline({ dom: cols[ix.mlsDOM], cdom: cols[ix.mlsCDOM], listDate: cols[ix.mlsListDate] || cols[ix.listDate] }, snap.date),
         zip: String(cols[ix.zip] || "").trim(),
       });
     }
@@ -153,13 +163,31 @@ function loadLedgerMap(text) {
     const date = String(r.lastSeenActive || r.lastSeen || "").trim();
     const list = num(r.lastActiveAsk) || num(r.lastAsk);
     if (!date || !(list > 0)) continue;
+    const listDate = String(r.listDate || "").trim();
+    // The feed stopped reporting DOM on 2026-09-21, so fall back to the span
+    // from the ledger's list date to the last day the home was seen for sale.
+    const spanFrom = (start) => {
+      const days = start ? daysBetween(start, date) : null;
+      return days !== null && days >= 0 ? days : null;
+    };
+    const feedDom = String(r.lastDom ?? "").trim();
+    const datedDom = spanFrom(listDate);
+    const dom = feedDom !== "" ? feedDom : (datedDom === null ? "" : String(datedDom));
+    // Cumulative DOM and the original ask follow the relist chain: a home
+    // cancelled and relisted under a new MLS# carries the days its earlier
+    // listings spent on the market, and the chain's opening ask.
+    const feedCdom = String(r.lastCdom ?? "").trim();
+    const baseCdom = feedCdom !== "" ? feedCdom : dom;
+    const priorDays = num(r.chainPriorDays);
+    const cdom = priorDays > 0 && dom !== "" && num(dom) + priorDays > num(baseCdom) ? String(num(dom) + priorDays) : baseCdom;
     map.set(mls, {
       date,
       list,
-      originalList: num(r.firstAsk) || list,
-      listDate: String(r.listDate || "").trim(),
-      dom: String(r.lastDom ?? "").trim(),
-      cdom: String(r.lastCdom ?? "").trim(),
+      originalList: num(r.chainFirstAsk) || num(r.firstAsk) || list,
+      listDate,
+      dom,
+      cdom,
+      priorDays,
       zip: String(r.zip || "").trim(),
     });
   }
@@ -211,12 +239,36 @@ function applySnapshotToRow(row, rec) {
   return true;
 }
 
+// A row the sold-enrichment ledger filled first (it runs earlier and predates
+// relist chains) still carries one MLS#'s clock and opening ask. Where the
+// chain shows the home was on the market longer, or opened higher, lift the
+// cumulative DOM and original price; the list-at-pending itself is not touched.
+function applyChainToFilledRow(row, rec) {
+  if (row.mlsJoinMethod !== REDFIN_SOLD || !rec || !(num(row.listPriceAtPending) > 0)) return false;
+  const gap = daysBetween(rec.date, row.saleDate);
+  if (gap === null || gap < 0 || gap > MAX_PENDING_TO_SALE_DAYS) return false;
+  let changed = false;
+  // Only a real chain lifts the clock. Without one the ledger's figure can simply
+  // be later (its DOM is read on the last day in the feed, contract tail included).
+  if (rec.priorDays > 0 && rec.cdom !== "" && num(rec.cdom) > num(row.mlsCDOM)) {
+    row.mlsCDOM = rec.cdom;
+    changed = true;
+  }
+  if (rec.originalList > num(row.mlsOriginalPrice)) {
+    row.mlsOriginalPrice = String(rec.originalList);
+    const close = num(row.closePrice);
+    if (close > 0) row.saleToOriginalListRatio = String(close / rec.originalList);
+    changed = true;
+  }
+  return changed;
+}
+
 // Reasons worth surfacing row-by-row: each one means a snapshot DID match the
 // MLS# but the pairing looked wrong, which is the signature of a bad join.
 const REPORTED_REJECTS = new Set(["implausible_ratio", "active_after_sale", "stale_snapshot"]);
 
 function backfillFromSnapshots(rows, lastSeen) {
-  const report = { candidates: 0, applied: 0, skipped: {}, byMonth: {}, rejected: [] };
+  const report = { candidates: 0, applied: 0, chainUpgraded: 0, skipped: {}, byMonth: {}, rejected: [] };
   for (const row of rows) {
     if (row.mlsJoinMethod !== REDFIN_SOLD) continue;
     report.candidates += 1;
@@ -227,6 +279,7 @@ function backfillFromSnapshots(rows, lastSeen) {
     const reason = rejectReason(row, rec);
     if (reason) {
       report.skipped[reason] = (report.skipped[reason] || 0) + 1;
+      if (reason === "already_has_list" && applyChainToFilledRow(row, rec)) report.chainUpgraded += 1;
       if (REPORTED_REJECTS.has(reason) && report.rejected.length < MAX_REJECT_SAMPLES) {
         const close = num(row.closePrice);
         report.rejected.push({
@@ -393,7 +446,7 @@ function main() {
     ...report,
   };
   fs.writeFileSync(path.resolve(opts.report), `${JSON.stringify(summary, null, 2)}\n`);
-  console.log(`REDFIN_SOLD candidates: ${report.candidates}; applied list@pending to ${report.applied}; skipped: ${JSON.stringify(report.skipped)}`);
+  console.log(`REDFIN_SOLD candidates: ${report.candidates}; applied list@pending to ${report.applied}; relist chain lifted CDOM/original ask on ${report.chainUpgraded} already-filled rows; skipped: ${JSON.stringify(report.skipped)}`);
   if (report.rejected.length) console.log(`Rejected joins written to the report: ${report.rejected.length} (first: ${report.rejected[0].reason} ${report.rejected[0].address} close ${report.rejected[0].closePrice} vs ask ${report.rejected[0].lastAsk})`);
   console.log(`By sale month: ${Object.entries(report.byMonth).sort().map(([m, v]) => `${m}=${v.applied}/${v.candidates}`).join("  ")}`);
   if (opts.dryRun) { console.log("Dry run: CSV not written."); return; }
@@ -402,8 +455,8 @@ function main() {
 }
 
 module.exports = {
-  collectActiveSnapshots, loadLedgerMap, applySnapshotToRow, backfillFromSnapshots, rejectReason, daysBetween, validateOverlap,
-  listSnapshotCommits, readSnapshotsFromGit,
+  collectActiveSnapshots, loadLedgerMap, applySnapshotToRow, applyChainToFilledRow, backfillFromSnapshots, rejectReason, daysBetween, validateOverlap,
+  listSnapshotCommits, readSnapshotsFromGit, readSnapshotTimeline,
   LIST_PRICE_SOURCE, LIST_PRICE_SOURCE_COLUMN, MAX_RATIO_DEVIATION,
 };
 

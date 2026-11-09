@@ -118,6 +118,10 @@ node scripts/refresh_data_pipeline.js
 echo ""
 echo "===== 3/5  Re-merging Redfin actives ====="
 if [[ -f "redfin_active_listings.csv" ]]; then
+  # Ledger first: the merge takes list dates, days on market and opening asks from
+  # it, and its derived columns (list-date estimates, relist chains) are only
+  # written when it runs.
+  node scripts/build_active_ledger.js
   node scripts/merge_redfin_actives.js
 else
   echo "redfin_active_listings.csv missing — run 'npm run fetch:actives' first."

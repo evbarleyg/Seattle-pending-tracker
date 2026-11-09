@@ -8,6 +8,12 @@ const PROJECT_DIR = path.resolve(__dirname, "..");
 const DEFAULT_ENRICHED = path.join(PROJECT_DIR, "public_sales_proxy_mls_enriched_last12mo.csv");
 const DEFAULT_REDFIN = path.join(PROJECT_DIR, "redfin_active_listings.csv");
 const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_merge_report.json");
+// The actives ledger (build_active_ledger.js) remembers each MLS#'s list date,
+// opening ask and relist chain, which the feed alone no longer provides.
+const DEFAULT_LEDGER = path.join(PROJECT_DIR, "redfin_active_ledger.csv");
+// One definition each of "which Seattle day is this fetch" and "which home is
+// this address", shared with the ledger so the two can never disagree.
+const { toPacificDate, shiftDate, chainAddressKey } = require("./build_active_ledger.js");
 
 const ZIP_NEIGHBORHOOD = {
   "98101": "Downtown",
@@ -16,7 +22,7 @@ const ZIP_NEIGHBORHOOD = {
   "98104": "Pioneer Square / International District",
   "98105": "University District / Laurelhurst",
   "98106": "Delridge / South Park",
-  "98107": "Ballard / Crown Hill",
+  "98107": "Ballard", // matches src/domain/data.mjs and the county rows; 98117 is Ballard / Crown Hill
   "98108": "Georgetown / South Park",
   "98109": "South Lake Union / Queen Anne",
   "98112": "Capitol Hill / Madison Park",
@@ -111,28 +117,68 @@ function num(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function isoToday() {
-  return new Date().toISOString().slice(0, 10);
+function daysSince(isoDate, asOfDate) {
+  const gap = (Date.parse(asOfDate) - Date.parse(isoDate)) / 86400000;
+  return Number.isFinite(gap) && gap >= 0 ? Math.round(gap) : null;
 }
 
-function listDateFromDom(domDays) {
-  const days = Math.max(0, Math.round(num(domDays)));
-  if (!days) return isoToday();
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+// List date, days on market and opening ask for one active listing.
+//
+// A blank feed DOM means "not reported", never "listed today": Redfin stopped
+// returning DOM for ~99% of actives on 2026-09-21, and reading that blank as 0
+// stamped every listing as brand new for seven weeks (each one scored as
+// ultra-hot, and its identity in the "what changed" feed moved every morning).
+// Order of trust: the feed's own DOM, then the ledger's list date, then blank.
+// Cumulative DOM adds the days earlier listings in the ledger's relist chain spent
+// on the market, and the original ask is the chain's, so a cancel-and-relist
+// under a new MLS# resets neither.
+function resolveListingTimeline(redfin, ledgerEntry, asOfDate) {
+  const listPrice = Math.round(num(redfin.listPrice));
+  const feedDom = String(redfin.domDays ?? "").trim();
+  let listDate = "";
+  let dom = null;
+  if (/^coming soon$/i.test(String(redfin.mlsStatus || "").trim())) {
+    // Not on the market yet: a true zero, and no earlier listing's clock applies.
+    return { listDate: "", dom: "0", cdom: "0", originalPrice: listPrice > 0 ? String(listPrice) : "" };
+  }
+  if (feedDom !== "" && num(feedDom) >= 0) {
+    dom = Math.round(num(feedDom));
+    listDate = shiftDate(asOfDate, -dom);
+  } else if (ledgerEntry?.listDate) {
+    dom = daysSince(ledgerEntry.listDate, asOfDate);
+    if (dom !== null) listDate = ledgerEntry.listDate;
+  }
+  const cdom = dom === null ? null : dom + Math.max(0, Math.round(num(ledgerEntry?.chainPriorDays)));
+  const openingAsk = Math.round(num(ledgerEntry?.chainFirstAsk) || num(ledgerEntry?.firstAsk)) || listPrice;
+  return {
+    listDate,
+    dom: dom === null ? "" : String(dom),
+    cdom: cdom === null ? "" : String(cdom),
+    originalPrice: openingAsk > 0 ? String(openingAsk) : "",
+  };
+}
+
+function loadLedgerIndex(ledgerPath) {
+  const map = new Map();
+  if (!ledgerPath || !fs.existsSync(ledgerPath)) return map;
+  for (const row of readCsv(ledgerPath).rows) {
+    const mls = String(row.mlsNumber || "").trim();
+    if (mls) map.set(mls, row);
+  }
+  return map;
 }
 
 function normalizeAddressKey(value) {
   return String(value || "").toUpperCase().replace(/[.,#]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function buildEnrichedRowFromRedfin(redfin, headers, fetchedAt) {
+function buildEnrichedRowFromRedfin(redfin, headers, fetchedAt, ledgerEntry = null) {
   const row = {};
   for (const h of headers) row[h] = "";
 
   const listPrice = Math.round(num(redfin.listPrice));
-  const dom = num(redfin.domDays);
+  const asOfDate = toPacificDate(redfin.fetchedAt) || toPacificDate(fetchedAt) || toPacificDate(new Date().toISOString());
+  const timeline = resolveListingTimeline(redfin, ledgerEntry, asOfDate);
   const zip = zip5(redfin.zip);
   const typeInfo = uiPropertyTypeToAppType(redfin.uiPropertyType);
   const idBase = redfin.redfinListingId || redfin.mlsListingNumber || `${redfin.address || "x"}|${zip}`;
@@ -147,7 +193,7 @@ function buildEnrichedRowFromRedfin(redfin, headers, fetchedAt) {
   row.major = "";
   row.minor = "";
   row.parcelNbr = "";
-  row.listDate = listDateFromDom(dom);
+  row.listDate = timeline.listDate;
   row.pendingDate = "";
   row.saleDate = "";
   row.listPriceAtPending = listPrice > 0 ? String(listPrice) : "";
@@ -171,15 +217,17 @@ function buildEnrichedRowFromRedfin(redfin, headers, fetchedAt) {
   row.mlsListPriceAtPending = listPrice > 0 ? String(listPrice) : "";
   row.mlsClosePrice = "";
   row.mlsListingNumber = redfin.mlsListingNumber || "";
-  row.mlsStatus = "Active";
+  // Under contract is still in the feed but no longer for sale, so it must not
+  // reach the Bids queue as an active listing.
+  row.mlsStatus = /under contract/i.test(String(redfin.mlsStatus || "")) ? "Active Under Contract" : "Active";
   row.mlsRegion = redfin.queryLabel || "";
   row.mlsSellingDate = "";
   row.mlsContractualDate = "";
   row.mlsListingPrice = listPrice > 0 ? String(listPrice) : "";
   row.mlsSellingPrice = "";
-  row.mlsOriginalPrice = listPrice > 0 ? String(listPrice) : "";
-  row.mlsDOM = String(Math.round(dom));
-  row.mlsCDOM = String(Math.round(dom));
+  row.mlsOriginalPrice = timeline.originalPrice;
+  row.mlsDOM = timeline.dom;
+  row.mlsCDOM = timeline.cdom;
   row.mlsStyleCode = "";
   row.mlsSubdivision = redfin.neighborhood || "";
   row.mlsParkingType = "";
@@ -205,6 +253,86 @@ function buildEnrichedRowFromRedfin(redfin, headers, fetchedAt) {
   return row;
 }
 
+// Additive columns on active rows: the home's most recent closing already in the
+// dataset, so a flip or a quick resale shows what the seller paid.
+const PRIOR_SALE_COLUMNS = ["priorSaleDate", "priorSalePrice"];
+// Outside this ask-to-prior-price range the earlier record is almost always a
+// different thing (a builder's multi-lot purchase, a partial-interest deed).
+const PRIOR_SALE_MIN_RATIO = 0.5;
+const PRIOR_SALE_MAX_RATIO = 3.5;
+
+function homeKey(address, zip) {
+  return chainAddressKey({ address, zip });
+}
+
+// Closed sales per home (street + ZIP + unit), oldest first.
+function indexPriorSales(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const price = num(r.closePrice);
+    const date = String(r.saleDate || "").slice(0, 10);
+    if (!(price > 0) || !date) continue;
+    const key = homeKey(r.address, r.zip);
+    if (!key) continue;
+    const sales = map.get(key);
+    if (sales) sales.push({ date, price: Math.round(price) }); else map.set(key, [{ date, price: Math.round(price) }]);
+  }
+  for (const sales of map.values()) sales.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return map;
+}
+
+// `listedSince` is the start of the current marketing period. A deed recorded
+// after the home was already for sale (a transfer into an LLC, a partial
+// interest) is not what the seller paid to acquire it.
+function applyPriorSale(activeRow, priorSales, listedSince = "") {
+  const sales = priorSales.get(homeKey(activeRow.address, activeRow.zip)) || [];
+  const prior = sales.filter((sale) => !listedSince || sale.date < listedSince).pop();
+  const ask = num(activeRow.mlsListingPrice);
+  const ratio = prior && ask > 0 ? ask / prior.price : 0;
+  const usable = ratio >= PRIOR_SALE_MIN_RATIO && ratio <= PRIOR_SALE_MAX_RATIO;
+  activeRow.priorSaleDate = usable ? prior.date : "";
+  activeRow.priorSalePrice = usable ? String(prior.price) : "";
+  return usable;
+}
+
+function hasClosed(row) {
+  return num(row.closePrice) > 0 || num(row.mlsClosePrice) > 0;
+}
+
+function openRowAtAddress(row) {
+  return row && !hasClosed(row) ? row : null;
+}
+
+// Returns true when an open (never closed) row's ask was moved to today's.
+function refreshOpenRowAsk(existing, listPrice) {
+  if (!(listPrice > 0) || hasClosed(existing)) return false;
+  const previous = num(existing.mlsListingPrice);
+  if (!(previous > 0) || previous === listPrice) return false;
+  if (!num(existing.mlsOriginalPrice)) existing.mlsOriginalPrice = String(previous);
+  existing.mlsListingPrice = String(listPrice);
+  existing.mlsListPriceAtPending = String(listPrice);
+  existing.listPriceAtPending = String(listPrice);
+  return true;
+}
+
+// An open row carried over from a realtor export holds the days on market of the
+// day it was exported. Days on market now picks the comps behind a bid, so it is
+// recounted: from the row's own MLS list date where it has one, else the ledger's.
+function refreshOpenRowTimeline(existing, redfin, ledgerEntry, asOfDate) {
+  if (hasClosed(existing)) return false;
+  const ownListDate = String(existing.mlsListDate || "").trim();
+  const timeline = resolveListingTimeline(redfin, ownListDate ? { ...ledgerEntry, listDate: ownListDate } : ledgerEntry, asOfDate);
+  if (timeline.dom === "") return false;
+  // The export's CDOM minus DOM is time an earlier listing accrued. It is kept as
+  // an offset, which survives reruns because both figures advance together.
+  const earlierListings = Math.max(0, num(existing.mlsCDOM) - num(existing.mlsDOM));
+  const cdom = String(Math.max(num(timeline.cdom), num(timeline.dom) + earlierListings));
+  if (existing.mlsDOM === timeline.dom && existing.mlsCDOM === cdom) return false;
+  existing.mlsDOM = timeline.dom;
+  existing.mlsCDOM = cdom;
+  return true;
+}
+
 function indexBy(rows, keyFn) {
   const map = new Map();
   for (const row of rows) {
@@ -224,6 +352,7 @@ function parseArgs(argv) {
     else if (a === "--redfin") { opts.redfin = next; i += 1; }
     else if (a === "--out") { opts.out = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
+    else if (a === "--ledger") { opts.ledger = next; i += 1; }
     else if (a === "--dry-run") { opts.dryRun = true; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
     else throw new Error(`Unknown argument: ${a}`);
@@ -243,6 +372,8 @@ function printHelp() {
     "  --redfin FILE     Redfin actives CSV (default: redfin_active_listings.csv)",
     "  --out FILE        Output CSV (default: same as --enriched, replaced in-place)",
     "  --report FILE     Merge report JSON (default: redfin_merge_report.json)",
+    "  --ledger FILE     Actives ledger for list dates, relist chains and opening asks",
+    "                    (default: redfin_active_ledger.csv; run ledger:upsert first)",
     "  --dry-run         Compute but do not write outputs",
   ].join("\n"));
 }
@@ -265,6 +396,7 @@ function main() {
 
   const { headers: enrichedHeaders, rows: enrichedRows } = readCsv(enrichedPath);
   const { rows: redfinRows } = readCsv(redfinPath);
+  const ledgerIndex = loadLedgerIndex(path.resolve(opts.ledger || DEFAULT_LEDGER));
 
   // Strip prior REDFIN_ACTIVE rows so reruns don't duplicate.
   const cleanedExisting = enrichedRows.filter((r) => r.mlsJoinMethod !== "REDFIN_ACTIVE");
@@ -272,17 +404,24 @@ function main() {
 
   // Index existing rows by MLS# and by normalized address+zip for augmentation.
   const byMls = indexBy(cleanedExisting, (r) => (r.mlsListingNumber || "").trim());
-  const byAddrZip = indexBy(cleanedExisting, (r) => {
+  const byAddrZip = indexBy(cleanedExisting.filter((r) => !hasClosed(r)), (r) => {
     const a = normalizeAddressKey(r.address);
     const z = zip5(r.zip);
     return a && z ? `${a}|${z}` : "";
   });
+
+  for (const column of PRIOR_SALE_COLUMNS) {
+    if (!enrichedHeaders.includes(column)) enrichedHeaders.push(column);
+  }
+  const priorSales = indexPriorSales(cleanedExisting);
+  let priorSaleCount = 0;
 
   const fetchedAt = new Date().toISOString();
   const newRows = [];
   let augmentedCount = 0;
   let appendedCount = 0;
   let skippedCount = 0;
+  let missingDomCount = 0;
   const augmentedExamples = [];
   const appendedByRegion = {};
 
@@ -299,18 +438,28 @@ function main() {
     })();
 
     let existing = mlsKey ? byMls.get(mlsKey) : null;
-    if (!existing && addrKey) existing = byAddrZip.get(addrKey);
+    // An address match only means "same listing" while that row is still open.
+    // A row that already closed is the home's PREVIOUS sale: treating today's
+    // listing as that row hid every resale (a flip bought in April and relisted
+    // in November never reached the Bids queue) and overwrote the old sale's status.
+    if (!existing && addrKey) existing = openRowAtAddress(byAddrZip.get(addrKey));
 
     if (existing) {
       const listPrice = Math.round(num(r.listPrice));
       let augmented = false;
-      if (listPrice > 0 && (!num(existing.mlsListingPrice) || existing.mlsJoinMethod === "MLS_SOLD_NOT_IN_COUNTY")) {
+      // A row that has not closed is still this listing, so today's ask wins
+      // over the one frozen in an old realtor export (mlsOriginalPrice keeps
+      // the earlier figure, so the cut stays visible).
+      if (refreshOpenRowAsk(existing, listPrice)) {
+        augmented = true;
+      } else if (listPrice > 0 && (!num(existing.mlsListingPrice) || existing.mlsJoinMethod === "MLS_SOLD_NOT_IN_COUNTY")) {
         existing.mlsListingPrice = String(listPrice);
         if (!num(existing.mlsListPriceAtPending)) existing.mlsListPriceAtPending = String(listPrice);
         if (!num(existing.listPriceAtPending)) existing.listPriceAtPending = String(listPrice);
         if (!num(existing.mlsOriginalPrice)) existing.mlsOriginalPrice = String(listPrice);
         augmented = true;
       }
+      if (refreshOpenRowTimeline(existing, r, ledgerIndex.get(mlsKey) || null, toPacificDate(r.fetchedAt) || toPacificDate(fetchedAt))) augmented = true;
       if (r.lat && !existing.lat) { existing.lat = r.lat; augmented = true; }
       if (r.lon && !existing.lon) { existing.lon = r.lon; augmented = true; }
       if (r.mlsStatus && existing.mlsStatus !== r.mlsStatus) {
@@ -324,7 +473,10 @@ function main() {
       continue;
     }
 
-    const newRow = buildEnrichedRowFromRedfin(r, enrichedHeaders, fetchedAt);
+    const ledgerEntry = ledgerIndex.get(mlsKey) || null;
+    const newRow = buildEnrichedRowFromRedfin(r, enrichedHeaders, fetchedAt, ledgerEntry);
+    if (newRow.mlsDOM === "") missingDomCount += 1;
+    if (applyPriorSale(newRow, priorSales, ledgerEntry?.chainListDate || newRow.mlsListDate)) priorSaleCount += 1;
     newRows.push(newRow);
     appendedCount += 1;
     appendedByRegion[r.queryLabel || "Unknown"] = (appendedByRegion[r.queryLabel || "Unknown"] || 0) + 1;
@@ -341,6 +493,9 @@ function main() {
     redfinRowsSkippedNonActive: skippedCount,
     augmentedExisting: augmentedCount,
     appended: appendedCount,
+    appendedWithoutDom: missingDomCount,
+    appendedWithPriorSale: priorSaleCount,
+    ledgerListings: ledgerIndex.size,
     rowsAfter: finalRows.length,
     appendedByRegion,
     augmentedExamples,
@@ -354,7 +509,7 @@ function main() {
 
   writeCsv(outPath, enrichedHeaders, finalRows);
   fs.writeFileSync(reportPath, `${JSON.stringify({ ...report, outFile: path.relative(PROJECT_DIR, outPath) }, null, 2)}\n`);
-  console.log(`Augmented ${augmentedCount} existing rows, appended ${appendedCount} new Redfin actives.`);
+  console.log(`Augmented ${augmentedCount} existing rows, appended ${appendedCount} new Redfin actives (${missingDomCount} with no days-on-market reading).`);
   console.log(`Output: ${path.relative(PROJECT_DIR, outPath)}  (${finalRows.length} rows)`);
   console.log(`Report: ${path.relative(PROJECT_DIR, reportPath)}`);
 }
@@ -366,6 +521,12 @@ if (require.main === module) {
 
 module.exports = {
   buildEnrichedRowFromRedfin,
+  resolveListingTimeline,
+  refreshOpenRowAsk,
+  refreshOpenRowTimeline,
+  openRowAtAddress,
+  indexPriorSales,
+  applyPriorSale,
   uiPropertyTypeToAppType,
   zipNeighborhood,
   normalizeAddressKey,

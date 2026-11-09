@@ -2,8 +2,8 @@
 # Daily refresh run by launchd (com.evbarleyg.seattle-actives, 06:00 local).
 # Logs to tmp/refresh_actives_daily.log alongside the project root.
 #
-# Pipeline: fetch Redfin actives -> merge into enriched -> upsert the actives
-# ledger -> sold leg (best effort: fetch 30d -> accumulate -> merge) -> list@pending
+# Pipeline: fetch Redfin actives -> upsert the actives ledger -> merge into
+# enriched (list date, DOM and opening ask come from the ledger) -> sold leg (best effort: fetch 30d -> accumulate -> merge) -> list@pending
 # from the ledger -> sync /public -> detect active->pending/sold transitions ->
 # build gate -> commit + push the refreshed data to the deploy branch. The push is best-effort: it rebases on
 # the remote first and skips cleanly on conflict or offline, leaving the commit
@@ -27,10 +27,13 @@ mkdir -p "$LOG_DIR"
   cd "$PROJECT_DIR"
   echo "fetch:actives"
   "$NPM" run fetch:actives
+  # The ledger goes first: it reads the raw fetch, and merge:actives then takes
+  # each listing's list date, days on market and opening ask from it (the feed
+  # itself stopped reporting days on market on 2026-09-21).
+  echo "ledger:upsert (actives ledger: first/last seen, first/last ask, relist chains per MLS#)"
+  "$NPM" run ledger:upsert
   echo "merge:actives"
   "$NPM" run merge:actives
-  echo "ledger:upsert (actives ledger: first/last seen, first/last ask per MLS#)"
-  "$NPM" run ledger:upsert
   echo "sold leg (best effort): fetch 30d -> accumulate -> merge"
   if "$NPM" run refresh:sold-daily; then
     echo "sold leg ok"
