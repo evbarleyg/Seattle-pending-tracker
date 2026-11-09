@@ -6,15 +6,19 @@
 // county (closings lag ~2wk) and stale MLS exports don't have yet become
 // visible — the "can't see recent softening" fix.
 //
-// Supplement-only by design: appends sales NOT already present; on a match
-// (the same sale is already a county/MLS row) it SKIPS — it never mutates a
-// curated row. The sold feed carries no list price, so list/ratio/bid-up
+// Supplement-only by design: appends sales NOT already present; when the same
+// sale is already an MLS-enriched row it SKIPS, and it never mutates a curated
+// row. The one exception is a bare county record of the same sale (no MLS#, no
+// asking price): the Redfin row replaces it, inheriting its parcel fields,
+// because only a REDFIN_SOLD row can later be given its list price, days on
+// market and MLS# (a county rebuild brings the county row back and the next
+// merge replaces it again). The sold feed carries no list price, so list/ratio/bid-up
 // fields are left BLANK (we never fabricate list = close; see the 1.00-ratio
 // fix). List-at-pending enrichment stays backfill_redfin_history.js's job.
 
 const fs = require("fs");
 const path = require("path");
-const { streetKeyFromAddress, zip5 } = require("./redfin_address_key.js");
+const { streetKeyFromAddress, extractUnitFromAddress, houseNumber, zip5 } = require("./redfin_address_key.js");
 const { uiPropertyTypeToAppType, zipNeighborhood } = require("./merge_redfin_actives.js");
 
 const PROJECT_DIR = path.resolve(__dirname, "..");
@@ -28,6 +32,10 @@ const DEFAULT_REDFIN = fs.existsSync(CUMULATIVE_REDFIN) ? CUMULATIVE_REDFIN : RA
 const DEFAULT_REPORT = path.join(PROJECT_DIR, "redfin_sold_merge_report.json");
 
 const SALE_DATE_MATCH_DAYS = 14;
+// House number + ZIP + the exact price is a far stronger fingerprint than a street
+// name, and the county's document date can trail Redfin's closing date by weeks
+// (74 such pairs sat 15 to 58 days apart), so this match gets a longer window.
+const PRICE_TWIN_MATCH_DAYS = 60;
 const REDFIN_SOLD = "REDFIN_SOLD";
 
 function parseCsvLine(line) {
@@ -91,6 +99,29 @@ function daysBetween(isoA, isoB) {
   const b = Date.parse(`${String(isoB).slice(0, 10)}T00:00:00Z`);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return Infinity;
   return Math.abs(a - b) / 86400000;
+}
+
+// Two addresses can be the same home unless both name a unit and they differ.
+function unitsCompatible(addressA, addressB) {
+  const a = extractUnitFromAddress(addressA);
+  const b = extractUnitFromAddress(addressB);
+  return !a || !b || a === b;
+}
+
+const PARCEL_FIELDS = ["major", "minor", "parcelNbr", "assessedValue"];
+
+// A county record nothing has enriched: no MLS#, no asking price.
+function isBareCountyRow(row) {
+  return String(row.dataMode || "") === "PUBLIC_PROXY"
+    && !String(row.mlsListingNumber || "").trim()
+    && !(num(row.mlsListingPrice) > 0);
+}
+
+// County and Redfin prices for one closing agree to the dollar or nearly so.
+function samePrice(a, b) {
+  const x = num(a);
+  const y = num(b);
+  return x > 0 && y > 0 && Math.abs(x / y - 1) <= 0.02;
 }
 
 // Build one enriched-schema row from a Redfin sold CSV row. Only sold-relevant
@@ -174,25 +205,46 @@ function mergeSold(headers, enrichedRows, redfinRows, options = {}) {
 
   // Index existing rows: by MLS# (any status) and, for the no-MLS county case,
   // existing *sold* rows by normalized street+zip (date-matched at compare time).
+  // County addresses are too irregular for the street key alone (missing ZIPs,
+  // "10TH W" for "10th Ave W", "EAST YESLER WAY" for "E Yesler"), so the same
+  // sale is also recognised by house number + exact close price.
   const byMls = new Map();
   const byStreet = new Map();
+  const byPrice = new Map();
+  const push = (map, key, row) => {
+    const arr = map.get(key);
+    if (arr) arr.push(row); else map.set(key, [row]);
+  };
   for (const r of cleanedExisting) {
     const mls = (r.mlsListingNumber || "").trim();
     if (mls && !byMls.has(mls)) byMls.set(mls, r);
     const saleDate = r.saleDate || r.mlsSellingDate || "";
     if (saleDate) {
       const k = streetKeyFromAddress(r.address, r.zip);
-      if (k) {
-        const arr = byStreet.get(k) || [];
-        arr.push(r);
-        byStreet.set(k, arr);
-      }
+      if (k) push(byStreet, k, r);
+      const close = Math.round(num(r.closePrice));
+      const house = houseNumber(r.address);
+      if (house && close > 0) push(byPrice, `${house}|${close}`, r);
     }
   }
 
+  // Parcel identity a REDFIN_SOLD row inherited from a county twin on an earlier
+  // run. That twin is gone from the file now, so the fields ride along by row id.
+  const inheritedParcel = new Map();
+  for (const r of enrichedRows) {
+    if (r.mlsJoinMethod === REDFIN_SOLD && String(r.parcelNbr || "").trim()) inheritedParcel.set(r.id, r);
+  }
+
+  const withinWindow = (c, r, days = matchDays) => daysBetween(c.saleDate || c.mlsSellingDate, r.soldDate) <= days;
+  const priceMatchDays = Math.max(matchDays, PRICE_TWIN_MATCH_DAYS);
   const newRows = [];
+  const superseded = new Set();
   let matchedByMls = 0;
   let matchedByAddr = 0;
+  let matchedByPrice = 0;
+  let replacedCounty = 0;
+  let duplicateFeedRows = 0;
+  const appendedIds = new Set();
   const appendedByMonth = {};
   const appendedByRegion = {};
 
@@ -200,22 +252,76 @@ function mergeSold(headers, enrichedRows, redfinRows, options = {}) {
     const mls = (r.mlsListingNumber || "").trim();
     if (mls && byMls.has(mls)) { matchedByMls += 1; continue; }
 
+    // The street key drops units, so townhouse neighbours closing the same
+    // fortnight must not swallow each other; and a county row recorded at $0
+    // is invisible to the app, so it cannot stand in for the priced sale.
     const k = streetKeyFromAddress(r.address, r.zip);
-    if (k && byStreet.has(k)) {
-      const sameSale = byStreet.get(k).some(
-        (c) => daysBetween(c.saleDate || c.mlsSellingDate, r.soldDate) <= matchDays,
-      );
-      if (sameSale) { matchedByAddr += 1; continue; }
+    const streetTwins = ((k && byStreet.get(k)) || []).filter((c) => (
+      !superseded.has(c)
+      && withinWindow(c, r)
+      && (num(c.closePrice) > 0 || num(c.mlsClosePrice) > 0)
+      && unitsCompatible(c.address, r.address)
+    ));
+    const priceKey = `${houseNumber(r.address)}|${Math.round(num(r.soldPrice))}`;
+    const priceTwins = (byPrice.get(priceKey) || []).filter((c) => (
+      !superseded.has(c)
+      && withinWindow(c, r, priceMatchDays)
+      && (!zip5(c.zip) || !zip5(r.zip) || zip5(c.zip) === zip5(r.zip))
+      && unitsCompatible(c.address, r.address)
+    ));
+    const twins = [...new Set([...streetTwins, ...priceTwins])];
+
+    // The sale is already here with its MLS detail: nothing to add.
+    // Nor is there when the only match is a county record at a different price
+    // (the county sometimes rolls an adjoining parcel into one figure): which
+    // price is right cannot be told from here, so the curated row stands.
+    // (A row that already replaced its county twin on an earlier run is past that
+    // question; what is left at the address is some other deed.)
+    const row = buildSoldEnrichedRow(r, headers);
+    const replaceable = twins.filter((c) => isBareCountyRow(c) && samePrice(c.closePrice, r.soldPrice));
+    const settledEarlier = inheritedParcel.has(row.id);
+    if (twins.some((c) => !isBareCountyRow(c)) || (twins.length && !replaceable.length && !settledEarlier)) {
+      if (streetTwins.length) matchedByAddr += 1; else matchedByPrice += 1;
+      continue;
     }
 
-    newRows.push(buildSoldEnrichedRow(r, headers));
+    // The feed can hold one closing twice (same listing, sold date restated a day
+    // or two later); the first copy is enough.
+    if (appendedIds.has(row.id)) { duplicateFeedRows += 1; continue; }
+    appendedIds.add(row.id);
+    // The sale is here only as a bare county record. The Redfin row is the copy
+    // that can carry an asking price, days on market and an MLS#, so it takes the
+    // county row's place and keeps its parcel identity (and the KC Record link).
+    // Only records at the same price go: a $350K deed for the lot next door,
+    // recorded the same week at the same street number, is its own sale.
+    const parcelSource = replaceable[0] || inheritedParcel.get(row.id);
+    if (parcelSource) {
+      for (const field of PARCEL_FIELDS) {
+        if (field in row && !row[field]) row[field] = parcelSource[field] || "";
+      }
+    }
+    for (const twin of replaceable) superseded.add(twin);
+    if (replaceable.length) replacedCounty += 1;
+    // Later feed rows must see this sale as present (the same closing can appear
+    // under a second listing id), now that its county twin no longer can.
+    if (k) push(byStreet, k, row);
+    push(byPrice, priceKey, row);
+
+    newRows.push(row);
     const month = (r.soldDate || "").slice(0, 7);
     if (month) appendedByMonth[month] = (appendedByMonth[month] || 0) + 1;
     appendedByRegion[r.queryLabel || "Unknown"] = (appendedByRegion[r.queryLabel || "Unknown"] || 0) + 1;
   }
 
+  const keptExisting = cleanedExisting.filter((r) => !superseded.has(r));
+  // A REDFIN_SOLD row that took a county row's place is the only record of that
+  // sale left in the file. If the feed no longer supplies it (the cumulative file
+  // prunes at 400 days, or --since narrowed this run) it is carried over as is
+  // rather than stripped, or the sale would vanish until the next county rebuild.
+  const carriedOver = [...inheritedParcel.values()].filter((r) => !appendedIds.has(r.id));
+  keptExisting.push(...carriedOver);
   return {
-    finalRows: [...cleanedExisting, ...newRows],
+    finalRows: [...keptExisting, ...newRows],
     report: {
       rowsBefore: enrichedRows.length,
       priorRedfinSoldRemoved: priorRemoved,
@@ -224,9 +330,14 @@ function mergeSold(headers, enrichedRows, redfinRows, options = {}) {
       droppedOutOfWindow,
       matchedByMls,
       matchedByAddr,
-      matchedTotal: matchedByMls + matchedByAddr,
+      matchedByPrice,
+      matchedTotal: matchedByMls + matchedByAddr + matchedByPrice,
+      replacedCounty,
+      countyRowsSuperseded: superseded.size,
+      replacementsCarriedOver: carriedOver.length,
+      duplicateFeedRows,
       appended: newRows.length,
-      rowsAfter: cleanedExisting.length + newRows.length,
+      rowsAfter: keptExisting.length + newRows.length,
       appendedByMonth,
       appendedByRegion,
     },
@@ -306,7 +417,7 @@ function main() {
 
   writeCsv(outPath, headers, finalRows);
   fs.writeFileSync(reportPath, `${JSON.stringify({ ...fullReport, outFile: path.relative(PROJECT_DIR, outPath) }, null, 2)}\n`);
-  console.log(`Appended ${report.appended} REDFIN_SOLD rows, skipped ${report.matchedTotal} already-present sales.`);
+  console.log(`Appended ${report.appended} REDFIN_SOLD rows (${report.replacedCounty} in place of ${report.countyRowsSuperseded} bare county rows), skipped ${report.matchedTotal} already-present sales.`);
   console.log(`Output: ${path.relative(PROJECT_DIR, outPath)}  (${finalRows.length} rows)`);
   console.log(`Report: ${path.relative(PROJECT_DIR, reportPath)}`);
 }
