@@ -159,6 +159,45 @@ async function fetchGisWithRetry(query, options) {
   return homes;
 }
 
+// A fetch that comes back empty, or far below the last good fetch, is a network
+// or Redfin failure, not a market change. Writing it lets merge:actives strip
+// every REDFIN_ACTIVE row and detect:transitions treat every listing as gone.
+// Seen: 2026-07-21, 2026-09-10 and 2026-11-20 (all 26 queries "fetch failed",
+// 0 rows) and 2026-09-27 (24 of 26 failed, 152 rows vs 1462 the day before).
+const MIN_ROW_RATIO = 0.5;
+// When the first queries all fail and nothing has come back, Redfin is
+// unreachable; stop instead of spending ~15 s of retries on each remaining query.
+const EARLY_ABORT_AFTER = 3;
+
+function assessFetchHealth({ queryStats, rowCount, baselineRowCount, minRatio = MIN_ROW_RATIO }) {
+  const failed = queryStats.filter((s) => s.error).length;
+  if (queryStats.length > 0 && failed === queryStats.length) {
+    return { ok: false, reason: `all ${failed} queries failed` };
+  }
+  if (rowCount === 0) return { ok: false, reason: "0 rows fetched" };
+  if (baselineRowCount > 0 && rowCount < baselineRowCount * minRatio) {
+    return {
+      ok: false,
+      reason: `${rowCount} rows is below ${Math.round(minRatio * 100)}% of the last good fetch (${baselineRowCount} rows); ${failed} of ${queryStats.length} queries failed`,
+    };
+  }
+  return { ok: true, reason: "" };
+}
+
+// Row count of the newest snapshot that has rows. Empty snapshots written by
+// failed runs before this guard existed are skipped.
+function lastGoodSnapshotRowCount(snapshotDir) {
+  if (!fs.existsSync(snapshotDir)) return 0;
+  const files = fs.readdirSync(snapshotDir).filter((f) => f.endsWith(".json")).sort();
+  for (let i = files.length - 1; i >= 0; i -= 1) {
+    try {
+      const rows = Number(JSON.parse(fs.readFileSync(path.join(snapshotDir, files[i]), "utf8")).rowCount);
+      if (rows > 0) return rows;
+    } catch { /* unreadable snapshot: try the next older one */ }
+  }
+  return 0;
+}
+
 function homeToRow(home, query, fetchedAt) {
   const lat = home.latLong?.value?.latitude;
   const lon = home.latLong?.value?.longitude;
@@ -304,7 +343,10 @@ function parseArgs(argv) {
     if (a === "--config") { opts.config = next; i += 1; }
     else if (a === "--out") { opts.out = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
+    else if (a === "--url-index") { opts.urlIndex = next; i += 1; }
+    else if (a === "--snapshot-dir") { opts.snapshotDir = next; i += 1; }
     else if (a === "--dry-run") { opts.dryRun = true; }
+    else if (a === "--force") { opts.force = true; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
     else throw new Error(`Unknown argument: ${a}`);
   }
@@ -321,7 +363,14 @@ function printHelp() {
     "  --config FILE   Search config JSON (default: redfin_searches.json)",
     "  --out FILE      Output CSV (default: redfin_active_listings.csv)",
     "  --report FILE   Fetch report JSON (default: redfin_fetch_report.json)",
+    "  --url-index FILE     URL index JSON (default: redfin_url_index.json)",
+    "  --snapshot-dir DIR   Active snapshots (default: redfin_active_snapshots)",
     "  --dry-run       Run queries but do not write outputs",
+    "  --force         Write outputs even when the fetch fails the health check",
+    "",
+    "Health check: if every query fails, 0 rows come back, or the row count is",
+    `below ${Math.round(MIN_ROW_RATIO * 100)}% of the newest non-empty snapshot (config minRowRatio),`,
+    "nothing is written and the script exits 2, so the previous actives stay in place.",
   ].join("\n"));
 }
 
@@ -332,6 +381,8 @@ async function main() {
   const configPath = path.resolve(opts.config || DEFAULT_CONFIG);
   const outPath = path.resolve(opts.out || DEFAULT_OUT);
   const reportPath = path.resolve(opts.report || DEFAULT_REPORT);
+  const indexPath = path.resolve(opts.urlIndex || DEFAULT_URL_INDEX);
+  const snapshotDir = path.resolve(opts.snapshotDir || DEFAULT_SNAPSHOT_DIR);
 
   if (!fs.existsSync(configPath)) {
     throw new Error(`Config not found: ${configPath}`);
@@ -370,10 +421,16 @@ async function main() {
       allRows.push(...passing);
       process.stdout.write(`[${i + 1}/${config.queries.length}] ${query.label}: ${rows.length} fetched, ${passing.length} kept${stat.capHit ? " (CAP HIT)" : ""}\n`);
     } catch (err) {
-      stat.error = err.message;
-      process.stderr.write(`[${i + 1}/${config.queries.length}] ${query.label}: ERROR ${err.message}\n`);
+      // Node's "fetch failed" hides the network cause (ENOTFOUND, ECONNRESET...).
+      stat.error = err.cause?.code ? `${err.message} (${err.cause.code})` : err.message;
+      process.stderr.write(`[${i + 1}/${config.queries.length}] ${query.label}: ERROR ${stat.error}\n`);
     }
     queryStats.push(stat);
+    const remaining = config.queries.length - queryStats.length;
+    if (remaining > 0 && queryStats.length >= EARLY_ABORT_AFTER && queryStats.every((s) => s.error)) {
+      process.stderr.write(`First ${queryStats.length} queries failed with nothing fetched; skipping the remaining ${remaining}.\n`);
+      break;
+    }
     if (i < config.queries.length - 1 && config.throttleMs) {
       await sleep(Number(config.throttleMs));
     }
@@ -390,6 +447,14 @@ async function main() {
     typeBreakdown: deduped.reduce((acc, r) => { acc[r.propertyType || "Unknown"] = (acc[r.propertyType || "Unknown"] || 0) + 1; return acc; }, {}),
     anyCapHit: queryStats.some((s) => s.capHit),
   };
+  const baselineRowCount = lastGoodSnapshotRowCount(snapshotDir);
+  const health = assessFetchHealth({
+    queryStats,
+    rowCount: deduped.length,
+    baselineRowCount,
+    minRatio: Number(config.minRowRatio ?? MIN_ROW_RATIO),
+  });
+  report.health = { ...health, baselineRowCount, forced: !health.ok && Boolean(opts.force) };
 
   if (opts.dryRun) {
     process.stdout.write(`Dry run. Would write ${deduped.length} rows.\n`);
@@ -397,9 +462,14 @@ async function main() {
     return;
   }
 
+  if (!health.ok && !opts.force) {
+    process.stderr.write(`REJECTED: ${health.reason}. Wrote nothing: ${path.relative(PROJECT_DIR, outPath)}, the URL index, snapshots and the fetch report keep the last good fetch. Re-run with --force to write anyway.\n`);
+    process.exitCode = 2;
+    return;
+  }
+  if (!health.ok) process.stderr.write(`WARNING: ${health.reason}; writing anyway (--force).\n`);
+
   writeCsv(outPath, deduped);
-  const indexPath = path.resolve(opts.urlIndex || DEFAULT_URL_INDEX);
-  const snapshotDir = path.resolve(opts.snapshotDir || DEFAULT_SNAPSHOT_DIR);
   const indexResult = updateUrlIndex(deduped, indexPath, fetchedAt);
   const snapshotFile = writeActiveSnapshot(deduped, snapshotDir, fetchedAt);
   fs.writeFileSync(reportPath, `${JSON.stringify({
@@ -426,6 +496,9 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assessFetchHealth,
+  lastGoodSnapshotRowCount,
+  MIN_ROW_RATIO,
   fetchGis,
   homeToRow,
   passesFilters,
