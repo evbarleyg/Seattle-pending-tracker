@@ -225,6 +225,7 @@ function parseArgs(argv) {
     else if (a === "--out") { opts.out = next; i += 1; }
     else if (a === "--report") { opts.report = next; i += 1; }
     else if (a === "--dry-run") { opts.dryRun = true; }
+    else if (a === "--allow-empty") { opts.allowEmpty = true; }
     else if (a === "--help" || a === "-h") { opts.help = true; }
     else throw new Error(`Unknown argument: ${a}`);
   }
@@ -244,6 +245,8 @@ function printHelp() {
     "  --out FILE        Output CSV (default: same as --enriched, replaced in-place)",
     "  --report FILE     Merge report JSON (default: redfin_merge_report.json)",
     "  --dry-run         Compute but do not write outputs",
+    "  --allow-empty     Merge a 0-row actives CSV (strips every REDFIN_ACTIVE row);",
+    "                    without it a 0-row CSV leaves the enriched CSV untouched",
   ].join("\n"));
 }
 
@@ -265,6 +268,13 @@ function main() {
 
   const { headers: enrichedHeaders, rows: enrichedRows } = readCsv(enrichedPath);
   const { rows: redfinRows } = readCsv(redfinPath);
+
+  // A 0-row actives CSV comes from a failed fetch, not an empty market.
+  // Merging it would strip every REDFIN_ACTIVE row (2026-11-20).
+  if (redfinRows.length === 0 && !opts.allowEmpty) {
+    process.stderr.write(`WARNING: ${path.relative(PROJECT_DIR, redfinPath)} has 0 rows; kept the existing REDFIN_ACTIVE rows and wrote nothing. Pass --allow-empty to merge it anyway.\n`);
+    return;
+  }
 
   // Strip prior REDFIN_ACTIVE rows so reruns don't duplicate.
   const cleanedExisting = enrichedRows.filter((r) => r.mlsJoinMethod !== "REDFIN_ACTIVE");

@@ -8,17 +8,40 @@
 # build gate -> commit + push the refreshed data to the deploy branch. The push is best-effort: it rebases on
 # the remote first and skips cleanly on conflict or offline, leaving the commit
 # local for the next run. A failed build never deploys.
+#
+# Actives gate: fetch:actives exits non-zero and writes nothing when every query
+# fails, 0 rows come back, or the count is far below the last good fetch. The
+# fetch is retried after a wait (the failures so far were network loss around
+# wake from sleep). If it still fails, merge:actives, ledger:upsert and
+# detect:transitions are skipped, so the previous REDFIN_ACTIVE rows stay in the
+# published data; the sold leg and the rest of the run continue.
+#
+# REFRESH_PROJECT_DIR and REFRESH_NPM override the defaults for tests.
 
 set -euo pipefail
 
 # launchd runs with a minimal PATH; make node/npm/git resolvable.
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
-PROJECT_DIR="/Users/evanbarley-greenfield/repos/seattle-tracker"
+PROJECT_DIR="${REFRESH_PROJECT_DIR:-/Users/evanbarley-greenfield/repos/seattle-tracker}"
 LOG_DIR="$PROJECT_DIR/tmp"
 LOG_FILE="$LOG_DIR/refresh_actives_daily.log"
-NPM=/usr/local/bin/npm
+NPM="${REFRESH_NPM:-/usr/local/bin/npm}"
 DEPLOY_BRANCH="main"
+ACTIVES_FETCH_ATTEMPTS="${ACTIVES_FETCH_ATTEMPTS:-3}"
+ACTIVES_RETRY_WAIT_S="${ACTIVES_RETRY_WAIT_S:-300}"
+
+fetch_actives_with_retry() {
+  local attempt
+  for ((attempt = 1; attempt <= ACTIVES_FETCH_ATTEMPTS; attempt++)); do
+    if "$NPM" run fetch:actives; then return 0; fi
+    if [ "$attempt" -lt "$ACTIVES_FETCH_ATTEMPTS" ]; then
+      echo "fetch:actives failed (attempt ${attempt}/${ACTIVES_FETCH_ATTEMPTS}); retrying in ${ACTIVES_RETRY_WAIT_S}s"
+      sleep "$ACTIVES_RETRY_WAIT_S"
+    fi
+  done
+  return 1
+}
 
 mkdir -p "$LOG_DIR"
 {
@@ -26,11 +49,16 @@ mkdir -p "$LOG_DIR"
   echo "===== $(date '+%Y-%m-%d %H:%M:%S %Z') ====="
   cd "$PROJECT_DIR"
   echo "fetch:actives"
-  "$NPM" run fetch:actives
-  echo "merge:actives"
-  "$NPM" run merge:actives
-  echo "ledger:upsert (actives ledger: first/last seen, first/last ask per MLS#)"
-  "$NPM" run ledger:upsert
+  ACTIVES_OK=1
+  if fetch_actives_with_retry; then
+    echo "merge:actives"
+    "$NPM" run merge:actives
+    echo "ledger:upsert (actives ledger: first/last seen, first/last ask per MLS#)"
+    "$NPM" run ledger:upsert
+  else
+    ACTIVES_OK=0
+    echo "fetch:actives FAILED after ${ACTIVES_FETCH_ATTEMPTS} attempts; keeping the previous REDFIN_ACTIVE rows (merge:actives, ledger:upsert, detect:transitions skipped)"
+  fi
   echo "sold leg (best effort): fetch 30d -> accumulate -> merge"
   if "$NPM" run refresh:sold-daily; then
     echo "sold leg ok"
@@ -47,8 +75,12 @@ mkdir -p "$LOG_DIR"
   "$NPM" run report:sources
   echo "sync:public"
   "$NPM" run sync:public
-  echo "detect:transitions"
-  "$NPM" run detect:transitions
+  if [ "$ACTIVES_OK" = 1 ]; then
+    echo "detect:transitions"
+    "$NPM" run detect:transitions
+  else
+    echo "detect:transitions skipped (no new actives snapshot)"
+  fi
 
   echo "build (deploy gate)"
   if "$NPM" run build; then
@@ -70,7 +102,9 @@ mkdir -p "$LOG_DIR"
     if git diff --cached --quiet; then
       echo "no data changes to commit"
     else
-      git commit -m "Daily data refresh $(date +%F)" || true
+      COMMIT_MSG="Daily data refresh $(date +%F)"
+      [ "$ACTIVES_OK" = 1 ] || COMMIT_MSG="${COMMIT_MSG} (actives fetch failed; previous actives kept)"
+      git commit -m "$COMMIT_MSG" || true
       echo "rebase on remote + push to ${DEPLOY_BRANCH} (best effort)"
       if git pull --rebase origin "$DEPLOY_BRANCH" && git push origin "$DEPLOY_BRANCH"; then
         echo "pushed; Pages deploy triggered"
