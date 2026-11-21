@@ -32,11 +32,15 @@
 //                active day, not its last day in the feed.
 //   identifiers (propertyId, listingId, url, address, zip, type, listDate)
 //                are filled when blank and otherwise left alone.
+//   propertyType is always a label ("Single Family"), never Redfin's numeric
+//                uiPropertyType code; coded rows from before that rule are
+//                repaired when the ledger is loaded.
 
 const fs = require("fs");
 const path = require("path");
 const { readCsvText, writeCsv, num } = require("./csv_util.js");
 const { readSnapshotsFromGit } = require("./backfill_list_from_active_snapshots.js");
+const { UI_PROPERTY_TYPE_LABELS } = require("./fetch_redfin_actives.js");
 
 const PROJECT_DIR = path.resolve(__dirname, "..");
 const DEFAULT_LEDGER = path.join(PROJECT_DIR, "redfin_active_ledger.csv");
@@ -89,6 +93,16 @@ function trackedFromListing(entry) {
   if (!Number.isFinite(gap)) return "";
   return gap <= TRACKED_FROM_LISTING_DAYS ? "true" : "false";
 }
+// The actives fetch writes both propertyType ("Single Family") and Redfin's
+// uiPropertyType code (1). The ledger used to prefer the code, so rows first
+// seen from mid-September on said "1"/"3" and fell out of any type filter.
+// Maps a bare code to its label; labels and unknown codes pass through.
+function normalizePropertyType(value) {
+  const s = String(value ?? "").trim();
+  if (/^\d+$/.test(s)) return UI_PROPERTY_TYPE_LABELS[s] || s;
+  return s;
+}
+
 const ACTIVE_STATUSES = new Set(["ACTIVE", "COMING SOON", "FIRST LOOK"]);
 
 function isActiveStatus(status) {
@@ -132,7 +146,7 @@ function observationsFromActives(rows, fallbackDate) {
       url: String(r.redfinUrl || "").trim(),
       address: String(r.address || "").trim(),
       zip: String(r.zip || "").trim(),
-      propertyType: String(r.uiPropertyType || r.propertyType || "").trim(),
+      propertyType: normalizePropertyType(String(r.propertyType || "").trim() || r.uiPropertyType),
     });
   }
   return out;
@@ -177,6 +191,7 @@ function ledgerRowsToMap(rows) {
       ...r,
       mlsNumber: mls,
       address: dedupeUnitSuffix(r.address || ""),
+      propertyType: normalizePropertyType(r.propertyType),
       // Older ledgers predate the ask-change columns.
       lastAskChangeDate: r.lastAskChangeDate || "",
       firstAskChangeDate: r.firstAskChangeDate || "",
@@ -345,7 +360,7 @@ function main() {
 }
 
 module.exports = {
-  LEDGER_COLUMNS, ACTIVE_STATUSES, isActiveStatus, toPacificDate, dedupeUnitSuffix, trackedFromListing,
+  LEDGER_COLUMNS, ACTIVE_STATUSES, isActiveStatus, toPacificDate, dedupeUnitSuffix, trackedFromListing, normalizePropertyType,
   observationsFromActives, observationsFromEnrichedSnapshot,
   ledgerRowsToMap, upsertObservations, ledgerMapToRows,
 };

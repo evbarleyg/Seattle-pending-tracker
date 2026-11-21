@@ -98,7 +98,7 @@ test("blank identifiers are filled from later observations but never overwritten
 
 test("observationsFromActives reads the fetch CSV shape and dates rows by fetchedAt in Pacific time", () => {
   const rows = [
-    { fetchedAt: "2026-09-19T13:39:44.613Z", mlsListingNumber: "2400001", mlsStatus: "Active", listPrice: "1998000", domDays: "2", redfinPropertyId: "288413", redfinListingId: "223584238", redfinUrl: "https://r/x", address: "10037 15th Ave NW", zip: "98177", uiPropertyType: "Single Family" },
+    { fetchedAt: "2026-09-19T13:39:44.613Z", mlsListingNumber: "2400001", mlsStatus: "Active", listPrice: "1998000", domDays: "2", redfinPropertyId: "288413", redfinListingId: "223584238", redfinUrl: "https://r/x", address: "10037 15th Ave NW", zip: "98177", propertyType: "Single Family", uiPropertyType: "1" },
     { fetchedAt: "2026-09-19T13:39:44.613Z", mlsListingNumber: "", mlsStatus: "Active", listPrice: "500000" }, // no MLS#: skipped
     { fetchedAt: "2026-09-19T13:39:44.613Z", mlsListingNumber: "2400002", mlsStatus: "Active", listPrice: "" }, // no ask: skipped
   ];
@@ -172,6 +172,28 @@ test("a doubled unit suffix is repaired on insert and when loading an older ledg
   const loaded = ledgerRowsToMap([{ mlsNumber: "9", address: "708 N 102nd St #2 #2", firstSeen: "2026-06-01", lastSeen: "2026-06-10", firstAsk: "1", lastAsk: "1" }]);
   assert.strictEqual(loaded.get("9").address, "708 N 102nd St #2");
   assert.strictEqual(loaded.get("9").askChangeCount, "0", "older ledgers get the new columns defaulted");
+});
+
+test("propertyType is stored as a label, never as Redfin's numeric uiPropertyType code", () => {
+  const { normalizePropertyType } = require("../scripts/build_active_ledger.js");
+  assert.strictEqual(normalizePropertyType("1"), "Single Family");
+  assert.strictEqual(normalizePropertyType(3), "Townhouse");
+  assert.strictEqual(normalizePropertyType(" Single Family "), "Single Family", "labels pass through");
+  assert.strictEqual(normalizePropertyType("Household, single family units"), "Household, single family units", "git-seeded county labels pass through");
+  assert.strictEqual(normalizePropertyType("99"), "99", "an unknown code is kept rather than guessed");
+  assert.strictEqual(normalizePropertyType(""), "");
+  const fetched = { fetchedAt: "2026-11-08T06:28:37.798Z", mlsListingNumber: "2400003", mlsStatus: "Active", listPrice: "1195000" };
+  const [both] = observationsFromActives([{ ...fetched, propertyType: "Single Family", uiPropertyType: "1" }]);
+  assert.strictEqual(both.propertyType, "Single Family", "the label wins when the fetch row has both");
+  const [codeOnly] = observationsFromActives([{ ...fetched, propertyType: "", uiPropertyType: "3" }]);
+  assert.strictEqual(codeOnly.propertyType, "Townhouse", "a code-only row is mapped to its label");
+  const loaded = ledgerRowsToMap([
+    { mlsNumber: "a", propertyType: "1", firstSeen: "2026-09-12", lastSeen: "2026-11-07", firstAsk: "1", lastAsk: "1" },
+    { mlsNumber: "b", propertyType: "3", firstSeen: "2026-09-12", lastSeen: "2026-11-07", firstAsk: "1", lastAsk: "1" },
+    { mlsNumber: "c", propertyType: "Single Family", firstSeen: "2026-06-08", lastSeen: "2026-11-07", firstAsk: "1", lastAsk: "1" },
+  ]);
+  assert.deepStrictEqual([...loaded.values()].map((r) => r.propertyType), ["Single Family", "Townhouse", "Single Family"],
+    "rows written with a code before this fix are repaired when the ledger is loaded");
 });
 
 test("trackedFromListing is true only when the first sighting is within 3 days of the list date", () => {
